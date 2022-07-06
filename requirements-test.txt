@@ -1,0 +1,5 @@
+black>=21.9b0
+pre-commit>=2.14.0
+pytest>=6.2.5
+flake8>=4.0.1
+pytest-cov>=3.0.0

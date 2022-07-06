@@ -1,0 +1,44 @@
+{
+    "db": "<fill-matching-folder-name>",
+    "dc": "<fill-matching-folder-name>",
+    "src": {
+        "host": "<fill>",
+        "ip": "<fill>",
+        "db": "<fill>",
+        "port": "5432",
+        "root_user": {
+            "name": "postgres",
+            "pw": "<fill>"
+        },
+        "owner_user": {
+            "name": "owner",
+            "pw": "<fill>"
+        },
+        "pglogical_user": {
+            "name": "pglogical",
+            "pw": "<fill-a-random-string>"
+        },
+        "other_users": null
+    },
+    "dst": {
+        "host": "<fill>",
+        "ip": "<fill>",
+        "db": "<fill>",
+        "port": "5432",
+        "root_user": {
+            "name": "postgres",
+            "pw": "<fill>"
+        },
+        "owner_user": {
+            "name": "owner",
+            "pw": "<fill>"
+        },
+        "pglogical_user": {
+            "name": "pglogical",
+            "pw": "<fill-a-random-string>"
+        },
+        "other_users": null
+    },
+    "tables": null,
+    "sequences": null
+}
