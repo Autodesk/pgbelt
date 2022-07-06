@@ -106,6 +106,11 @@ commands when this virtual environment is activated. You will also be running
 the code you have checked out in your local clone of the pgbelt repo.
 
 ## Using Pgbelt
+
+| :exclamation:  This is very important   |
+|:-----------------------------------------|
+| As with all Data Migration tasks, **there is a risk of data loss**. Please ensure you have backed up your data before attempting any migrations |
+
 You will need a directory to store your belt configuration in. You will always
 run pgbelt from this directory.
 
