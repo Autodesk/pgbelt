@@ -1,0 +1,16 @@
+*.pyc
+*.swp
+*.swo
+*.xml
+*.egg-info
+.venv
+.idea/
+venv
+.DS_store
+.coverage
+.vscode
+build/*
+dist/*
+.python-version
+.mypy_cache
+__pycache__/
