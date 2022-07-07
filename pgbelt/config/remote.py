@@ -84,9 +84,7 @@ async def load_remote_conf_def(
     except FileNotFoundError:
         logger.error(f"No remote config definition exists at {config_file}")
     except JSONDecodeError:
-        logger.error(
-            f"Remote config definition in {config_file} was malformed JSON."
-        )
+        logger.error(f"Remote config definition in {config_file} was malformed JSON.")
     except ValidationError:
         logger.error(f"Remote config definition in {config_file} was not valid.")
 
@@ -120,9 +118,7 @@ async def resolve_remote_config(
     try:
         resolver_class = getattr(resolver_module, classname)
     except AttributeError:
-        logger.error(
-            f"Config resolver class {classname} does not exist in {module}"
-        )
+        logger.error(f"Config resolver class {classname} does not exist in {module}")
         return None
 
     try:

@@ -174,7 +174,11 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
             try:
                 await conn.execute("SELECT pglogical.drop_replication_set('default');")
                 logger.debug("Replication set 'default' dropped")
-            except (InvalidSchemaNameError, UndefinedFunctionError, InternalServerError):
+            except (
+                InvalidSchemaNameError,
+                UndefinedFunctionError,
+                InternalServerError,
+            ):
                 logger.debug("Replication set 'default' does not exist")
 
 

@@ -317,7 +317,9 @@ async def precheck_info(
     }
 
     try:
-        result["rds.logical_replication"] = await pool.fetchval("SHOW rds.logical_replication;")
+        result["rds.logical_replication"] = await pool.fetchval(
+            "SHOW rds.logical_replication;"
+        )
     except UndefinedObjectError:
         result["rds.logical_replication"] = "Not Applicable"
 
