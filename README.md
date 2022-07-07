@@ -53,20 +53,6 @@ Pgbelt includes a utility to check whether your database satisfies these require
 See the Checking Source DB Prerequisites section below.
 
 ## Installation
-### Using Brew
-If you are on a mac this is the best way to install pgbelt. You must have read
-access to this repo and [brew](https://brew.sh/) installed to use this method.
-
-    # install pgbelt with brew
-    brew tap autodesk/pgbelt git@github.com:Autodesk/pgbelt.git
-    brew install pgbelt
-
-    # check that belt commands work
-    belt --help
-
-    # to update belt later
-    brew upgrade pgbelt
-
 ### Install From A Clone
 If you can't use brew but are proficient with python and virtual environments
 you can install pgbelt as an egg from a local clone of this repo. These instructions
