@@ -1,13 +1,13 @@
 repos:
   - repo: 'https://github.com/ambv/black'
-    rev: 20.8b1
+    rev: 22.6.0
     hooks:
       - id: black
         language_version: python3
         types:
           - python
   - repo: 'https://github.com/pre-commit/pre-commit-hooks'
-    rev: v3.4.0
+    rev: v4.3.0
     hooks:
       - id: check-ast
       - id: end-of-file-fixer
@@ -15,20 +15,20 @@ repos:
       - id: requirements-txt-fixer
       - id: debug-statements
   - repo: 'https://github.com/pre-commit/pygrep-hooks'
-    rev: v1.8.0
+    rev: v1.9.0
     hooks:
       - id: python-no-eval
       - id: python-no-log-warn
       - id: python-use-type-annotations
   - repo: 'https://github.com/asottile/reorder_python_imports'
-    rev: v2.4.0
+    rev: v3.8.1
     hooks:
       - id: reorder-python-imports
   - repo: 'https://github.com/Lucas-C/pre-commit-hooks-safety'
-    rev: v1.2.1
+    rev: v1.3.0
     hooks:
       - id: python-safety-dependencies-check
   - repo: 'https://gitlab.com/pycqa/flake8'
-    rev: '3.9.0'
+    rev: '3.9.2'
     hooks:
       - id: flake8
