@@ -57,26 +57,26 @@ See the Checking Source DB Prerequisites section below.
 
 ## Installation
 ### Install From A Clone
-If you can't use brew but are proficient with python and virtual environments
-you can install pgbelt as an egg from a local clone of this repo. These instructions
+You can install pgbelt as an egg from a local clone of this repo. These instructions
 assume you are using [pyenv](https://github.com/pyenv/pyenv) and the
 [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv) plugin to manage
-python versions and virtual environments.
+python versions and virtual environments. This tool also uses [poetry](https://github.com/python-poetry/poetry),
+so you must have that installed as well.
 
 If you use this installation method you will have to manually install postgres
 client tools like pg_dump and pg_restore that belt depends on.
 
-    # create a python virtualenv with python 3.9.6 and activate it (any 3.9.x is ok)
-    pyenv install 3.9.6
-    pyenv virtualenv 3.9.6 pgbelt
+    # create a python virtualenv with python 3.9.11 and activate it (any 3.9.x is ok)
+    pyenv install 3.9.11
+    pyenv virtualenv 3.9.11 pgbelt
     pyenv activate pgbelt
 
     # clone the repo
     git clone git@github.com:Autodesk/pgbelt.git
     cd pgbelt
 
-    # install pgbelt in your virtualenv
-    make install -e .
+    # install pgbelt in your virtualenv (uses poetry)
+    make install
 
     # check that belt commands work
     belt --help
