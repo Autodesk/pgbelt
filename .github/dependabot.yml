@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # this updates github actions versions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+  # keep .githug/workflows/constraints.yml up to date
+  - package-ecosystem: pip
+    directory: "/.github/workflows"
+    schedule:
+      interval: daily
+  # pip means poetry in this case, this keeps poetry.lock up to date
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: daily
