@@ -1,7 +1,18 @@
 # Pgbelt
 
-[![CI](https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml/badge.svg)](https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml)
-![Coverage Badge](./coverage.svg)
+<p align="center">
+    <a href="https://github.com/autodesk/pgbelt" target="_blank">
+        <img src="https://img.shields.io/github/last-commit/autodesk/pgbelt" alt="Latest Commit">
+    </a>
+        <img src="https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml/badge.svg">
+        <img src="./coverage.svg">
+    <br />
+    <a href="https://pypi.org/project/pydantic-aioredis" target="_blank">
+        <img src="https://img.shields.io/pypi/v/pydantic-aioredis" alt="Package version">
+    </a>
+    <img src="https://img.shields.io/pypi/pyversions/pydantic-aioredis">
+    <img src="https://img.shields.io/badge/license-MIT-green">
+</p>
 
 Pgbelt is a tool to assist in migrating data between postgres databases with as
 little application downtime as possible. It works in databases running different versions
