@@ -11,7 +11,7 @@ install: ## Install whatever you have locally
 	pip install -e .
 
 setup: ## Install development requirements. You should be in a virtualenv
-	pip install -r requirements.txt && pip install -r requirements-test.txt
+	pip install -r requirements.txt && pip install -r requirements-test.txt && pre-commit install
 
 test: ## Run tests
 	pytest
