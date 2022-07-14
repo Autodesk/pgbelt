@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from os.path import join
+from pgbelt.util import get_logger
+from pgbelt.util.asyncfuncs import makedirs
 from typing import Optional
 
 from aiofiles import open as aopen
@@ -8,9 +10,6 @@ from aiofiles.os import remove
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
-
-from pgbelt.util import get_logger
-from pgbelt.util.asyncfuncs import makedirs
 
 
 def config_dir(db: str, dc: str) -> str:
@@ -50,7 +49,7 @@ class DbConfig(BaseModel):
     db: str The dbname to operate on. If you want to migrate multiple dbs in a single instance set up a separate config.
     port: str The port to connect to.
     root_user: User A superuser. Usually the postgres user.
-    owner_user: User A user who owns all the data in the public schema or who has equivalent permissions.
+    owner_user: User A user who owns all the data in the public schema or who has equivalent permissions. # noqa: RST301
                      This user will end up owning all the data if this is describing the target instance.
     pglogical_user: User A user for use with pglogical. Will be created if it does not exist.
     other_users: list[User] A list of other users whose passwords we might not know.
@@ -68,7 +67,7 @@ class DbConfig(BaseModel):
     _not_empty = validator("host", "ip", "db", "port", allow_reuse=True)(not_empty)
 
     @validator("root_user", "owner_user", "pglogical_user")
-    def has_password(cls, v) -> User:
+    def has_password(self, v) -> User:
         if not v.pw:
             raise ValueError
         return v

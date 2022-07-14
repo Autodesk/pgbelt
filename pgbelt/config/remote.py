@@ -1,14 +1,13 @@
 from importlib import import_module
 from json import JSONDecodeError
 from logging import Logger
+from pgbelt.config.models import DbupgradeConfig
+from pgbelt.util.logs import get_logger
 from typing import Optional
 
 from aiofiles import open as aopen
 from pydantic import BaseModel
 from pydantic import ValidationError
-
-from pgbelt.config.models import DbupgradeConfig
-from pgbelt.util.logs import get_logger
 
 
 def remote_conf_path(db: str, dc: str) -> str:
@@ -121,9 +120,7 @@ async def resolve_remote_config(
         logger.error(f"Config resolver class {classname} does not exist in {module}")
         return None
 
-    try:
-        assert issubclass(resolver_class, BaseResolver)
-    except AssertionError:
+    if not issubclass(resolver_class, BaseResolver):
         logger.error(
             f"Config resolver class {classname} from {module} is not a config resolver"
         )
