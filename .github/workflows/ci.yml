@@ -41,7 +41,7 @@ jobs:
       - name: Coverage Badge
         uses: tj-actions/coverage-badge-py@v1.8
       - name: Verify Changed Coverage Badge
-        uses: tj-actions/verify-changed-files@v9
+        uses: tj-actions/verify-changed-files@v10
         id: changed_files
         with:
           files: coverage.svg
