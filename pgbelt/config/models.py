@@ -67,7 +67,7 @@ class DbConfig(BaseModel):
     _not_empty = validator("host", "ip", "db", "port", allow_reuse=True)(not_empty)
 
     @validator("root_user", "owner_user", "pglogical_user")
-    def has_password(self, v) -> User:
+    def has_password(cls, v) -> User:  # noqa: N805
         if not v.pw:
             raise ValueError
         return v
