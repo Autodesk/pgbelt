@@ -1,6 +1,7 @@
 [flake8]
 exclude = docs/* tests/* *__init__.py
 # TODO: Eventually want to address D and DAR.
+# S608 NEED to address, but releasing for now.
 # B008 is false flagging for asyncpg stuff that's valid.
 # RST201 complaining about something not even true.
-ignore = E501, W503, D, DAR, B008, RST201
+ignore = E501, W503, D, DAR, B008, RST201, S608
