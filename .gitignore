@@ -11,6 +11,7 @@ venv
 .vscode
 build/*
 dist/*
+logs/*
 .python-version
 .mypy_cache
 __pycache__/
