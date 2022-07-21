@@ -148,6 +148,10 @@ case rollback is needed later.
     $ belt setup testdatacenter1 database1
     $ belt setup-back-replication testdatacenter1 database1
 
+You can check the status of the migration, database hosts, replication delay, etc using the following command:
+
+    $ belt status testdatacenter1
+
 ## Step 2: Run ANALYZE on the target database before your application cutover
 
 This is typically run some time before your application cutover, so the target database performs better with the dataset
