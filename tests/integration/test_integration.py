@@ -1,4 +1,5 @@
-# import pytest
+import pytest
+
 # from app.db.metadata import Items
 # from app.service import items
 # @pytest.mark.integration
@@ -15,3 +16,8 @@
 #     retrieved_item = db_session.query(Items).filter_by(id=item_id).first()
 #     assert retrieved_item.name == name
 #     assert retrieved_item.id == item_id
+
+
+@pytest.mark.asyncio
+async def test_main_workflow(setup_db_upgrade_config):
+    print("hi")

@@ -4,61 +4,96 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.config.models import User
 
 import pytest
+import pytest_asyncio
+from asyncpg import create_pool
 
 
-@pytest.fixture(scope="session")
-def setup_db_upgrade_config():
+@pytest.mark.asyncio
+@pytest_asyncio.fixture
+async def setup_db_upgrade_config():
     """
     To set up a config for testing -- we form the Python object then save it to disk,
     since pgbelt will check disk for that same config when running commands.
     """
 
-    test_db_upgrade_config = DbupgradeConfig()
+    test_db_upgrade_config = DbupgradeConfig(
+        db="integrationtestdb",
+        dc="integrationtest-datacenter",
+    )
 
-    test_db_upgrade_config.db = "integrationtestdb"
-    test_db_upgrade_config.dc = "integrationtest-datacenter"
+    test_db_upgrade_config.src = DbConfig(
+        host=environ["TEST_PG_SRC_HOST"],
+        ip=environ["TEST_PG_SRC_IP"],
+        db=environ["TEST_PG_SRC_DB"],
+        port=environ["TEST_PG_SRC_PORT"],
+        root_user=User(
+            name=environ["TEST_PG_SRC_ROOT_USERNAME"],
+            pw=environ["TEST_PG_SRC_ROOT_PASSWORD"],
+        ),
+        # Owner will not be made in the Postgres containers used for testing, so we will define them
+        owner_user=User(name="owner", pw="ownerpassword"),
+        # Pglogical user info is set in the db by pgbelt, so we defined this stuff here
+        pglogical_user=User(name="pglogical", pw="pglogicalpassword"),
+    )
 
-    test_db_upgrade_config.src = DbConfig()
-    test_db_upgrade_config.src.host = environ["TEST_PG_SRC_HOST"]
-    test_db_upgrade_config.src.ip = environ["TEST_PG_SRC_IP"]
-    test_db_upgrade_config.src.db = environ["TEST_PG_SRC_DB"]
-    test_db_upgrade_config.src.port = environ["TEST_PG_SRC_PORT"]
-    test_db_upgrade_config.src.root_user = User()
-    test_db_upgrade_config.src.root_user.name = environ["TEST_PG_SRC_ROOT_USERNAME"]
-    test_db_upgrade_config.src.root_user.pw = environ["TEST_PG_SRC_ROOT_PASSWORD"]
-    test_db_upgrade_config.src.owner_user = User()
-    # These will not be made in the Postgres containers used for testing, so we will define them
-    test_db_upgrade_config.src.owner_user.name = "owner"
-    test_db_upgrade_config.src.owner_user.pw = "ownerpassword"
-    test_db_upgrade_config.src.pglogical_user = User()
-    # These are set in the db by pgbelt anyways
-    test_db_upgrade_config.src.pglogical_user.name = "pglogical"
-    test_db_upgrade_config.src.pglogical_user.pw = "pglogicalpassword"
+    test_db_upgrade_config.dst = DbConfig(
+        host=environ["TEST_PG_DST_HOST"],
+        ip=environ["TEST_PG_DST_IP"],
+        db=environ["TEST_PG_DST_DB"],
+        port=environ["TEST_PG_DST_PORT"],
+        root_user=User(
+            name=environ["TEST_PG_DST_ROOT_USERNAME"],
+            pw=environ["TEST_PG_DST_ROOT_PASSWORD"],
+        ),
+        # Owner will not be made in the Postgres containers used for testing, so we will define them
+        owner_user=User(name="owner", pw="ownerpassword"),
+        # Pglogical user info is set in the db by pgbelt, so we defined this stuff here
+        pglogical_user=User(name="pglogical", pw="pglogicalpassword"),
+    )
 
-    test_db_upgrade_config.dst = DbConfig()
-    test_db_upgrade_config.dst.host = environ["TEST_PG_DST_HOST"]
-    test_db_upgrade_config.dst.ip = environ["TEST_PG_DST_IP"]
-    test_db_upgrade_config.dst.db = environ["TEST_PG_DST_DB"]
-    test_db_upgrade_config.dst.port = environ["TEST_PG_DST_PORT"]
-    test_db_upgrade_config.dst.root_user = User()
-    test_db_upgrade_config.dst.root_user.name = environ["TEST_PG_DST_ROOT_USERNAME"]
-    test_db_upgrade_config.dst.root_user.pw = environ["TEST_PG_DST_ROOT_PASSWORD"]
-    test_db_upgrade_config.dst.owner_user = User()
-    # These will not be made in the Postgres containers used for testing, so we will define them
-    test_db_upgrade_config.dst.owner_user.name = "owner"
-    test_db_upgrade_config.dst.owner_user.pw = "password"
-    test_db_upgrade_config.dst.pglogical_user = User()
-    # These are set in the db by pgbelt anyways
-    test_db_upgrade_config.dst.pglogical_user.name = "pglogical"
-    test_db_upgrade_config.dst.pglogical_user.pw = "pglogicalpassword"
+    # Save to disk
+    await test_db_upgrade_config.save()
 
-    # TODO: Save to disk
+    # Make src root URI with root dbname not the one to be made
+    src_root_uri_with_root_db = test_db_upgrade_config.src.root_uri.replace(
+        f"{test_db_upgrade_config.src.port}/{test_db_upgrade_config.src.db}",
+        f"{test_db_upgrade_config.src.port}/postgres",
+    )
 
-    # TODO: Make an owner user in the test containers
+    # Load test data and schema SQL
+    with open("tests/integration/files/test_schema_data.sql") as f:
+        test_schema_data = f.read()
 
-    # TODO: Make a DB
+    # Make the following in the src container: owner user, db
+    async with create_pool(root_uri_with_root_db, min_size=1) as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"CREATE ROLE {test_db_upgrade_config.src.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.src.owner_user.pw}'",
+            )
+            await conn.execute("CREATE DATABASE src")
 
-    # TODO: Make a fake schema with data
+    # With the db made, load data into src
+    async with create_pool(test_db_upgrade_config.src.owner_uri, min_size=1) as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"CREATE ROLE {test_db_upgrade_config.src.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.src.owner_user.pw}'",
+            )
+            await conn.execute("CREATE DATABASE src")
+            await conn.execute(test_schema_data)
+
+    # Make dst root URI with root dbname not the one to be made
+    dst_root_uri_with_root_db = test_db_upgrade_config.dst.root_uri.replace(
+        f"{test_db_upgrade_config.dst.port}/{test_db_upgrade_config.dst.db}",
+        f"{test_db_upgrade_config.dst.port}/postgres",
+    )
+
+    # Make the following in the dst container: owner user, db
+    async with create_pool(dst_root_uri_with_root_db, min_size=1) as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"CREATE ROLE {test_db_upgrade_config.dst.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.dst.owner_user.pw}'",
+            )
+            await conn.execute("CREATE DATABASE src")
 
 
 # def teardown():

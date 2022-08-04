@@ -5,6 +5,7 @@ services:
     image: postgres:14
     environment:
       POSTGRES_PASSWORD: postgres
+      PGDATA: /tmp/pgdata
     restart: on-failure
     ports:
       - 5433:5432
@@ -14,6 +15,7 @@ services:
     image: postgres:14
     environment:
       POSTGRES_PASSWORD: postgres
+      PGDATA: /tmp/pgdata
     restart: on-failure
     ports:
       - 5434:5432
