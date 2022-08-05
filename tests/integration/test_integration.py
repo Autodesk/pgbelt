@@ -1,3 +1,5 @@
+import pgbelt
+
 import pytest
 
 # from app.db.metadata import Items
@@ -20,4 +22,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_main_workflow(setup_db_upgrade_config):
-    print("hi")
+
+    await pgbelt.cmd.preflight.precheck(
+        db=setup_db_upgrade_config.db, dc=setup_db_upgrade_config.dc
+    )

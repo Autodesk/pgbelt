@@ -2,7 +2,7 @@ version: "3"
 
 services:
   db-src:
-    image: postgres:14
+    image: vjeeva/postgres-pglogical-docker:14
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
@@ -12,7 +12,7 @@ services:
     networks:
       - datacenter
   db-dst:
-    image: postgres:14
+    image: vjeeva/postgres-pglogical-docker:14
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata

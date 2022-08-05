@@ -1,16 +1,15 @@
 from asyncio import gather
+from pgbelt.cmd.helpers import run_with_configs
+from pgbelt.config.models import DbupgradeConfig
+from pgbelt.util.logs import get_logger
+from pgbelt.util.postgres import analyze_table_pkeys
+from pgbelt.util.postgres import precheck_info
 from typing import Awaitable
 
 from asyncpg import create_pool
 from tabulate import tabulate
 from typer import echo
 from typer import style
-
-from pgbelt.cmd.helpers import run_with_configs
-from pgbelt.config.models import DbupgradeConfig
-from pgbelt.util.logs import get_logger
-from pgbelt.util.postgres import analyze_table_pkeys
-from pgbelt.util.postgres import precheck_info
 
 
 async def _print_prechecks(results: list[dict]) -> list[list]:
@@ -35,9 +34,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         root_ok = (
             r["root"]["rolcanlogin"]
             and r["root"]["rolcreaterole"]
-            and "rds_superuser" in r["root"]["memberof"]
             and r["root"]["rolinherit"]
-        )
+        ) and ("rds_superuser" in r["root"]["memberof"] or r["root"]["rolsuper"])
         owner_ok = r["owner"]["rolcanlogin"]
         pg_stat_statements = (
             "installed"
@@ -55,7 +53,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 style(
                     r["server_version"],
                     "green"
-                    if float(r["server_version"].rsplit(".", 1)[0]) >= 9.6
+                    if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0])
+                    >= 9.6
                     else "red",
                 ),
                 style(
@@ -106,7 +105,7 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
 
     root_in_superusers = (
         "rds_superuser" in r["root"]["memberof"] and r["root"]["rolinherit"]
-    )
+    ) or (r["root"]["rolsuper"])
 
     users_table.append(
         [

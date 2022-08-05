@@ -92,7 +92,7 @@ async def setup_db_upgrade_config():
             )
             await conn.execute("CREATE DATABASE src")
 
-    yield "Integration Postgres Containers are now bootstrapped for testing."
+    yield test_db_upgrade_config
 
     # Delete the config that was saved to disk by the setup
     rmtree("configs/integrationtest-datacenter")
