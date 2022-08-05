@@ -2,6 +2,7 @@ from os import environ
 from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.config.models import User
+from shutil import rmtree
 
 import pytest
 import pytest_asyncio
@@ -65,7 +66,7 @@ async def setup_db_upgrade_config():
         test_schema_data = f.read()
 
     # Make the following in the src container: owner user, db
-    async with create_pool(root_uri_with_root_db, min_size=1) as pool:
+    async with create_pool(src_root_uri_with_root_db, min_size=1) as pool:
         async with pool.acquire() as conn:
             await conn.execute(
                 f"CREATE ROLE {test_db_upgrade_config.src.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.src.owner_user.pw}'",
@@ -75,10 +76,6 @@ async def setup_db_upgrade_config():
     # With the db made, load data into src
     async with create_pool(test_db_upgrade_config.src.owner_uri, min_size=1) as pool:
         async with pool.acquire() as conn:
-            await conn.execute(
-                f"CREATE ROLE {test_db_upgrade_config.src.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.src.owner_user.pw}'",
-            )
-            await conn.execute("CREATE DATABASE src")
             await conn.execute(test_schema_data)
 
     # Make dst root URI with root dbname not the one to be made
@@ -95,8 +92,7 @@ async def setup_db_upgrade_config():
             )
             await conn.execute("CREATE DATABASE src")
 
+    yield "Integration Postgres Containers are now bootstrapped for testing."
 
-# def teardown():
-# TODO: Is this needed? Destroying the containers solves this issues
-
-# TODO: Delete the config that was saved to disk by the setup
+    # Delete the config that was saved to disk by the setup
+    rmtree("configs/integrationtest-datacenter")
