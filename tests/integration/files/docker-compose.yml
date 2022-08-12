@@ -21,13 +21,6 @@ services:
       datacenter:
         ipv4_address: 10.5.0.6
 
-  # pgbelt:
-  #   image: Autodesk/pgbelt:local
-  #   restart: on-failure
-  #   command: sleep 10 && poetry run pytest -s -v
-  #   networks:
-  #     - datacenter
-
 networks:
   datacenter:
     driver: bridge
