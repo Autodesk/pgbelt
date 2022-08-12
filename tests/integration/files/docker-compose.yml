@@ -2,26 +2,36 @@ version: "3"
 
 services:
   db-src:
-    image: vjeeva/postgres-pglogical-docker:14
+    image: vjeeva/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
     restart: on-failure
-    ports:
-      - 5433:5432
     networks:
-      - datacenter
+      datacenter:
+        ipv4_address: 10.5.0.5
+
   db-dst:
-    image: vjeeva/postgres-pglogical-docker:14
+    image: vjeeva/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
     restart: on-failure
-    ports:
-      - 5434:5432
     networks:
-      - datacenter
+      datacenter:
+        ipv4_address: 10.5.0.6
+
+  # pgbelt:
+  #   image: Autodesk/pgbelt:local
+  #   restart: on-failure
+  #   command: sleep 10 && poetry run pytest -s -v
+  #   networks:
+  #     - datacenter
 
 networks:
   datacenter:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1

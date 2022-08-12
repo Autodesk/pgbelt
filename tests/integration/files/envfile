@@ -1,13 +1,13 @@
 export TEST_PG_SRC_HOST=localhost
-export TEST_PG_SRC_IP=127.0.0.1
+export TEST_PG_SRC_IP=10.5.0.5
 export TEST_PG_SRC_DB=src
-export TEST_PG_SRC_PORT=5433
+export TEST_PG_SRC_PORT=5432
 export TEST_PG_SRC_ROOT_USERNAME=postgres
 export TEST_PG_SRC_ROOT_PASSWORD=postgres
 
 export TEST_PG_DST_HOST=localhost
-export TEST_PG_DST_IP=127.0.0.1
+export TEST_PG_DST_IP=10.5.0.6
 export TEST_PG_DST_DB=dst
-export TEST_PG_DST_PORT=5434
+export TEST_PG_DST_PORT=5432
 export TEST_PG_DST_ROOT_USERNAME=postgres
 export TEST_PG_DST_ROOT_PASSWORD=postgres

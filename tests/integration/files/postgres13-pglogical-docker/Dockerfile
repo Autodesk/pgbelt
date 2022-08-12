@@ -1,6 +1,7 @@
 
-FROM postgres:14
+FROM postgres:13
 
+# Install pglogical onto the image
 RUN apt-get update && apt-get install -y wget gnupg
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ bullseye-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
   && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
@@ -8,12 +9,11 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ bullseye-pgdg main" > /et
   && echo "deb [arch=amd64] https://dl.2ndquadrant.com/default/release/apt bullseye-2ndquadrant main" > /etc/apt/sources.list.d/2ndquadrant.list \
   && wget --quiet -O - https://dl.2ndquadrant.com/gpg-key.asc | apt-key add - \
   && apt-get update \
-  && apt-get install -y postgresql-14-pglogical
+  && apt-get install -y postgresql-13-pglogical
 
-# VOLUME /var/lib/postgresql/data # re-volume this so that the config file changes take???
-
-RUN echo "host    replication          postgres                172.18.0.0/16   trust" >> /usr/share/postgresql/14/pg_hba.conf.sample
-RUN echo "host    replication          postgres                ::1/128         trust" >> /usr/share/postgresql/14/pg_hba.conf.sample
+# Configure with settings pgbelt requires (max_wal_senders, max_replication_slots, max_worker_processes, shared_preloaded_libraries)
+RUN echo "host    replication          postgres                172.18.0.0/16   trust" >> /usr/share/postgresql/13/pg_hba.conf.sample
+RUN echo "host    replication          postgres                ::1/128         trust" >> /usr/share/postgresql/13/pg_hba.conf.sample
 RUN echo "shared_preload_libraries = 'pg_stat_statements,pglogical'" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "wal_level = 'logical'" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "max_wal_senders = 20" >> /usr/share/postgresql/postgresql.conf.sample

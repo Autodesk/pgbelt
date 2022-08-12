@@ -90,9 +90,12 @@ async def setup_db_upgrade_config():
             await conn.execute(
                 f"CREATE ROLE {test_db_upgrade_config.dst.owner_user.name} LOGIN PASSWORD '{test_db_upgrade_config.dst.owner_user.pw}'",
             )
-            await conn.execute("CREATE DATABASE src")
+            await conn.execute("CREATE DATABASE dst")
 
     yield test_db_upgrade_config
 
     # Delete the config that was saved to disk by the setup
     rmtree("configs/integrationtest-datacenter")
+    rmtree("schemas/")
+
+    # TODO: Clear out all data and stuff in the database containers?

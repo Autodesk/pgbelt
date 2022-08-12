@@ -27,10 +27,24 @@ async def configure_pgl(pool: Pool, pgl_pw: str, logger: Logger) -> None:
             except DuplicateObjectError:
                 logger.debug("pglogical user already created")
 
+    # Check if the database is RDS
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute("GRANT rds_superuser TO pglogical;")
-            await conn.execute("GRANT rds_replication TO pglogical;")
+            pg_roles = await conn.fetch("SELECT rolname FROM pg_roles;")
+
+    is_rds = "rdsadmin" in [i[0] for i in pg_roles]
+
+    # If this is an RDS Database, grant rds_superuser and rds_replication
+    if is_rds:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute("GRANT rds_superuser TO pglogical;")
+                await conn.execute("GRANT rds_replication TO pglogical;")
+    # If this is not an RDS database, just ensure the user is a superuser
+    else:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute("ALTER USER pglogical WITH SUPERUSER;")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
