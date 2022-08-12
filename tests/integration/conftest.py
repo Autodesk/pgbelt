@@ -98,4 +98,27 @@ async def setup_db_upgrade_config():
     rmtree("configs/integrationtest-datacenter")
     rmtree("schemas/")
 
-    # TODO: Clear out all data and stuff in the database containers?
+    # Clear out all data and stuff in the database containers?
+    async with create_pool(src_root_uri_with_root_db, min_size=1) as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"DROP DATABASE src WITH (FORCE);",
+            )
+            await conn.execute(
+                f"DROP OWNED BY {test_db_upgrade_config.src.owner_user.name};",
+            )
+            await conn.execute(
+                f"DROP ROLE {test_db_upgrade_config.src.owner_user.name};",
+            )
+
+    async with create_pool(dst_root_uri_with_root_db, min_size=1) as pool:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"DROP DATABASE dst WITH (FORCE);",
+            )
+            await conn.execute(
+                f"DROP OWNED BY {test_db_upgrade_config.dst.owner_user.name};",
+            )
+            await conn.execute(
+                f"DROP ROLE {test_db_upgrade_config.dst.owner_user.name};",
+            )
