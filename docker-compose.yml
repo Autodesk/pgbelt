@@ -1,0 +1,64 @@
+version: "3"
+
+services:
+  db-src:
+    build: tests/integration/files/postgres13-pglogical-docker/
+    environment:
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /tmp/pgdata
+    restart: on-failure
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.5
+
+  db-dst:
+    build: tests/integration/files/postgres13-pglogical-docker/
+    environment:
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /tmp/pgdata
+    restart: on-failure
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.6
+
+  flake8:
+    build: .
+    command: poetry run flake8
+    networks:
+      - datacenter
+
+  black:
+    build: .
+    command: poetry run black
+    networks:
+      - datacenter
+
+  tests:
+    build: .
+    environment:
+      TEST_PG_SRC_HOST: localhost
+      TEST_PG_SRC_IP: 10.5.0.5
+      TEST_PG_SRC_DB: src
+      TEST_PG_SRC_PORT: 5432
+      TEST_PG_SRC_ROOT_USERNAME: postgres
+      TEST_PG_SRC_ROOT_PASSWORD: postgres
+      TEST_PG_DST_HOST: localhost
+      TEST_PG_DST_IP: 10.5.0.6
+      TEST_PG_DST_DB: dst
+      TEST_PG_DST_PORT: 5432
+      TEST_PG_DST_ROOT_USERNAME: postgres
+      TEST_PG_DST_ROOT_PASSWORD: postgres
+    command: poetry run pytest --cov=pgbelt tests/
+    depends_on:
+      - db-src
+      - db-dst
+    networks:
+      - datacenter
+
+networks:
+  datacenter:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
