@@ -41,13 +41,13 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Run flake8
-        run: docker run -ti autodesk/pgbelt:latest "poetry run flake8"
+        run: docker run autodesk/pgbelt:latest "poetry run flake8"
       - name: Python Black
-        run: docker run -ti autodesk/pgbelt:latest "poetry run black"
+        run: docker run autodesk/pgbelt:latest "poetry run black"
       # - name: Start Postgres Integration Test Containers
       # dc-compose up
       # - name: Pytest
-      # docker run -ti poetry run pytest --cov=pgbelt tests/
+      # docker run poetry run pytest --cov=pgbelt tests/
       # This ugly bit is necessary if you don't want your cache to grow forever
       # until it hits GitHub's limit of 5GB.
       # Temp fix
