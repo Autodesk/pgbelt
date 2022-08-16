@@ -11,6 +11,11 @@ services:
     networks:
       datacenter:
         ipv4_address: 10.5.0.5
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "127.0.0.1", "5432"]
+      interval: 3s
+      timeout: 1s
+      retries: 5
 
   db-dst:
     #build: tests/integration/files/postgres13-pglogical-docker/
@@ -22,6 +27,11 @@ services:
     networks:
       datacenter:
         ipv4_address: 10.5.0.6
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "127.0.0.1", "5432"]
+      interval: 3s
+      timeout: 1s
+      retries: 5
 
   flake8:
     #build: .
