@@ -2,7 +2,6 @@ version: "3"
 
 services:
   db-src:
-    #build: tests/integration/files/postgres13-pglogical-docker/
     image: autodesk/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
@@ -18,7 +17,6 @@ services:
       retries: 5
 
   db-dst:
-    #build: tests/integration/files/postgres13-pglogical-docker/
     image: autodesk/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
@@ -34,21 +32,18 @@ services:
       retries: 5
 
   flake8:
-    #build: .
     image: autodesk/pgbelt:latest
     command: poetry run flake8
     networks:
       - datacenter
 
   black:
-    #build: .
     image: autodesk/pgbelt:latest
     command: poetry run black .
     networks:
       - datacenter
 
   tests:
-    #build: .
     image: autodesk/pgbelt:latest
     environment:
       TEST_PG_SRC_HOST: localhost
