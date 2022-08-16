@@ -2,7 +2,7 @@ version: "3"
 
 services:
   db-src:
-    image: vjeeva/postgres-pglogical-docker:13
+    image: autodesk/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
@@ -12,7 +12,7 @@ services:
         ipv4_address: 10.5.0.5
 
   db-dst:
-    image: vjeeva/postgres-pglogical-docker:13
+    image: autodesk/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
