@@ -29,7 +29,7 @@ services:
 
   black:
     build: .
-    command: poetry run black
+    command: poetry run black .
     networks:
       - datacenter
 
