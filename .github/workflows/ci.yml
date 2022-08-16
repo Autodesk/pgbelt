@@ -29,6 +29,7 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: autodesk/pgbelt:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
@@ -37,6 +38,7 @@ jobs:
         with:
           context: tests/integration/files/postgres13-pglogical-docker
           push: false
+          load: true
           tags: autodesk/postgres-pglogical-docker:13
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new

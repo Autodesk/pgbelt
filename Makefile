@@ -14,6 +14,6 @@ setup: ## Install development requirements. You should be in a virtualenv
 	poetry install && pre-commit install
 
 test: ## Run tests
-	pytest
+	docker-compose run tests
 
 tests: test
