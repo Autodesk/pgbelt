@@ -1,16 +1,15 @@
 from asyncio import gather
+from pgbelt.cmd.helpers import run_with_configs
+from pgbelt.config.models import DbupgradeConfig
+from pgbelt.util.logs import get_logger
+from pgbelt.util.postgres import analyze_table_pkeys
+from pgbelt.util.postgres import precheck_info
 from typing import Awaitable
 
 from asyncpg import create_pool
 from tabulate import tabulate
 from typer import echo
 from typer import style
-
-from pgbelt.cmd.helpers import run_with_configs
-from pgbelt.config.models import DbupgradeConfig
-from pgbelt.util.logs import get_logger
-from pgbelt.util.postgres import analyze_table_pkeys
-from pgbelt.util.postgres import precheck_info
 
 
 async def _print_prechecks(results: list[dict]) -> list[list]:
@@ -35,9 +34,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         root_ok = (
             r["root"]["rolcanlogin"]
             and r["root"]["rolcreaterole"]
-            and "rds_superuser" in r["root"]["memberof"]
             and r["root"]["rolinherit"]
-        )
+        ) and ("rds_superuser" in r["root"]["memberof"] or r["root"]["rolsuper"])
         owner_ok = r["owner"]["rolcanlogin"]
         pg_stat_statements = (
             "installed"
@@ -55,7 +53,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 style(
                     r["server_version"],
                     "green"
-                    if float(r["server_version"].rsplit(".", 1)[0]) >= 9.6
+                    if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0])
+                    >= 9.6
                     else "red",
                 ),
                 style(
@@ -86,9 +85,6 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
             ]
         )
 
-    echo(style("\nDB Configuration Summary", "yellow"))
-    echo(tabulate(summary_table, headers="firstrow"))
-
     if len(results) != 1:
         return summary_table
 
@@ -106,7 +102,7 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
 
     root_in_superusers = (
         "rds_superuser" in r["root"]["memberof"] and r["root"]["rolinherit"]
-    )
+    ) or (r["root"]["rolsuper"])
 
     users_table.append(
         [
@@ -136,9 +132,6 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         ]
     )
 
-    echo(style("\nRequired Users Summary", "yellow"))
-    echo(tabulate(users_table, headers="firstrow"))
-
     tables_table = [
         [
             style("table name", "yellow"),
@@ -166,9 +159,6 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
             ]
         )
 
-    echo(style("\nTable Compatibility Summary", "yellow"))
-    echo(tabulate(tables_table, headers="firstrow"))
-
     sequences_table = [
         [
             style("sequence name", "yellow"),
@@ -189,8 +179,26 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
             ]
         )
 
-    echo(style("\nSequence Compatibility Summary", "yellow"))
-    echo(tabulate(sequences_table, headers="firstrow"))
+    display_string = (
+        style("\nDB Configuration Summary", "yellow")
+        + "\n"
+        + tabulate(summary_table, headers="firstrow")
+        + "\n"
+        + style("\nRequired Users Summary", "yellow")
+        + "\n"
+        + tabulate(users_table, headers="firstrow")
+        + "\n"
+        + style("\nTable Compatibility Summary", "yellow")
+        + "\n"
+        + tabulate(tables_table, headers="firstrow")
+        + "\n"
+        + style("\nSequence Compatibility Summary", "yellow")
+        + "\n"
+        + tabulate(sequences_table, headers="firstrow")
+    )
+
+    echo(display_string)
+
     return summary_table
 
 

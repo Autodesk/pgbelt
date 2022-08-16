@@ -14,6 +14,6 @@ setup: ## Install development requirements. You should be in a virtualenv
 	poetry install && pre-commit install
 
 test: ## Run tests
-	pytest
+	docker build . -t autodesk/pgbelt:latest && docker build tests/integration/files/postgres13-pglogical-docker/ -t autodesk/postgres-pglogical-docker:13 && docker-compose run tests
 
 tests: test
