@@ -275,20 +275,20 @@ async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
         lag_data = await pool.fetchrow(
             """
             SELECT current_timestamp, application_name,
-                pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.sent_location) AS sent_location_lag,
-                pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.write_location) AS write_location_lag,
-                pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.flush_location) AS flush_location_lag,
-                pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.replay_location) AS replay_location_lag
+                pg_xlog_location_diff(pg_current_xlog_location(), sent_location) AS sent_location_lag,
+                pg_xlog_location_diff(sent_location, write_location) AS write_location_lag,
+                pg_xlog_location_diff(write_location, flush_location) AS flush_location_lag,
+                pg_xlog_location_diff(flush_location, replay_location) AS replay_location_lag
                 FROM pg_stat_replication WHERE application_name = 'pg1_pg2';"""
         )
     else:
         lag_data = await pool.fetchrow(
             """
             SELECT current_timestamp, application_name,
-                pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.sent_lsn) AS sent_location_lag,
-                pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.write_lsn) AS write_location_lag,
-                pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.flush_lsn) AS flush_location_lag,
-                pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.replay_lsn) AS replay_location_lag
+                pg_wal_lsn_diff(pg_current_wal_lsn(), sent_lsn) AS sent_location_lag,
+                pg_wal_lsn_diff(sent_lsn, write_lsn) AS write_location_lag,
+                pg_wal_lsn_diff(write_lsn, flush_lsn) AS flush_location_lag,
+                pg_wal_lsn_diff(flush_lsn, replay_lsn) AS replay_location_lag
                 FROM pg_stat_replication WHERE application_name = 'pg1_pg2';"""
         )
 
