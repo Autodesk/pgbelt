@@ -8,16 +8,19 @@ python-versions = ">=3.6,<4.0"
 
 [[package]]
 name = "astroid"
-version = "2.11.7"
+version = "2.12.4"
 description = "An abstract syntax tree for Python with inference support."
 category = "dev"
 optional = false
-python-versions = ">=3.6.2"
+python-versions = ">=3.7.2"
 
 [package.dependencies]
 lazy-object-proxy = ">=1.4.0"
 typing-extensions = {version = ">=3.10", markers = "python_version < \"3.10\""}
-wrapt = ">=1.11,<2"
+wrapt = [
+    {version = ">=1.11,<2", markers = "python_version < \"3.11\""},
+    {version = ">=1.14,<2", markers = "python_version >= \"3.11\""},
+]
 
 [[package]]
 name = "asyncpg"
@@ -573,14 +576,14 @@ plugins = ["importlib-metadata"]
 
 [[package]]
 name = "pylint"
-version = "2.14.5"
+version = "2.15.0"
 description = "python code static checker"
 category = "dev"
 optional = false
 python-versions = ">=3.7.2"
 
 [package.dependencies]
-astroid = ">=2.11.6,<=2.12.0-dev0"
+astroid = ">=2.12.4,<=2.14.0-dev0"
 colorama = {version = ">=0.4.5", markers = "sys_platform == \"win32\""}
 dill = ">=0.2"
 isort = ">=4.2.5,<6"
@@ -920,7 +923,7 @@ tests-strict = ["cmake (==3.21.2)", "codecov (==2.0.15)", "ninja (==1.10.2)", "p
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "212bf788eab37e89ad68df99a5427972f900c2a421a31b8990f4aa74c6dec0e8"
+content-hash = "27e643ed70c4fe33b67d99b55269c326499d61b91de9591aa7e6c432c61fe43f"
 
 [metadata.files]
 aiofiles = [
@@ -928,8 +931,8 @@ aiofiles = [
     {file = "aiofiles-0.8.0.tar.gz", hash = "sha256:8334f23235248a3b2e83b2c3a78a22674f39969b96397126cc93664d9a901e59"},
 ]
 astroid = [
-    {file = "astroid-2.11.7-py3-none-any.whl", hash = "sha256:86b0a340a512c65abf4368b80252754cda17c02cdbbd3f587dddf98112233e7b"},
-    {file = "astroid-2.11.7.tar.gz", hash = "sha256:bb24615c77f4837c707669d16907331374ae8a964650a66999da3f5ca68dc946"},
+    {file = "astroid-2.12.4-py3-none-any.whl", hash = "sha256:af71cdc0775b6e4d88076746620e2c8cd1bf4533a9977cfdd00eeea97d95530c"},
+    {file = "astroid-2.12.4.tar.gz", hash = "sha256:39fa822c82dc112f5072a208ddf01c58184043aa90e3e469786fa0520c71aaa7"},
 ]
 asyncpg = [
     {file = "asyncpg-0.26.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:2ed3880b3aec8bda90548218fe0914d251d641f798382eda39a17abfc4910af0"},
@@ -1309,8 +1312,8 @@ pygments = [
     {file = "Pygments-2.13.0.tar.gz", hash = "sha256:56a8508ae95f98e2b9bdf93a6be5ae3f7d8af858b43e02c5a2ff083726be40c1"},
 ]
 pylint = [
-    {file = "pylint-2.14.5-py3-none-any.whl", hash = "sha256:fabe30000de7d07636d2e82c9a518ad5ad7908590fe135ace169b44839c15f90"},
-    {file = "pylint-2.14.5.tar.gz", hash = "sha256:487ce2192eee48211269a0e976421f334cf94de1806ca9d0a99449adcdf0285e"},
+    {file = "pylint-2.15.0-py3-none-any.whl", hash = "sha256:4b124affc198b7f7c9b5f9ab690d85db48282a025ef9333f51d2d7281b92a6c3"},
+    {file = "pylint-2.15.0.tar.gz", hash = "sha256:4f3f7e869646b0bd63b3dfb79f3c0f28fc3d2d923ea220d52620fd625aed92b0"},
 ]
 pyparsing = [
     {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},
