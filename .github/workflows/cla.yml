@@ -20,7 +20,7 @@ jobs:
         with:
           remote-repository-name: 'CLA-Signatures'
           remote-organization-name: 'Autodesk'
-          path-to-signatures: 'signatures/Autodesk/Individual/{unique-repo-identifier}.json'
+          path-to-signatures: 'signatures/Autodesk/Individual/pgbelt.json'
           path-to-document: 'https://github.com/Autodesk/CLA-Assistant-Test-Signatures/blob/master/CLA.md' # e.g. a CLA or a DCO document
           # branch should not be protected
           branch: 'master'
