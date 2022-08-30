@@ -1,6 +1,6 @@
 # Contributing to pgbelt
 
-Thank you for your interest in improving this project. This project is open-source under the `MIT license` and welcomes contributions in the form of bug reports, feature requests, and pull requests. We are excited and eager to accept external contributions!
+Thank you for your interest in improving this project. This project is open-source under the `Apache 2.0 license` and welcomes contributions in the form of bug reports, feature requests, and pull requests. We are excited and eager to accept external contributions!
 
 ## Filing Bugs
 
