@@ -4,15 +4,10 @@
     <a href="https://github.com/autodesk/pgbelt" target="_blank">
         <img src="https://img.shields.io/github/last-commit/autodesk/pgbelt" alt="Latest Commit">
     </a>
-        <img src="https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml/badge.svg">
-        <img src="https://img.shields.io/codecov/c/github/Autodesk/pgbelt">
+    <img src="https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml/badge.svg">
     <br />
-    <a href="https://pypi.org/project/pgbelt" target="_blank">
-        <img src="https://img.shields.io/pypi/v/pgbelt" alt="Package version">
-    </a>
-    <img src="https://img.shields.io/pypi/pyversions/pgbelt">
     <a href="http://www.apache.org/licenses/LICENSE-2.0" target="_blank">
-        <img src="https://img.shields.io/pypi/l/pgbelt">
+        <img src="https://img.shields.io/github/license/Autodesk/pgbelt">
     </a>
 </p>
 
