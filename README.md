@@ -5,7 +5,6 @@
         <img src="https://img.shields.io/github/last-commit/autodesk/pgbelt" alt="Latest Commit">
     </a>
     <img src="https://github.com/Autodesk/pgbelt/actions/workflows/ci.yml/badge.svg">
-    <br />
     <a href="http://www.apache.org/licenses/LICENSE-2.0" target="_blank">
         <img src="https://img.shields.io/github/license/Autodesk/pgbelt">
     </a>
