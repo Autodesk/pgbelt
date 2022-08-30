@@ -1,6 +1,8 @@
 # Pgbelt
 
-<img src="https://github.com/Autodesk/pgbelt/blob/324333bd36eac7e3ee90f07b88fc09d79466ed3a/pgbelt.png?raw=true" width="150">
+<p align="center">
+    <img src="https://github.com/Autodesk/pgbelt/blob/324333bd36eac7e3ee90f07b88fc09d79466ed3a/pgbelt.png?raw=true" width="400">
+</p>
 
 <p align="center">
     <a href="https://github.com/autodesk/pgbelt" target="_blank">
