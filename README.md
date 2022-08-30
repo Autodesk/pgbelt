@@ -1,6 +1,6 @@
 # Pgbelt
 
-![Pgbelt Mascot!](https://github.com/Autodesk/pgbelt/blob/main/pgbelt.jpg?raw=true)
+![Pgbelt Mascot!](https://github.com/Autodesk/pgbelt/blob/vjeeva/fix-badges/pgbelt.jpg?raw=true)
 
 <p align="center">
     <a href="https://github.com/autodesk/pgbelt" target="_blank">
