@@ -11,7 +11,9 @@
         <img src="https://img.shields.io/pypi/v/pgbelt" alt="Package version">
     </a>
     <img src="https://img.shields.io/pypi/pyversions/pgbelt">
-    <img src="https://img.shields.io/badge/license-MIT-green">
+    <a href="http://www.apache.org/licenses/LICENSE-2.0" target="_blank">
+        <img src="https://img.shields.io/pypi/l/pgbelt">
+    </a>
 </p>
 
 PgBelt is a CLI tool used to manage Postgres data migrations from beginning to end,
