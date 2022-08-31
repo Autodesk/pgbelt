@@ -12,7 +12,7 @@ packages = [
 python = "^3.9"
 aiofiles = "~0.8.0"
 asyncpg = "~0.26.0"
-pydantic = "~1.9.2"
+pydantic = "~1.10.0"
 tabulate = "~0.8.9"
 typer = "~0.6.1"
 
