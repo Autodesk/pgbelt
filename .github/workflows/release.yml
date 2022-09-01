@@ -1,0 +1,37 @@
+name: Release to pypi
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3.0.2
+        with:
+          fetch-depth: 2
+      - name: Set up Python
+        uses: actions/setup-python@v4.2.0
+        with:
+          python-version: "3.9"
+
+      - name: Upgrade pip
+        run: |
+          pip install --constraint=.github/workflows/constraints.txt pip
+          pip --version
+      - name: Install Poetry
+        run: |
+          pip install --constraint=.github/workflows/constraints.txt poetry poetry-dynamic-versioning
+          poetry --version
+      - name: Build package
+        run: |
+          poetry build --ansi
+      - name: Publish package on PyPI
+        uses: pypa/gh-action-pypi-publish@v1.5.1
+        with:
+          user: __token__
+          password: ${{ secrets.PGBELT_TESTPYPI_VJEEVA_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
