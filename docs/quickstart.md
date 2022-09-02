@@ -14,35 +14,9 @@ destination will only write/replicate back to the source once writes occur on th
 
 ## Step 1: Install PgBelt on your machine
 
-It is recommended to install pgbelt inside a virtual environment if installing by clone:
+Pgbelt is now available on PyPi! Install it locally:
 
-- [pyenv](https://github.com/pyenv/pyenv)
-- [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv)
-
-You must also have:
-
-- [poetry](https://github.com/python-poetry/poetry)
-- Postgres Client Tools (`pg_dump`, `pg_restore`). Mac: `brew install libpq`. Ubuntu: `sudo apt-get install postgresql-client`
-
-Install the egg locally:
-
-    # create a python virtualenv with python 3.9.11 and activate it (any 3.9.x is ok)
-    pyenv install 3.9.11
-    pyenv virtualenv 3.9.11 pgbelt
-    pyenv activate pgbelt
-
-    # install poetry
-    pip3 install poetry
-
-    # clone the repo
-    git clone git@github.com:Autodesk/pgbelt.git
-    cd pgbelt
-
-    # install pgbelt in your virtualenv (uses poetry)
-    make install
-
-    # Check if it worked
-    belt --help
+    pip3 install pgbelt
 
 ## Step 2: Create Required Folder and File Structure
 
