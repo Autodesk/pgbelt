@@ -27,7 +27,7 @@ of postgres and makes it easy to run many migrations in parallel during a single
 
 ## Installation
 
-### Install From A Clone
+### Install From PyPi
 
 It is recommended to install pgbelt inside a virtual environment:
 
@@ -45,3 +45,7 @@ Install pgbelt locally:
 ## Quickstart with Pgbelt
 
 See [this doc](docs/quickstart.md)!
+
+## Contributing
+
+We welcome contributions! See [this doc](CONTRIBUTING.md) on how to do so, including setting up your local development environment.
