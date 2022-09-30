@@ -194,7 +194,7 @@ async def compare_latest_100_rows(
     SELECT *
     FROM {table}
     ORDER BY {order_by_pkeys} DESC
-    LIMIT 1;
+    LIMIT 100;
     """
 
     await compare_data(src_pool, dst_pool, query, tables, logger)
