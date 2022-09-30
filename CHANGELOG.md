@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Autodesk/pgbelt/compare/v0.1.0...v0.1.1) (2022-09-30)
+
+
+### Documentation
+
+* update README and quickstart now that pgbelt is on pypi ([#79](https://github.com/Autodesk/pgbelt/issues/79)) ([2a2d4c9](https://github.com/Autodesk/pgbelt/commit/2a2d4c91aaa8e961c2958df2f6150982b8b66c77))
+
 ## 0.1.0 (2022-09-02)
 
 
