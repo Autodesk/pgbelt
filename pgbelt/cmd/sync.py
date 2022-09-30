@@ -1,11 +1,5 @@
 from asyncio import gather
 from logging import Logger
-from typing import Awaitable
-
-from asyncpg import create_pool
-from asyncpg import Pool
-from typer import Option
-
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
@@ -18,6 +12,11 @@ from pgbelt.util.postgres import compare_latest_100_rows
 from pgbelt.util.postgres import dump_sequences
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
+from typing import Awaitable
+
+from asyncpg import create_pool
+from asyncpg import Pool
+from typer import Option
 
 
 async def _sync_sequences(
@@ -146,7 +145,7 @@ async def analyze(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync.dst")
-    async with create_pool(conf.dst.owner_uri, min_size=1) as dst_pool:
+    async with create_pool(conf.dst.root_uri, min_size=1) as dst_pool:
         await run_analyze(dst_pool, logger)
 
 
