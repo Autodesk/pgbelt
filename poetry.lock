@@ -1,10 +1,10 @@
 [[package]]
 name = "aiofiles"
-version = "0.8.0"
+version = "22.1.0"
 description = "File support for asyncio."
 category = "main"
 optional = false
-python-versions = ">=3.6,<4.0"
+python-versions = ">=3.7,<4.0"
 
 [[package]]
 name = "astroid"
@@ -918,12 +918,12 @@ tests-strict = ["cmake (==3.21.2)", "codecov (==2.0.15)", "ninja (==1.10.2)", "p
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "4961a80cfe032df20a4f310da685dd398680d8fdb2829d5797b071d87e1f009d"
+content-hash = "ff404f633e5a10722bdef0900253f47b501dc0aa8137650f2fd7870e9e385aa2"
 
 [metadata.files]
 aiofiles = [
-    {file = "aiofiles-0.8.0-py3-none-any.whl", hash = "sha256:7a973fc22b29e9962d0897805ace5856e6a566ab1f0c8e5c91ff6c866519c937"},
-    {file = "aiofiles-0.8.0.tar.gz", hash = "sha256:8334f23235248a3b2e83b2c3a78a22674f39969b96397126cc93664d9a901e59"},
+    {file = "aiofiles-22.1.0-py3-none-any.whl", hash = "sha256:1142fa8e80dbae46bb6339573ad4c8c0841358f79c6eb50a493dceca14621bad"},
+    {file = "aiofiles-22.1.0.tar.gz", hash = "sha256:9107f1ca0b2a5553987a94a3c9959fe5b491fdf731389aa5b7b1bd0733e32de6"},
 ]
 astroid = [
     {file = "astroid-2.12.5-py3-none-any.whl", hash = "sha256:d612609242996c4365aeb0345e61edba34363eaaba55f1c0addf6a98f073bef6"},
