@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/Autodesk/pgbelt/compare/v0.1.1...v0.1.2) (2022-10-03)
+
+
+### Bug Fixes
+
+* the analyze function should be run as root of a database for safest and least restriction [#87](https://github.com/Autodesk/pgbelt/issues/87) ([#90](https://github.com/Autodesk/pgbelt/issues/90)) ([81c5fde](https://github.com/Autodesk/pgbelt/commit/81c5fde8d1db4be797389a0ff361c00ee3329ab2))
+* validator supposed to check 100 rows, not 1 ([#93](https://github.com/Autodesk/pgbelt/issues/93)) ([48122dc](https://github.com/Autodesk/pgbelt/commit/48122dca57b51b3f8114380840e510d70c75eaae))
+
 ## [0.1.1](https://github.com/Autodesk/pgbelt/compare/v0.1.0...v0.1.1) (2022-09-30)
 
 
