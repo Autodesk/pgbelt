@@ -723,7 +723,7 @@ python-versions = ">=3.5"
 
 [[package]]
 name = "safety"
-version = "2.2.0"
+version = "2.3.0"
 description = "Checks installed dependencies for known vulnerabilities and licenses."
 category = "dev"
 optional = false
@@ -736,6 +736,10 @@ packaging = ">=21.0"
 requests = "*"
 "ruamel.yaml" = ">=0.17.21"
 setuptools = ">=19.3"
+
+[package.extras]
+github = ["jinja2 (>=3.1.0)", "pygithub (>=1.43.3)"]
+gitlab = ["python-gitlab (>=1.3.0)"]
 
 [[package]]
 name = "setuptools"
@@ -918,7 +922,7 @@ tests-strict = ["cmake (==3.21.2)", "codecov (==2.0.15)", "ninja (==1.10.2)", "p
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "4cd901f5f4a428dc5daf1cd72891100114b3a572b1a26270d5a50d3ed1404e6e"
+content-hash = "7eb53f062796b25eef5c96edc1028a5157a6f4d1a04871b477a3f28edd44215a"
 
 [metadata.files]
 aiofiles = [
@@ -1415,8 +1419,8 @@ restructuredtext-lint = [
     {file = "ruamel.yaml.clib-0.2.6.tar.gz", hash = "sha256:4ff604ce439abb20794f05613c374759ce10e3595d1867764dd1ae675b85acbd"},
 ]
 safety = [
-    {file = "safety-2.2.0-py3-none-any.whl", hash = "sha256:b1a0f4c34fb41c502a7a5c54774c18376da382bc9d866ee26b39b2c747c0de40"},
-    {file = "safety-2.2.0.tar.gz", hash = "sha256:6745de12acbd60a58001fe66cb540355187d7b991b30104d9ef14ff4e4826073"},
+    {file = "safety-2.3.0-py3-none-any.whl", hash = "sha256:f6bfe2d904359e5e848e9f79b5620960386c71844b4b50bd21052653e9aceb22"},
+    {file = "safety-2.3.0.tar.gz", hash = "sha256:3715d1370cef5deca4577ccce56e0f7484442c30be68d42288ca1a0be3f30140"},
 ]
 setuptools = [
     {file = "setuptools-65.4.1-py3-none-any.whl", hash = "sha256:1b6bdc6161661409c5f21508763dc63ab20a9ac2f8ba20029aaaa7fdb9118012"},
