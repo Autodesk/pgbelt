@@ -36,7 +36,7 @@ darglint = "^1.8.1"
 reorder-python-imports = "^3.8.2"
 pre-commit-hooks = "^4.2.0"
 Pygments = "^2.13.0"
-pyupgrade = "^2.38.2"
+pyupgrade = "^3.0.0"
 pylint = "^2.15.3"
 pytest-asyncio = "~0.19.0"
 
