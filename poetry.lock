@@ -660,7 +660,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "reorder-python-imports"
-version = "3.8.2"
+version = "3.8.3"
 description = "Tool for reordering python imports"
 category = "dev"
 optional = false
@@ -918,7 +918,7 @@ tests-strict = ["cmake (==3.21.2)", "codecov (==2.0.15)", "ninja (==1.10.2)", "p
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "4cd901f5f4a428dc5daf1cd72891100114b3a572b1a26270d5a50d3ed1404e6e"
+content-hash = "9508649dac13fb0e1f6f91092b71a8106040c5883fb2585145d6f43e32e66fb6"
 
 [metadata.files]
 aiofiles = [
@@ -1368,8 +1368,8 @@ pyyaml = [
     {file = "PyYAML-6.0.tar.gz", hash = "sha256:68fb519c14306fec9720a2a5b45bc9f0c8d1b9c72adf45c37baedfcd949c35a2"},
 ]
 reorder-python-imports = [
-    {file = "reorder_python_imports-3.8.2-py2.py3-none-any.whl", hash = "sha256:c362190fc61f28c9ed3657de0ae702694ce97f90da54617716b23d70b4d4771c"},
-    {file = "reorder_python_imports-3.8.2.tar.gz", hash = "sha256:bc5bd5e01548423fdcf62da767b28d5df6e613b03f9f795438f72b08b75dfba8"},
+    {file = "reorder_python_imports-3.8.3-py2.py3-none-any.whl", hash = "sha256:783f9575f76dd21ae5de974edf514cebc2b6904bbfe7cda515c24f1815fa22bf"},
+    {file = "reorder_python_imports-3.8.3.tar.gz", hash = "sha256:cb622aa0ea505972b59cc01aa26c08fb17d39a8fc62ff488288908725927d968"},
 ]
 requests = [
     {file = "requests-2.28.1-py3-none-any.whl", hash = "sha256:8fefa2a1a1365bf5520aac41836fbee479da67864514bdb821f31ce07ce65349"},
