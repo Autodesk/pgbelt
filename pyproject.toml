@@ -37,7 +37,7 @@ reorder-python-imports = "^3.8.2"
 pre-commit-hooks = "^4.2.0"
 Pygments = "^2.13.0"
 pyupgrade = "^3.0.0"
-pylint = "^2.15.3"
+pylint = "^2.16.0"
 pytest-asyncio = "~0.19.0"
 
 [build-system]
