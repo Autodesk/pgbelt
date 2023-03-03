@@ -78,8 +78,8 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
     },
     "other_users": null
   },
-  "tables": null,
-  "sequences": null
+  "tables": [],
+  "sequences": []
 }
 ```
 
