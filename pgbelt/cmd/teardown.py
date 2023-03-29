@@ -1,10 +1,8 @@
 from asyncio import gather
 from asyncio import sleep
-from typing import Awaitable
+from collections.abc import Awaitable
 
 from asyncpg import create_pool
-from typer import Option
-
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
@@ -13,6 +11,7 @@ from pgbelt.util.pglogical import teardown_node
 from pgbelt.util.pglogical import teardown_pgl
 from pgbelt.util.pglogical import teardown_replication_set
 from pgbelt.util.pglogical import teardown_subscription
+from typer import Option
 
 
 @run_with_configs(skip_dst=True)
