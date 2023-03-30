@@ -1,9 +1,9 @@
 from os import environ
+
+import pytest
 from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.config.models import User
-
-import pytest
 
 
 def pytest_collectstart():

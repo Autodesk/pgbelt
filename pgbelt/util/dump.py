@@ -5,7 +5,6 @@ from re import search
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
-
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir

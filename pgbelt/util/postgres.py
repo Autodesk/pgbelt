@@ -1,5 +1,4 @@
 from logging import Logger
-from typing import Tuple
 
 from asyncpg import Pool
 from asyncpg import Record
@@ -211,7 +210,7 @@ async def table_empty(pool: Pool, table: str, logger: Logger) -> bool:
 
 async def analyze_table_pkeys(
     pool: Pool, logger: Logger
-) -> Tuple[list[str], list[str], Record]:
+) -> tuple[list[str], list[str], Record]:
     """
     return three lists of table names. the first element is all tables
     with pkeys in public and the second is all tables without pkeys in public.

@@ -1,8 +1,8 @@
-import pgbelt
 import re
 from time import sleep
 from unittest.mock import Mock
 
+import pgbelt
 import pytest
 
 
