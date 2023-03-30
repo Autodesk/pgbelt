@@ -1,15 +1,13 @@
 from asyncio import run
 from logging import Logger
-from typing import Tuple
 
 from asyncpg import create_pool
-from typer import echo
-from typer import Option
-
 from pgbelt.config.config import get_config
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
+from typer import echo
+from typer import Option
 
 
 def src_dsn(
@@ -58,7 +56,7 @@ def dst_dsn(
 
 async def _check_pkeys(
     conf: DbupgradeConfig, logger: Logger
-) -> Tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str]]:
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
         pkey_tables, no_pkey_tables, _ = await analyze_table_pkeys(pool, logger)
     return pkey_tables, no_pkey_tables
