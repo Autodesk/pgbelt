@@ -90,7 +90,7 @@ database.
 NOTE: You must run `belt` from the root of the `mymigrationproject/` folder,
 as `belt` will check for configs based on relative pathing from where it is run.
 
-    $ belt precheck
+    $ belt precheck testdatacenter1
 
 **Also note: this command does not check the target database configuration or check
 for network connectivity between the two databases.**

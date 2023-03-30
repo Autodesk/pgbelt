@@ -1,4 +1,4 @@
-from typing import Awaitable
+from collections.abc import Awaitable
 
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig

@@ -1,5 +1,9 @@
 from asyncio import gather
+from collections.abc import Awaitable
 from logging import Logger
+
+from asyncpg import create_pool
+from asyncpg import Pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
@@ -12,10 +16,6 @@ from pgbelt.util.postgres import compare_latest_100_rows
 from pgbelt.util.postgres import dump_sequences
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
-from typing import Awaitable
-
-from asyncpg import create_pool
-from asyncpg import Pool
 from typer import Option
 
 

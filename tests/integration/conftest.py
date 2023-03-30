@@ -1,12 +1,12 @@
 from os import environ
-from pgbelt.config.models import DbConfig
-from pgbelt.config.models import DbupgradeConfig
-from pgbelt.config.models import User
 from shutil import rmtree
 
 import pytest
 import pytest_asyncio
 from asyncpg import create_pool
+from pgbelt.config.models import DbConfig
+from pgbelt.config.models import DbupgradeConfig
+from pgbelt.config.models import User
 
 
 @pytest.mark.asyncio

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from os.path import join
-from pgbelt.util import get_logger
-from pgbelt.util.asyncfuncs import makedirs
-from typing import Optional
 
 from aiofiles import open as aopen
 from aiofiles.os import remove
+from pgbelt.util import get_logger
+from pgbelt.util.asyncfuncs import makedirs
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import validator
@@ -20,7 +19,7 @@ def config_file(db: str, dc: str) -> str:
     return join(config_dir(db, dc), "config.json")
 
 
-def not_empty(v) -> Optional[str]:
+def not_empty(v) -> str | None:
     if v == "":
         raise ValueError
     return v
@@ -35,7 +34,7 @@ class User(BaseModel):
     """
 
     name: str
-    pw: Optional[str] = None
+    pw: str | None = None
 
     _not_empty = validator("name", "pw", allow_reuse=True)(not_empty)
 
@@ -62,7 +61,7 @@ class DbConfig(BaseModel):
     root_user: User
     owner_user: User
     pglogical_user: User
-    other_users: Optional[list[User]] = None
+    other_users: list[User] | None = None
 
     _not_empty = validator("host", "ip", "db", "port", allow_reuse=True)(not_empty)
 
@@ -109,10 +108,10 @@ class DbupgradeConfig(BaseModel):
 
     db: str
     dc: str
-    src: Optional[DbConfig] = None
-    dst: Optional[DbConfig] = None
-    tables: Optional[list[str]] = None
-    sequences: Optional[list[str]] = None
+    src: DbConfig | None = None
+    dst: DbConfig | None = None
+    tables: list[str] | None = None
+    sequences: list[str] | None = None
 
     _not_empty = validator("db", "dc", allow_reuse=True)(not_empty)
 
@@ -147,7 +146,7 @@ class DbupgradeConfig(BaseModel):
         logger.info("Cached config to disk.")
 
     @classmethod
-    async def load(cls, db: str, dc: str) -> Optional[DbupgradeConfig]:
+    async def load(cls, db: str, dc: str) -> DbupgradeConfig | None:
         """
         Load the specified configuration from disk if present.
         If the existing config is invalid or does not exist return None.
