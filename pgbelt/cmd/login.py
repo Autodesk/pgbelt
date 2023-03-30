@@ -1,10 +1,9 @@
 import asyncio
+from collections.abc import Awaitable
 from logging import Logger
-from typing import Awaitable
 
 from asyncpg import create_pool
 from asyncpg import Pool
-
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig

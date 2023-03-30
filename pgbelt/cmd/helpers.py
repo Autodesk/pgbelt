@@ -1,30 +1,28 @@
 from asyncio import gather
 from asyncio import run
+from collections.abc import Awaitable
+from collections.abc import Callable
 from functools import wraps
 from inspect import iscoroutinefunction
 from inspect import Parameter
 from inspect import signature
 from typing import Any
-from typing import Awaitable
-from typing import Callable
-from typing import Optional
 from typing import TypeVar
-
-from typer import Argument
-from typer import Typer
 
 from pgbelt.config import get_all_configs_async
 from pgbelt.config import get_config_async
+from typer import Argument
+from typer import Typer
 
 
 T = TypeVar("T")
 
 
 def run_with_configs(
-    decorated_func: Callable[..., Awaitable[Optional[T]]] = None,
+    decorated_func: Callable[..., Awaitable[T | None]] = None,
     skip_src: bool = False,
     skip_dst: bool = False,
-    results_callback: Optional[Callable[[list[T]], Awaitable[Optional[Any]]]] = None,
+    results_callback: Callable[[list[T]], Awaitable[Any | None]] | None = None,
 ) -> Callable:
     """
     Decorator for async commands. Implementations should take one Awaitable[DbupgradeConfig] arg
@@ -52,7 +50,7 @@ def run_with_configs(
 
         # The name, docstring, and signature of the implementation is preserved. Important for add_command
         @wraps(func)
-        async def wrapper(dc: str, db: Optional[str], **kwargs):
+        async def wrapper(dc: str, db: str | None, **kwargs):
             # If db is specified we only want to run on one of them
             if db is not None:
                 results = [
@@ -102,7 +100,7 @@ def add_command(app: Typer, command: Callable):
     if iscoroutinefunction(command):
 
         @app.command(name=name)
-        def cmdwrapper(dc: str, db: Optional[str] = Argument(None), **kwargs):
+        def cmdwrapper(dc: str, db: str | None = Argument(None), **kwargs):
             run(command(dc, db, **kwargs))
 
     # Synchronous commands can only be run on one db at a time
