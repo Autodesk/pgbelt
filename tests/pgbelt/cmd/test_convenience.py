@@ -1,7 +1,8 @@
-from pgbelt.cmd import convenience
 from unittest import TestCase
 from unittest.mock import Mock
 from unittest.mock import patch
+
+from pgbelt.cmd import convenience
 
 
 # Test for the Owner DSN to come from src-dsn when the config
