@@ -1,16 +1,15 @@
 from asyncio import gather
-from typing import Awaitable
+from collections.abc import Awaitable
 
 from asyncpg import create_pool
-from tabulate import tabulate
-from typer import echo
-from typer import style
-
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util import get_logger
 from pgbelt.util.pglogical import dst_status
 from pgbelt.util.pglogical import src_status
+from tabulate import tabulate
+from typer import echo
+from typer import style
 
 
 async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:

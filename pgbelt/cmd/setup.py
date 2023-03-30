@@ -1,12 +1,10 @@
 from asyncio import create_task
 from asyncio import gather
+from collections.abc import Awaitable
 from logging import Logger
-from typing import Awaitable
 
 from asyncpg import create_pool
 from asyncpg import Pool
-from typer import Option
-
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_schema
@@ -18,6 +16,7 @@ from pgbelt.util.pglogical import configure_replication_set
 from pgbelt.util.pglogical import configure_subscription
 from pgbelt.util.pglogical import grant_pgl
 from pgbelt.util.postgres import analyze_table_pkeys
+from typer import Option
 
 
 async def _dump_and_load_schema(

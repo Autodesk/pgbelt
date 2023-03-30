@@ -1,12 +1,12 @@
 from asyncio import gather
+from collections.abc import Awaitable
+
+from asyncpg import create_pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import precheck_info
-from typing import Awaitable
-
-from asyncpg import create_pool
 from tabulate import tabulate
 from typer import echo
 from typer import style

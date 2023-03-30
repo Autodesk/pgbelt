@@ -1,11 +1,10 @@
 from importlib import import_module
 from json import JSONDecodeError
 from logging import Logger
-from pgbelt.config.models import DbupgradeConfig
-from pgbelt.util.logs import get_logger
-from typing import Optional
 
 from aiofiles import open as aopen
+from pgbelt.config.models import DbupgradeConfig
+from pgbelt.util.logs import get_logger
 from pydantic import BaseModel
 from pydantic import ValidationError
 
@@ -60,7 +59,7 @@ class BaseResolver(BaseModel):
         arbitrary_types_allowed = True
         extra = "ignore"
 
-    async def resolve(self) -> Optional[DbupgradeConfig]:
+    async def resolve(self) -> DbupgradeConfig | None:
         """
         Called to retrieve the configuration from wherever your resolver gets it.
         Return configuration as a DbupgradeConfig.
@@ -73,7 +72,7 @@ class BaseResolver(BaseModel):
 
 async def load_remote_conf_def(
     config_file: str, logger: Logger
-) -> Optional[RemoteConfigDefinition]:
+) -> RemoteConfigDefinition | None:
     try:
         logger.debug(f"Reading remote config definition from file {config_file}")
         async with aopen(config_file, mode="r") as f:
@@ -90,7 +89,7 @@ async def load_remote_conf_def(
 
 async def resolve_remote_config(
     db: str, dc: str, skip_src: bool = False, skip_dst: bool = False
-) -> Optional[DbupgradeConfig]:
+) -> DbupgradeConfig | None:
     """
     Loads the referenced remote configuration json file, tries to import the
     specified resolver class, executes its resolve method, and returns the
