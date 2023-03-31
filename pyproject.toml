@@ -19,7 +19,7 @@ typer = "^0.7.0"
 
 [tool.poetry.dev-dependencies]
 black = "~23.3.0"
-pre-commit = "~2.20.0"
+pre-commit = "~3.2.1"
 flake8 = "^6.0.0"
 pytest-cov = "~4.0.0"
 pytest = "^7.1.3"
