@@ -110,7 +110,7 @@ Both your source and target database must satisfy the following requirements:
   - `max_replication_slots` >= 20
   - `max_worker_processes` >= 20
   - `max_wal_senders` >= 20
-  - `shared_preload_libraries` must include both `pg_stat_statements` and `pglogical`
+  - `shared_preload_libraries` must include both `pg_stat_statements` and `pglogical`. *NOTE:* You must ensure your destination database has all required extensions for your schema.
   - If your db is on AWS RDS you must also set `rds.logical_replication = 1`
 
 # Migration Steps
