@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/Autodesk/pgbelt/compare/v0.2.1...v0.2.2) (2023-05-02)
+
+
+### Bug Fixes
+
+* undo bump of virtualenv, back to 20.21.0 ([#223](https://github.com/Autodesk/pgbelt/issues/223)) ([01bfe6f](https://github.com/Autodesk/pgbelt/commit/01bfe6fc167df009d451ac83666f1075a4a0ae05))
+
 ## [0.2.1](https://github.com/Autodesk/pgbelt/compare/v0.2.0...v0.2.1) (2023-05-02)
 
 
