@@ -41,8 +41,8 @@ repos:
         entry: pyupgrade
         language: system
         types: [python]
-        args: [--py311-plus, --keep-runtime-typing]
-      - id: reorder-python-imports
+        args: [--py39-plus, --keep-runtime-typing]
+      - id: reorder-ython-imports
         name: Reorder python imports
         entry: reorder-python-imports
         language: system
