@@ -1,15 +1,15 @@
 import asyncio
 from logging import Logger
 from os.path import join
-from re import search
-
-from aiofiles import open as aopen
-from asyncpg import create_pool
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
+from re import search
+
+from aiofiles import open as aopen
+from asyncpg import create_pool
 
 RAW = "schema"
 NO_INVALID = "no_invalid_constraints"
@@ -32,7 +32,7 @@ def table_file(db: str, dc: str, name: str) -> str:
     return join(table_dir(db, dc), f"{name}.sql")
 
 
-def _parse_dump_commands(out: str, src_owner: str, dst_owner: str) -> list[str]:
+def _parse_dump_commands(out: str) -> list[str]:
     """
     Given a string containing output from pg_dump, return a list of strings where
     each is a complete postgres command. Commands may be multi-line.
@@ -45,9 +45,6 @@ def _parse_dump_commands(out: str, src_owner: str, dst_owner: str) -> list[str]:
         # if the line is whitespace only or a comment then ignore it
         if not stripped or stripped.startswith("--"):
             continue
-
-        # replace source owner user with target owner user
-        line = line.replace(src_owner, dst_owner)
 
         # if the last command is terminated or we don't have any yet start a new one
         if not commands or commands[-1].endswith(";\n"):
@@ -171,9 +168,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
 
     out = await _execute_subprocess(command, "Retrieved source schema", logger)
 
-    commands_raw = _parse_dump_commands(
-        out.decode("utf-8"), config.src.owner_user.name, config.dst.owner_user.name
-    )
+    commands_raw = _parse_dump_commands(out.decode("utf-8"))
 
     commands = []
     for c in commands_raw:
