@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/Autodesk/pgbelt/compare/v0.1.2...v0.2.0) (2023-04-28)
+
+
+### Features
+
+* update to python 3.11 ([#191](https://github.com/Autodesk/pgbelt/issues/191)) ([3c44681](https://github.com/Autodesk/pgbelt/commit/3c44681bfda3679bff10022eb9bfcb56fdd9e50a))
+
+
+### Bug Fixes
+
+* incorrect precheck command in quickstart.md ([#172](https://github.com/Autodesk/pgbelt/issues/172)) ([36ce96f](https://github.com/Autodesk/pgbelt/commit/36ce96feb6f5c98bcb3c7a0648a25e4f3b9ce655))
+* no need to find and replace owners in schema ([#215](https://github.com/Autodesk/pgbelt/issues/215)) ([dfe1324](https://github.com/Autodesk/pgbelt/commit/dfe1324a56f57e75fa44dfe7196e104c34988695))
+
 ## [0.1.2](https://github.com/Autodesk/pgbelt/compare/v0.1.1...v0.1.2) (2022-10-03)
 
 ### Bug Fixes

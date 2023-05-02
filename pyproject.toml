@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pgbelt"
-version = "0.1.2"
+version = "0.2.0"
 description = "A CLI tool used to manage Postgres data migrations from beginning to end, for a single database or a fleet, leveraging pglogical replication."
 authors = ["Varjitt Jeeva <varjitt.jeeva@autodesk.com>"]
 readme = "README.md"
@@ -15,15 +15,15 @@ aiofiles = ">=0.8,<23.2"
 asyncpg = "^0.27.0"
 pydantic = "^1.10.0"
 tabulate = "^0.9.0"
-typer = "^0.7.0"
+typer = "^0.9.0"
 
 [tool.poetry.dev-dependencies]
 black = "~23.3.0"
-pre-commit = "~3.2.1"
+pre-commit = "~3.3.1"
 flake8 = "^6.0.0"
 pytest-cov = "~4.0.0"
 pytest = "^7.1.3"
-coverage = {extras = ["toml"], version = "^6.5"}
+coverage = {extras = ["toml"], version = "^7.2"}
 safety = "^2.3.1"
 mypy = "^1.1"
 xdoctest = {extras = ["colors"], version = "^1.1.0"}

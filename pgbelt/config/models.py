@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from os.path import join
+from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
 
 from aiofiles import open as aopen
 from aiofiles.os import remove
@@ -19,7 +20,7 @@ def config_file(db: str, dc: str) -> str:
     return join(config_dir(db, dc), "config.json")
 
 
-def not_empty(v) -> str | None:
+def not_empty(v) -> Optional[str]:
     if v == "":
         raise ValueError
     return v
@@ -34,7 +35,7 @@ class User(BaseModel):
     """
 
     name: str
-    pw: str | None = None
+    pw: Optional[str] = None
 
     _not_empty = validator("name", "pw", allow_reuse=True)(not_empty)
 
@@ -61,7 +62,7 @@ class DbConfig(BaseModel):
     root_user: User
     owner_user: User
     pglogical_user: User
-    other_users: list[User] | None = None
+    other_users: Optional[list[User]] = None
 
     _not_empty = validator("host", "ip", "db", "port", allow_reuse=True)(not_empty)
 
@@ -108,10 +109,10 @@ class DbupgradeConfig(BaseModel):
 
     db: str
     dc: str
-    src: DbConfig | None = None
-    dst: DbConfig | None = None
-    tables: list[str] | None = None
-    sequences: list[str] | None = None
+    src: Optional[DbConfig] = None
+    dst: Optional[DbConfig] = None
+    tables: Optional[list[str]] = None
+    sequences: Optional[list[str]] = None
 
     _not_empty = validator("db", "dc", allow_reuse=True)(not_empty)
 
@@ -146,7 +147,7 @@ class DbupgradeConfig(BaseModel):
         logger.info("Cached config to disk.")
 
     @classmethod
-    async def load(cls, db: str, dc: str) -> DbupgradeConfig | None:
+    async def load(cls, db: str, dc: str) -> Optional[DbupgradeConfig]:
         """
         Load the specified configuration from disk if present.
         If the existing config is invalid or does not exist return None.
