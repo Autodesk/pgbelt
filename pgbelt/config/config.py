@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from collections.abc import Awaitable
 from os.path import join
+from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
 
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.config.remote import resolve_remote_config
@@ -13,7 +14,7 @@ from pgbelt.util.asyncfuncs import listdir
 
 def get_config(
     db: str, dc: str, skip_src: bool = False, skip_dst: bool = False
-) -> DbupgradeConfig | None:
+) -> Optional[DbupgradeConfig]:
     """
     Get a configuration for one database pair synchronously.
     """
@@ -27,7 +28,7 @@ def get_config(
 
 async def get_config_async(
     db: str, dc: str, skip_src: bool = False, skip_dst: bool = False
-) -> DbupgradeConfig | None:
+) -> Optional[DbupgradeConfig]:
     """
     Get configuration for one database pair asynchronously. Always prefers
     locally cached configuration but attempts to resolve any uncached configuration
@@ -71,7 +72,7 @@ async def find_available_configs(confdir: str, dc: str) -> set[str]:
     """
     result = set()
     dc_dir = join(confdir, dc)
-    if not await (isdir(dc_dir)):
+    if not await isdir(dc_dir):
         return set()
     for db in await listdir(dc_dir):
         if await isdir(join(dc_dir, db)) and await isfile(
@@ -83,7 +84,7 @@ async def find_available_configs(confdir: str, dc: str) -> set[str]:
 
 async def get_all_configs_async(
     dc: str, skip_src: bool = False, skip_dst: bool = False
-) -> AsyncGenerator[Awaitable[DbupgradeConfig | None], None]:
+) -> AsyncGenerator[Awaitable[Optional[DbupgradeConfig]], None]:
     """
     A generator that produces Awaitables that resolve to DbupgradeConfigs or None
 
