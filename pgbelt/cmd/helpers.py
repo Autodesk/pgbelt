@@ -7,6 +7,7 @@ from inspect import iscoroutinefunction
 from inspect import Parameter
 from inspect import signature
 from typing import Any
+from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
 from typing import TypeVar
 
 from pgbelt.config import get_all_configs_async
@@ -19,10 +20,10 @@ T = TypeVar("T")
 
 
 def run_with_configs(
-    decorated_func: Callable[..., Awaitable[T | None]] = None,
+    decorated_func: Callable[..., Awaitable[Optional[T]]] = None,
     skip_src: bool = False,
     skip_dst: bool = False,
-    results_callback: Callable[[list[T]], Awaitable[Any | None]] | None = None,
+    results_callback: Optional[Callable[[list[T]], Awaitable[Optional[Any]]]] = None,
 ) -> Callable:
     """
     Decorator for async commands. Implementations should take one Awaitable[DbupgradeConfig] arg
@@ -50,7 +51,7 @@ def run_with_configs(
 
         # The name, docstring, and signature of the implementation is preserved. Important for add_command
         @wraps(func)
-        async def wrapper(dc: str, db: str | None, **kwargs):
+        async def wrapper(dc: str, db: Optional[str], **kwargs):
             # If db is specified we only want to run on one of them
             if db is not None:
                 results = [
@@ -100,7 +101,7 @@ def add_command(app: Typer, command: Callable):
     if iscoroutinefunction(command):
 
         @app.command(name=name)
-        def cmdwrapper(dc: str, db: str | None = Argument(None), **kwargs):
+        def cmdwrapper(dc: str, db: Optional[str] = Argument(None), **kwargs):
             run(command(dc, db, **kwargs))
 
     # Synchronous commands can only be run on one db at a time
