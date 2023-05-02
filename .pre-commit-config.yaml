@@ -42,7 +42,7 @@ repos:
         language: system
         types: [python]
         args: [--py39-plus, --keep-runtime-typing]
-      - id: reorder-ython-imports
+      - id: reorder-python-imports
         name: Reorder python imports
         entry: reorder-python-imports
         language: system
