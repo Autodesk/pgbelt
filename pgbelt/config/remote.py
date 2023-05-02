@@ -1,6 +1,7 @@
 from importlib import import_module
 from json import JSONDecodeError
 from logging import Logger
+from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
 
 from aiofiles import open as aopen
 from pgbelt.config.models import DbupgradeConfig
@@ -59,7 +60,7 @@ class BaseResolver(BaseModel):
         arbitrary_types_allowed = True
         extra = "ignore"
 
-    async def resolve(self) -> DbupgradeConfig | None:
+    async def resolve(self) -> Optional[DbupgradeConfig]:
         """
         Called to retrieve the configuration from wherever your resolver gets it.
         Return configuration as a DbupgradeConfig.
@@ -72,7 +73,7 @@ class BaseResolver(BaseModel):
 
 async def load_remote_conf_def(
     config_file: str, logger: Logger
-) -> RemoteConfigDefinition | None:
+) -> Optional[RemoteConfigDefinition]:
     try:
         logger.debug(f"Reading remote config definition from file {config_file}")
         async with aopen(config_file, mode="r") as f:
@@ -89,7 +90,7 @@ async def load_remote_conf_def(
 
 async def resolve_remote_config(
     db: str, dc: str, skip_src: bool = False, skip_dst: bool = False
-) -> DbupgradeConfig | None:
+) -> Optional[DbupgradeConfig]:
     """
     Loads the referenced remote configuration json file, tries to import the
     specified resolver class, executes its resolve method, and returns the
