@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Autodesk/pgbelt/compare/v0.2.0...v0.2.1) (2023-05-02)
+
+
+### Bug Fixes
+
+* typer doesn't support union types from python 3.11 ([#220](https://github.com/Autodesk/pgbelt/issues/220)) ([0315390](https://github.com/Autodesk/pgbelt/commit/03153909bcdf4e621b3e7c66aa5a99e55c9ceea4))
+
 ## [0.2.0](https://github.com/Autodesk/pgbelt/compare/v0.1.2...v0.2.0) (2023-04-28)
 
 
