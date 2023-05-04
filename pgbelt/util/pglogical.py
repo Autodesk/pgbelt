@@ -92,7 +92,7 @@ async def configure_replication_set(
             async with conn.transaction():
                 try:
                     await conn.execute(
-                        f"SELECT pglogical.replication_set_add_table('default', '{table}');"
+                        f"SELECT pglogical.replication_set_add_table('default', \"{table}\");"
                     )
                     logger.debug(f"{table} added to default replication set")
                 except UniqueViolationError:
