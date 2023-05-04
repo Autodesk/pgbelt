@@ -14,7 +14,7 @@ ALTER TABLE public.fruits OWNER TO owner;
 -- Name: users; Type: TABLE; Schema: public; Owner: owner
 --
 
-CREATE TABLE public.users (
+CREATE TABLE public.Users (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO owner;
+ALTER TABLE public.Users OWNER TO owner;
 
 --
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
@@ -49,7 +49,7 @@ INSERT INTO public.fruits (id, name)
     (4, 'grape');
 
 --
--- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: owner
+-- Data for Name: Users; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
 INSERT INTO public.users (id, hash_firstname, hash_lastname, gender)
@@ -68,8 +68,8 @@ SELECT pg_catalog.setval('public.users_id_seq', 1, false);
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
+-- Name: Users users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
 --
 
-ALTER TABLE ONLY public.users
+ALTER TABLE ONLY public.Users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
