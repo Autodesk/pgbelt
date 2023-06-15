@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/Autodesk/pgbelt/compare/v0.2.3...v0.2.4) (2023-06-15)
+
+
+### Bug Fixes
+
+* allowing backwards compatibility down to python 3.9 ([#247](https://github.com/Autodesk/pgbelt/issues/247)) ([78b2fd8](https://github.com/Autodesk/pgbelt/commit/78b2fd8d05368f23ecd6c1ece223893bb424731c))
+
 ## [0.2.3](https://github.com/Autodesk/pgbelt/compare/v0.2.2...v0.2.3) (2023-05-04)
 
 
