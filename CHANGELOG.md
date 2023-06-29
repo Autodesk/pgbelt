@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Autodesk/pgbelt/compare/v0.2.4...v0.3.0) (2023-06-29)
+
+
+### Features
+
+* check-connectivity command ([#253](https://github.com/Autodesk/pgbelt/issues/253)) ([6ebfff7](https://github.com/Autodesk/pgbelt/commit/6ebfff7a80573a1a33f1c54096fe300786e205c3))
+
 ## [0.2.4](https://github.com/Autodesk/pgbelt/compare/v0.2.3...v0.2.4) (2023-06-15)
 
 
