@@ -1,5 +1,6 @@
 import re
 from time import sleep
+from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pgbelt
@@ -9,13 +10,11 @@ import pytest
 @pytest.mark.asyncio
 async def test_main_workflow(setup_db_upgrade_config):
     # Run check_connectivity and make sure all green, no red
-    pgbelt.cmd.convenience.check_connectivity = Mock()
+    pgbelt.cmd.convenience.echo = AsyncMock()
     await pgbelt.cmd.convenience.check_connectivity(
         db=setup_db_upgrade_config.db, dc=setup_db_upgrade_config.dc
     )
-    check_connectivity_echo_call_arg = (
-        pgbelt.cmd.convenience.check_connectivity.echo.call_args[0][0]
-    )
+    check_connectivity_echo_call_arg = pgbelt.cmd.convenience.echo.call_args[0][0]
     assert "\x1b[31m" not in check_connectivity_echo_call_arg
 
     # Run precheck and make sure all green, no red
