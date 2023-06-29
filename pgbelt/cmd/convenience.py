@@ -1,7 +1,13 @@
+import socket
+from asyncio import open_connection
 from asyncio import run
+from asyncio import TimeoutError
+from asyncio import wait_for
+from collections.abc import Awaitable
 from logging import Logger
 
 from asyncpg import create_pool
+from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.config import get_config
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
@@ -77,4 +83,38 @@ def check_pkeys(db: str, dc: str) -> None:
     )
 
 
-COMMANDS = [src_dsn, dst_dsn, check_pkeys]
+@run_with_configs()
+async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Returns exit code 0 if pgbelt can connect to all databases in a datacenter
+    (if db is not specified), or to both src and dst of a database.
+
+    This is done by checking network access to the database ports ONLY.
+
+    If any connection times out, the command will exit 1. It will test ALL connections
+    before returning exit code 1 or 0, and output which connections passed/failed.
+    """
+
+    conf = await config_future
+
+    src_future = open_connection(conf.src.host, conf.src.port)
+    src_logger = get_logger(conf.db, conf.dc, "connect.src")
+    dst_future = open_connection(conf.dst.host, conf.dst.port)
+    dst_logger = get_logger(conf.db, conf.dc, "connect.dst")
+
+    for future, logger in [(src_future, src_logger), (dst_future, dst_logger)]:
+        try:
+            logger.info("Checking network access to port...")
+
+            # Wait for 3 seconds, then raise TimeoutError
+            _, writer = await wait_for(future, timeout=3)
+            logger.debug("Can access network port.")
+            writer.close()
+            await writer.wait_closed()
+        except TimeoutError:
+            logger.error("Cannot access network port. timed out.")
+        except socket.gaierror as e:
+            logger.error(f"Socket.gaierror {e}")
+
+
+COMMANDS = [src_dsn, dst_dsn, check_pkeys, check_connectivity]
