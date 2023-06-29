@@ -12,8 +12,10 @@ from pgbelt.config.config import get_config
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
+from tabulate import tabulate
 from typer import echo
 from typer import Option
+from typer import style
 
 
 def src_dsn(
@@ -83,7 +85,43 @@ def check_pkeys(db: str, dc: str) -> None:
     )
 
 
-@run_with_configs()
+async def _print_connectivity_results(results: list[dict]):
+    """
+    For a list of databases in a datacenter, show a table of established connections.
+
+    Also exit(1) if ANY connections failed.
+    """
+
+    table = [
+        [
+            style("database", "yellow"),
+            style("src connect ok", "yellow"),
+            style("dst connect ok", "yellow"),
+        ]
+    ]
+
+    results.sort(key=lambda d: d["db"])
+
+    failed_connection_exists = False
+    for r in results:
+        table.append(
+            [
+                style(r["db"], "green"),
+                style(r["src"], "green" if r["src"] else "red"),
+                style(r["dst"], "green" if r["dst"] else "red"),
+            ]
+        )
+        # If any of the connections have failed in this DB, and the flag hasn't been set, set it.
+        if not failed_connection_exists and (r["src"] is False or r["dst"] is False):
+            failed_connection_exists = True
+
+    echo(tabulate(table, headers="firstrow"))
+
+    if failed_connection_exists:
+        exit(1)
+
+
+@run_with_configs(results_callback=_print_connectivity_results)
 async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Returns exit code 0 if pgbelt can connect to all databases in a datacenter
@@ -97,24 +135,50 @@ async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
 
     conf = await config_future
 
-    src_future = open_connection(conf.src.host, conf.src.port)
+    src_future = open_connection(conf.src.ip, conf.src.port)
     src_logger = get_logger(conf.db, conf.dc, "connect.src")
-    dst_future = open_connection(conf.dst.host, conf.dst.port)
+    dst_future = open_connection(conf.dst.ip, conf.dst.port)
     dst_logger = get_logger(conf.db, conf.dc, "connect.dst")
+    src_connect_ok = False
+    dst_connect_ok = False
 
-    for future, logger in [(src_future, src_logger), (dst_future, dst_logger)]:
-        try:
-            logger.info("Checking network access to port...")
+    # Source Connection Checks
+    try:
+        src_logger.info("Checking network access to port...")
 
-            # Wait for 3 seconds, then raise TimeoutError
-            _, writer = await wait_for(future, timeout=3)
-            logger.debug("Can access network port.")
-            writer.close()
-            await writer.wait_closed()
-        except TimeoutError:
-            logger.error("Cannot access network port. timed out.")
-        except socket.gaierror as e:
-            logger.error(f"Socket.gaierror {e}")
+        # Wait for 3 seconds, then raise TimeoutError
+        _, writer = await wait_for(src_future, timeout=3)
+        src_logger.debug("Can access network port.")
+        writer.close()
+        await writer.wait_closed()
+        src_connect_ok = True
+    except TimeoutError:
+        src_logger.error("Cannot access network port. timed out.")
+    except socket.gaierror as e:
+        src_logger.error(f"Socket.gaierror {e}")
+    except ConnectionRefusedError as e:
+        src_logger.error(f"ConnectionRefusedError {e}")
+
+    # Destination Connection Checks
+    try:
+        dst_logger.info("Checking network access to port...")
+
+        # Wait for 3 seconds, then raise TimeoutError
+        _, writer = await wait_for(dst_future, timeout=3)
+        dst_logger.debug("Can access network port.")
+        writer.close()
+        await writer.wait_closed()
+        dst_connect_ok = True
+    except TimeoutError:
+        dst_logger.error("Cannot access network port. timed out.")
+    except socket.gaierror as e:
+        dst_logger.error(f"Socket.gaierror {e}")
+    except ConnectionRefusedError as e:
+        dst_logger.error(f"ConnectionRefusedError {e}")
+
+    # TODO: Exit code AFTER all have run
+
+    return {"db": conf.db, "src": src_connect_ok, "dst": dst_connect_ok}
 
 
 COMMANDS = [src_dsn, dst_dsn, check_pkeys, check_connectivity]
