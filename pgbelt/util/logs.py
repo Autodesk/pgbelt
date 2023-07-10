@@ -36,7 +36,6 @@ def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
         # We will allow OSError (not being able to write to disk)
         # Just don't add the File Handler
         except OSError:
-            logger.warn("Not writing logs to disk!")
             skip_file_handler = True
             pass
 
