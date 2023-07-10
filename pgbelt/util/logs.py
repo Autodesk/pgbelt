@@ -27,16 +27,24 @@ def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
     # When we set up a logger for that db that emits to a file
     logger = logging.getLogger(f"dbup.{db}.{dc}")
     if not logger.handlers:
+        skip_file_handler = False
+
         try:
             makedirs(log_file_dir(db, dc))
         except FileExistsError:
             pass
+        # We will allow OSError (not being able to write to disk)
+        # Just don't add the File Handler
+        except OSError:
+            skip_file_handler = True
+            pass
 
-        handler = logging.FileHandler(log_file_path(db, dc), mode="w")
-        handler.setFormatter(logging.Formatter(FORMATTER, style="{"))
-        # always log everything to the file
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        if not skip_file_handler:
+            handler = logging.FileHandler(log_file_path(db, dc), mode="w")
+            handler.setFormatter(logging.Formatter(FORMATTER, style="{"))
+            # always log everything to the file
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(handler)
 
     # if you pass kind then you can get a logger for a specific thing,
     # and your logs will end up annotated with the kind
