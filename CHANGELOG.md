@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Autodesk/pgbelt/compare/v0.3.0...v0.4.0) (2023-07-10)
+
+
+### Features
+
+* ability to not write logs to disk if needed ([#255](https://github.com/Autodesk/pgbelt/issues/255)) ([69469c0](https://github.com/Autodesk/pgbelt/commit/69469c0c16f1891992e7d15f4725369de3162cd7))
+
 ## [0.3.0](https://github.com/Autodesk/pgbelt/compare/v0.2.4...v0.3.0) (2023-06-29)
 
 
