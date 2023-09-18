@@ -107,10 +107,10 @@ Both your source and target database must satisfy the following requirements:
 - All data to be migrated must be owned by a single login user.
 - There must be a postgres superuser with a login in the database.
 - Have the following parameters:
-  - `max_replication_slots` >= 20
-  - `max_worker_processes` >= 20
-  - `max_wal_senders` >= 20
-  - `shared_preload_libraries` must include both `pg_stat_statements` and `pglogical`. *NOTE:* You must ensure your destination database has all required extensions for your schema.
+  - `max_replication_slots` >= 2 (at least 2 for use by this tool, add more if other tools are using slots as well)
+  - `max_worker_processes` >= 2 (should be as high as your CPU count)
+  - `max_wal_senders` >= 10 (Postgres default is 10, should not be lower than this)
+  - `shared_preload_libraries` must include both `pg_stat_statements` and `pglogical`. _NOTE:_ You must ensure your destination database has all required extensions for your schema.
   - If your db is on AWS RDS you must also set `rds.logical_replication = 1`
 
 # Migration Steps
