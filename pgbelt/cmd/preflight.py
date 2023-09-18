@@ -59,15 +59,15 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 ),
                 style(
                     r["max_replication_slots"],
-                    "green" if int(r["max_replication_slots"]) >= 20 else "red",
+                    "green" if int(r["max_replication_slots"]) >= 2 else "red",
                 ),
                 style(
                     r["max_worker_processes"],
-                    "green" if int(r["max_worker_processes"]) >= 20 else "red",
+                    "green" if int(r["max_worker_processes"]) >= 2 else "red",
                 ),
                 style(
                     r["max_wal_senders"],
-                    "green" if int(r["max_wal_senders"]) >= 20 else "red",
+                    "green" if int(r["max_wal_senders"]) >= 10 else "red",
                 ),
                 style(
                     pg_stat_statements,
