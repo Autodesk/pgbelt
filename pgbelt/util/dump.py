@@ -444,7 +444,7 @@ async def create_target_indexes(
         index = regex_matches.groupdict()["index"]
 
         # Create the index
-        command = ["psql", config.dst.owner_dsn, "-c", f"'{c}'"]
+        command = ["psql", config.dst.owner_dsn, "-c", f"{c};"]
         logger.info(f"Creating index {index} on the target...")
         try:
             await _execute_subprocess(

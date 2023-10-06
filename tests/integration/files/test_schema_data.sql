@@ -26,6 +26,15 @@ CREATE TABLE public.Users (
 ALTER TABLE public.Users OWNER TO owner;
 
 --
+-- Name: users_idx; Type: INDEX; Schema: public; Owner: owner
+--
+
+CREATE INDEX users_idx ON public.Users (
+    hash_firstname,
+    hash_lastname
+);
+
+--
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
 --
 
