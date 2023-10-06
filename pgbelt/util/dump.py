@@ -290,7 +290,7 @@ async def remove_dst_not_valid_constraints(
     async with aopen(schema_file(config.db, config.dc, ONLY_INVALID), "r") as f:
         not_valid_constraints = await f.read()
 
-    logger.info("Removing NOT VALID constraints...")
+    logger.info("Removing NOT VALID constraints from the target...")
 
     queries = ""
     for c in not_valid_constraints.split(";"):
@@ -309,7 +309,7 @@ async def remove_dst_not_valid_constraints(
     command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
 
     await _execute_subprocess(
-        command, "Finished removing NOT VALID constraints.", logger
+        command, "Finished removing NOT VALID constraints from the target.", logger
     )
 
 
@@ -377,3 +377,34 @@ async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None
             await out.write(command)
 
     logger.debug("Finished dumping CREATE INDEX statements from the target.")
+
+
+async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
+    """
+    Remove the INDEXes from the schema of the target database.
+    Only use if target schema was loaded in without pgbelt.
+    """
+    logger.info("Looking for previously dumped CREATE INDEX statements...")
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+        create_index_statements = await f.read()
+
+    logger.info("Removing Indexes from the target...")
+
+    queries = ""
+    for c in create_index_statements.split(";"):
+        regex_matches = search(
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            c,
+        )
+        if not regex_matches:
+            continue
+        index = regex_matches.groupdict()["index"]
+
+        queries = queries + f"DROP INDEX {index};"
+
+    command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
+
+    await _execute_subprocess(
+        command, "Finished removing indexes from the target.", logger
+    )

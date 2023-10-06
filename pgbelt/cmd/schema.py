@@ -77,15 +77,6 @@ async def remove_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
     await remove_dst_not_valid_constraints(conf, logger)
 
 
-COMMANDS = [
-    dump_schema,
-    load_schema,
-    load_constraints,
-    dump_constraints,
-    remove_constraints,
-]
-
-
 @run_with_configs(skip_src=True)
 async def dump_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
@@ -95,3 +86,24 @@ async def dump_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
     await dump_dst_create_index(conf, logger)
+
+
+@run_with_configs(skip_src=True)
+async def remove_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Removes indexes from the target database. This must be done
+    before setting up replication, and should only be used if the schema in the
+    target database was loaded outside of pgbelt.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await remove_dst_indexes(conf, logger)
+
+
+COMMANDS = [
+    dump_schema,
+    load_schema,
+    load_constraints,
+    dump_constraints,
+    remove_constraints,
+]
