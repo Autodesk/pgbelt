@@ -100,6 +100,19 @@ async def remove_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     await remove_dst_indexes(conf, logger)
 
 
+@run_with_configs(skip_src=True)
+async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Creates indexes from the file schemas/dc/db/indexes.sql into the destination
+    as the owner user. This must only be done after most data is synchronized
+    (at minimum after the initializing phase) from the source to the destination
+    database.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await create_target_indexes(conf, logger)
+
+
 COMMANDS = [
     dump_schema,
     load_schema,

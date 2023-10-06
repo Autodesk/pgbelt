@@ -408,3 +408,22 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
     await _execute_subprocess(
         command, "Finished removing indexes from the target.", logger
     )
+
+
+async def create_target_indexes(config: DbupgradeConfig, logger: Logger) -> None:
+    """
+    Create indexes on the target that were excluded from the schema during setup.
+    Should be called once bulk syncing is complete, and before cutover.
+    """
+    logger.info("Creating indexes on the target...")
+
+    command = [
+        "psql",
+        config.dst.owner_dsn,
+        "-f",
+        schema_file(config.db, config.dc, ONLY_INDEXES),
+    ]
+
+    await _execute_subprocess(
+        command, "Finished creating indexes on the target.", logger
+    )
