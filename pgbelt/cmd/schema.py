@@ -14,10 +14,12 @@ from pgbelt.util.logs import get_logger
 async def dump_schema(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Dumps and sanitizes the schema from the source database, then saves it to
-    a file. Three files will be generated. One contains the entire sanitized
-    schema, one contains the schema with all NOT VALID constraints removed, and
-    another contains only the NOT VALID constraints that were removed. These
-    files will be saved in the schemas directory.
+    a file. Four files will be generated:
+    1. The entire sanitized schema
+    2. The schema with all NOT VALID constraints and CREATE INDEX statements removed,
+    3. A file that contains only the CREATE INDEX statements
+    4. A file that contains only the NOT VALID constraints
+    These files will be saved in the schemas directory.
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.src")

@@ -12,8 +12,9 @@ from aiofiles import open as aopen
 from asyncpg import create_pool
 
 RAW = "schema"
-NO_INVALID = "no_invalid_constraints"
+NO_INVALID_NO_INDEX_NO_INDEX = "NO_INVALID_NO_INDEX_constraints_no_indexes"
 ONLY_INVALID = "invalid_constraints"
+ONLY_INDEXES = "indexes"
 
 
 def schema_dir(db: str, dc: str) -> str:
@@ -152,8 +153,9 @@ async def load_dumped_tables(
 async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
     """
     Dump the schema from the source db and write a file with the complete schema,
-    one with only the NOT VALID constraints from the schema, and one with everything
-    but the NOT VALID constraints.
+    one with only the CREATE INDEX statements from the schema,
+    one with only the NOT VALID constraints from the schema,
+    and one with everything but the NOT VALID constraints and the CREATE INDEX statements.
     """
     logger.info("Dumping schema...")
 
@@ -189,9 +191,16 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
             if "NOT VALID" in command:
                 await out.write(command)
 
-    async with aopen(schema_file(config.db, config.dc, NO_INVALID), "w") as out:
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
         for command in commands:
-            if "NOT VALID" not in command:
+            if "CREATE INDEX" in command:
+                await out.write(command)
+
+    async with aopen(
+        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
+    ) as out:
+        for command in commands:
+            if "NOT VALID" not in command and "CREATE INDEX" not in command:
                 await out.write(command)
 
     logger.debug("Finished dumping schema.")
@@ -199,7 +208,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
 
 async def apply_target_schema(config: DbupgradeConfig, logger: Logger) -> None:
     """
-    Load the schema dumped from the source into the target excluding NOT VALID constraints.
+    Load the schema dumped from the source into the target excluding NOT VALID constraints and CREATE INDEX statements.
     """
     logger.info("Loading schema without constraints...")
 
@@ -207,7 +216,7 @@ async def apply_target_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "psql",
         config.dst.owner_dsn,
         "-f",
-        schema_file(config.db, config.dc, NO_INVALID),
+        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX),
     ]
 
     await _execute_subprocess(command, "Finished loading schema.", logger)
