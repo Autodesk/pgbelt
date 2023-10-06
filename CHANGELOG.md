@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/Autodesk/pgbelt/compare/v0.4.0...v0.5.0) (2023-10-06)
+
+
+### Features
+
+* stripping indexes and adding them later, and testing ([#273](https://github.com/Autodesk/pgbelt/issues/273)) ([c730e78](https://github.com/Autodesk/pgbelt/commit/c730e7852fdf40001633fd074b5aac4128a48af2))
+
+
+### Bug Fixes
+
+* precheck parameter value guidelines updated for [#267](https://github.com/Autodesk/pgbelt/issues/267) ([#268](https://github.com/Autodesk/pgbelt/issues/268)) ([e423929](https://github.com/Autodesk/pgbelt/commit/e42392993da1500ef564c3f6cc287f89531651e0))
+
 ## [0.4.0](https://github.com/Autodesk/pgbelt/compare/v0.3.0...v0.4.0) (2023-07-10)
 
 
