@@ -410,20 +410,48 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
     )
 
 
-async def create_target_indexes(config: DbupgradeConfig, logger: Logger) -> None:
+async def create_target_indexes(
+    config: DbupgradeConfig, logger: Logger, during_sync=False
+) -> None:
     """
     Create indexes on the target that were excluded from the schema during setup.
     Should be called once bulk syncing is complete, and before cutover.
+
+    Runs in serial for now with this async code.
+    TODO: make this run in parallel (beware risk of building too many indexes at once, resource heavy)
     """
+
+    if during_sync:
+        logger.warning(
+            "Attempting to create indexes on the target. If indexes were not created before the cutover window, this can take a long time."
+        )
+
+    logger.info("Looking for previously dumped CREATE INDEX statements...")
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+        create_index_statements = await f.read()
+
     logger.info("Creating indexes on the target...")
 
-    command = [
-        "psql",
-        config.dst.owner_dsn,
-        "-f",
-        schema_file(config.db, config.dc, ONLY_INDEXES),
-    ]
+    for c in create_index_statements.split(";"):
+        # Get the Index Name
+        regex_matches = search(
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            c,
+        )
+        if not regex_matches:
+            continue
+        index = regex_matches.groupdict()["index"]
 
-    await _execute_subprocess(
-        command, "Finished creating indexes on the target.", logger
-    )
+        # Create the index
+        command = ["psql", config.dst.owner_dsn, "-c", f"'{c}'"]
+        logger.info(f"Creating index {index} on the target...")
+        try:
+            await _execute_subprocess(
+                command, f"Finished creating index {index} on the target.", logger
+            )
+        except Exception as e:
+            if f'relation "{index}" already exists' in str(e):
+                logger.info(f"Index {index} already exist on the target.")
+            else:
+                raise Exception(e)

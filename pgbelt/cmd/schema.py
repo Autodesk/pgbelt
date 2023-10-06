@@ -110,7 +110,7 @@ async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
-    await create_target_indexes(conf, logger)
+    await create_target_indexes(conf, logger, during_sync=False)
 
 
 COMMANDS = [
