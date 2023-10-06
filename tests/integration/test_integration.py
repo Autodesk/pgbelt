@@ -230,3 +230,13 @@ async def test_main_workflow(setup_db_upgrade_config):
     assert source_dump == dest_dump
 
     # ------------------------------------------------------------------
+
+    # Run Teardown
+
+    await pgbelt.cmd.teardown.teardown(
+        db=setup_db_upgrade_config.db, dc=setup_db_upgrade_config.dc
+    )
+
+    await pgbelt.cmd.teardown.teardown(
+        db=setup_db_upgrade_config.db, dc=setup_db_upgrade_config.dc, full=True
+    )
