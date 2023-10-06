@@ -193,14 +193,16 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
 
     async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
         for command in commands:
-            if "CREATE INDEX" in command:
+            if "CREATE" in command and "INDEX" in command:
                 await out.write(command)
 
     async with aopen(
         schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
     ) as out:
         for command in commands:
-            if "NOT VALID" not in command and "CREATE INDEX" not in command:
+            if not ("NOT VALID" in command) and not (
+                "CREATE" in command and "INDEX" in command
+            ):
                 await out.write(command)
 
     logger.debug("Finished dumping schema.")
@@ -328,3 +330,50 @@ async def apply_target_constraints(config: DbupgradeConfig, logger: Logger) -> N
     await _execute_subprocess(
         command, "Finished loading NOT VALID constraints.", logger
     )
+
+
+async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None:
+    """
+    Dump CREATE INDEX statements from the target database.
+    Used when schema is loaded in outside of pgbelt.
+    """
+
+    logger.info("Dumping target CREATE INDEX statements...")
+
+    command = [
+        "pg_dump",
+        "--schema-only",
+        "--no-owner",
+        "-n",
+        "public",
+        config.dst.pglogical_dsn,
+    ]
+
+    out = await _execute_subprocess(command, "Retrieved target schema", logger)
+
+    # No username replacement needs to be done, so replace dst user with the same.
+    commands_raw = _parse_dump_commands(
+        out.decode("utf-8"), config.dst.owner_user.name, config.dst.owner_user.name
+    )
+
+    commands = []
+    for c in commands_raw:
+        if "CREATE" in command and "INDEX" in command:
+            regex_matches = search(
+                r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+                c,
+            )
+            if not regex_matches:
+                continue
+            commands.append(c)
+
+    try:
+        await makedirs(schema_dir(config.db, config.dc))
+    except FileExistsError:
+        pass
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
+        for command in commands:
+            await out.write(command)
+
+    logger.debug("Finished dumping CREATE INDEX statements from the target.")

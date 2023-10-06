@@ -7,6 +7,7 @@ from pgbelt.util.dump import apply_target_schema
 from pgbelt.util.dump import dump_dst_not_valid_constraints
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.dump import remove_dst_not_valid_constraints
+from pgbelt.util.dump import dump_dst_create_index
 from pgbelt.util.logs import get_logger
 
 
@@ -83,3 +84,14 @@ COMMANDS = [
     dump_constraints,
     remove_constraints,
 ]
+
+
+@run_with_configs(skip_src=True)
+async def dump_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Dumps the CREATE INDEX statements from the target database onto disk, in
+    the schemas directory.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await dump_dst_create_index(conf, logger)
