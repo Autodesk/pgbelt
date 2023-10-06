@@ -12,7 +12,7 @@ from aiofiles import open as aopen
 from asyncpg import create_pool
 
 RAW = "schema"
-NO_INVALID_NO_INDEX_NO_INDEX = "NO_INVALID_NO_INDEX_constraints_no_indexes"
+NO_INVALID_NO_INDEX = "no_invalid_constraints_no_indexes"
 ONLY_INVALID = "invalid_constraints"
 ONLY_INDEXES = "indexes"
 
