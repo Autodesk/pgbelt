@@ -31,7 +31,7 @@ repos:
         name: flake8
         entry: flake8
         language: system
-        types: [python]
+        types: [python3]
         exclude: "^(test/*|examples/*|noxfile.py)"
         require_serial: true
         args: ["--config=.flake8"]
@@ -40,13 +40,13 @@ repos:
         description: Automatically upgrade syntax for newer versions.
         entry: pyupgrade
         language: system
-        types: [python]
+        types: [python3]
         args: [--py39-plus, --keep-runtime-typing]
       - id: reorder-python-imports
         name: Reorder python imports
         entry: reorder-python-imports
         language: system
-        types: [python]
+        types: [python3]
         args: [--application-directories=src]
       - id: trailing-whitespace
         name: Trim Trailing Whitespace
