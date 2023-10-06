@@ -7,6 +7,7 @@ from asyncpg import Pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
+from pgbelt.util.dump import create_target_indexes
 from pgbelt.util.dump import dump_source_tables
 from pgbelt.util.dump import load_dumped_tables
 from pgbelt.util.logs import get_logger
@@ -219,7 +220,7 @@ async def sync(config_future: Awaitable[DbupgradeConfig]) -> None:
 
         await gather(
             apply_target_constraints(conf, dst_logger),
-            create_target_indexes(conf, logger, during_sync=True),
+            create_target_indexes(conf, dst_logger, during_sync=True),
         )
 
         await gather(
