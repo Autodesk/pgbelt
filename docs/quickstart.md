@@ -128,26 +128,34 @@ You can check the status of the migration, database hosts, replication delay, et
 
     $ belt status testdatacenter1
 
-## Step 2: Run ANALYZE on the target database before your application cutover
+## Step 2: Create Indexes on the target database before your application cutover
+
+To ensure the bulk COPY phase of the migration runs faster, indexes are not made in the destination database during setup.
+They need to be built and this process should be done before the cutover to not prolong your cutover window. You should run
+this command during a period of low traffic.
+
+    $ belt create-indexes testdatacenter1 database1
+
+## Step 3: Run ANALYZE on the target database before your application cutover
 
 This is typically run some time before your application cutover, so the target database performs better with the dataset
 once the application cuts over to the target database.
 
     $ belt analyze testdatacenter1 database1
 
-## Step 3: Stop write traffic to your source database
+## Step 4: Stop write traffic to your source database
 
 This would be the beginning of your application downtime. We revoke all login permissions on the source host using `belt` to ensure writes can no longer occur. You may want to do this, then restart Postgres connections on your application to ensure connections can no longer write.
 
     $ belt revoke-logins testdatacenter1 database1
 
-## Step 4: Stop forward replication
+## Step 5: Stop forward replication
 
 Once write traffic has stopped on the source database, we need to stop replication in the forward direction.
 
     $ belt teardown-forward-replication testdatacenter1 database1
 
-## Step 5: Sync all the missing bits from source to destination (that could not be done by replication)
+## Step 6: Sync all the missing bits from source to destination (that could not be done by replication)
 
 PgLogical (used for the actual replication) can't handle the following:
 
@@ -162,6 +170,7 @@ Therefore the next command will do the following:
 - Sync sequence values
 - Dump and load tables without Primary Keys
 - Add NOT VALID constraints to the target schema (they were removed in Step 1 in the target database)
+- Create Indexes (as long as this was run in Step 2, this will be glossed over. If step 2 was missed, indexes will build now amnd this will take longer than expected).
 - Validate data (take 100 random rows and 100 last rows of each table, and compare data)
 - Run ANALYZE to ensure optimal performance
 
@@ -169,7 +178,7 @@ Therefore the next command will do the following:
 $ belt sync testdatacenter1 database1
 ```
 
-## Step 6: Enable write traffic to the destination host
+## Step 7: Enable write traffic to the destination host
 
 This is done outside of PgBelt, with your application. Note -- reverse replication will be ongoing until you feel a rollback is unnecessary. To stop reverse replication, simply run the following:
 

@@ -12,8 +12,9 @@ from aiofiles import open as aopen
 from asyncpg import create_pool
 
 RAW = "schema"
-NO_INVALID = "no_invalid_constraints"
+NO_INVALID_NO_INDEX = "no_invalid_constraints_no_indexes"
 ONLY_INVALID = "invalid_constraints"
+ONLY_INDEXES = "indexes"
 
 
 def schema_dir(db: str, dc: str) -> str:
@@ -152,8 +153,9 @@ async def load_dumped_tables(
 async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
     """
     Dump the schema from the source db and write a file with the complete schema,
-    one with only the NOT VALID constraints from the schema, and one with everything
-    but the NOT VALID constraints.
+    one with only the CREATE INDEX statements from the schema,
+    one with only the NOT VALID constraints from the schema,
+    and one with everything but the NOT VALID constraints and the CREATE INDEX statements.
     """
     logger.info("Dumping schema...")
 
@@ -189,9 +191,18 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
             if "NOT VALID" in command:
                 await out.write(command)
 
-    async with aopen(schema_file(config.db, config.dc, NO_INVALID), "w") as out:
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
         for command in commands:
-            if "NOT VALID" not in command:
+            if "CREATE" in command and "INDEX" in command:
+                await out.write(command)
+
+    async with aopen(
+        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
+    ) as out:
+        for command in commands:
+            if not ("NOT VALID" in command) and not (
+                "CREATE" in command and "INDEX" in command
+            ):
                 await out.write(command)
 
     logger.debug("Finished dumping schema.")
@@ -199,7 +210,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
 
 async def apply_target_schema(config: DbupgradeConfig, logger: Logger) -> None:
     """
-    Load the schema dumped from the source into the target excluding NOT VALID constraints.
+    Load the schema dumped from the source into the target excluding NOT VALID constraints and CREATE INDEX statements.
     """
     logger.info("Loading schema without constraints...")
 
@@ -207,7 +218,7 @@ async def apply_target_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "psql",
         config.dst.owner_dsn,
         "-f",
-        schema_file(config.db, config.dc, NO_INVALID),
+        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX),
     ]
 
     await _execute_subprocess(command, "Finished loading schema.", logger)
@@ -279,7 +290,7 @@ async def remove_dst_not_valid_constraints(
     async with aopen(schema_file(config.db, config.dc, ONLY_INVALID), "r") as f:
         not_valid_constraints = await f.read()
 
-    logger.info("Removing NOT VALID constraints...")
+    logger.info("Removing NOT VALID constraints from the target...")
 
     queries = ""
     for c in not_valid_constraints.split(";"):
@@ -298,7 +309,7 @@ async def remove_dst_not_valid_constraints(
     command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
 
     await _execute_subprocess(
-        command, "Finished removing NOT VALID constraints.", logger
+        command, "Finished removing NOT VALID constraints from the target.", logger
     )
 
 
@@ -319,3 +330,128 @@ async def apply_target_constraints(config: DbupgradeConfig, logger: Logger) -> N
     await _execute_subprocess(
         command, "Finished loading NOT VALID constraints.", logger
     )
+
+
+async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None:
+    """
+    Dump CREATE INDEX statements from the target database.
+    Used when schema is loaded in outside of pgbelt.
+    """
+
+    logger.info("Dumping target CREATE INDEX statements...")
+
+    command = [
+        "pg_dump",
+        "--schema-only",
+        "--no-owner",
+        "-n",
+        "public",
+        config.dst.pglogical_dsn,
+    ]
+
+    out = await _execute_subprocess(command, "Retrieved target schema", logger)
+
+    # No username replacement needs to be done, so replace dst user with the same.
+    commands_raw = _parse_dump_commands(
+        out.decode("utf-8"), config.dst.owner_user.name, config.dst.owner_user.name
+    )
+
+    commands = []
+    for c in commands_raw:
+        if "CREATE" in command and "INDEX" in command:
+            regex_matches = search(
+                r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+                c,
+            )
+            if not regex_matches:
+                continue
+            commands.append(c)
+
+    try:
+        await makedirs(schema_dir(config.db, config.dc))
+    except FileExistsError:
+        pass
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
+        for command in commands:
+            await out.write(command)
+
+    logger.debug("Finished dumping CREATE INDEX statements from the target.")
+
+
+async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
+    """
+    Remove the INDEXes from the schema of the target database.
+    Only use if target schema was loaded in without pgbelt.
+    """
+    logger.info("Looking for previously dumped CREATE INDEX statements...")
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+        create_index_statements = await f.read()
+
+    logger.info("Removing Indexes from the target...")
+
+    queries = ""
+    for c in create_index_statements.split(";"):
+        regex_matches = search(
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            c,
+        )
+        if not regex_matches:
+            continue
+        index = regex_matches.groupdict()["index"]
+
+        queries = queries + f"DROP INDEX {index};"
+
+    command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
+
+    await _execute_subprocess(
+        command, "Finished removing indexes from the target.", logger
+    )
+
+
+async def create_target_indexes(
+    config: DbupgradeConfig, logger: Logger, during_sync=False
+) -> None:
+    """
+    Create indexes on the target that were excluded from the schema during setup.
+    Should be called once bulk syncing is complete, and before cutover.
+
+    Runs in serial for now with this async code.
+    TODO: make this run in parallel (beware risk of building too many indexes at once, resource heavy)
+    """
+
+    if during_sync:
+        logger.warning(
+            "Attempting to create indexes on the target. If indexes were not created before the cutover window, this can take a long time."
+        )
+
+    logger.info("Looking for previously dumped CREATE INDEX statements...")
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+        create_index_statements = await f.read()
+
+    logger.info("Creating indexes on the target...")
+
+    for c in create_index_statements.split(";"):
+        # Get the Index Name
+        regex_matches = search(
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            c,
+        )
+        if not regex_matches:
+            continue
+        index = regex_matches.groupdict()["index"]
+
+        # Create the index
+        command = ["psql", config.dst.owner_dsn, "-c", f"{c};"]
+        logger.info(f"Creating index {index} on the target...")
+        try:
+            await _execute_subprocess(
+                command, f"Finished creating index {index} on the target.", logger
+            )
+        except Exception as e:
+            if f'relation "{index}" already exists' in str(e):
+                logger.info(f"Index {index} already exist on the target.")
+            else:
+                raise Exception(e)

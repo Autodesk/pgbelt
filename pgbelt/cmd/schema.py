@@ -4,9 +4,12 @@ from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import apply_target_schema
+from pgbelt.util.dump import create_target_indexes
 from pgbelt.util.dump import dump_dst_not_valid_constraints
 from pgbelt.util.dump import dump_source_schema
+from pgbelt.util.dump import dump_dst_create_index
 from pgbelt.util.dump import remove_dst_not_valid_constraints
+from pgbelt.util.dump import remove_dst_indexes
 from pgbelt.util.logs import get_logger
 
 
@@ -14,10 +17,12 @@ from pgbelt.util.logs import get_logger
 async def dump_schema(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Dumps and sanitizes the schema from the source database, then saves it to
-    a file. Three files will be generated. One contains the entire sanitized
-    schema, one contains the schema with all NOT VALID constraints removed, and
-    another contains only the NOT VALID constraints that were removed. These
-    files will be saved in the schemas directory.
+    a file. Four files will be generated:
+    1. The entire sanitized schema
+    2. The schema with all NOT VALID constraints and CREATE INDEX statements removed,
+    3. A file that contains only the CREATE INDEX statements
+    4. A file that contains only the NOT VALID constraints
+    These files will be saved in the schemas directory.
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.src")
@@ -72,6 +77,42 @@ async def remove_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
     await remove_dst_not_valid_constraints(conf, logger)
+
+
+@run_with_configs(skip_src=True)
+async def dump_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Dumps the CREATE INDEX statements from the target database onto disk, in
+    the schemas directory.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await dump_dst_create_index(conf, logger)
+
+
+@run_with_configs(skip_src=True)
+async def remove_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Removes indexes from the target database. This must be done
+    before setting up replication, and should only be used if the schema in the
+    target database was loaded outside of pgbelt.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await remove_dst_indexes(conf, logger)
+
+
+@run_with_configs(skip_src=True)
+async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+    """
+    Creates indexes from the file schemas/dc/db/indexes.sql into the destination
+    as the owner user. This must only be done after most data is synchronized
+    (at minimum after the initializing phase) from the source to the destination
+    database.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.dst")
+    await create_target_indexes(conf, logger, during_sync=False)
 
 
 COMMANDS = [
