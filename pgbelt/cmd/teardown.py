@@ -82,14 +82,11 @@ async def teardown(
 
         if full:
             await sleep(15)
-            async with create_pool(conf.src.owner_uri, min_size=1) as src_owner_pool:
-                async with create_pool(
-                    conf.dst.owner_uri, min_size=1
-                ) as dst_owner_pool:
-                    await gather(
-                        revoke_pgl(src_owner_pool, conf.tables, src_logger),
-                        revoke_pgl(dst_owner_pool, conf.tables, dst_logger),
-                    )
+
+            await gather(
+                revoke_pgl(src_root_pool, conf.tables, src_logger),
+                revoke_pgl(dst_root_pool, conf.tables, dst_logger),
+            )
 
             await gather(
                 teardown_pgl(src_root_pool, src_logger),
