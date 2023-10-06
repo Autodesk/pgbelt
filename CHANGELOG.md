@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/Autodesk/pgbelt/compare/v0.5.0...v0.5.1) (2023-10-06)
+
+
+### Bug Fixes
+
+* index commands need to surface as CLI commands too ([#275](https://github.com/Autodesk/pgbelt/issues/275)) ([a8d6fae](https://github.com/Autodesk/pgbelt/commit/a8d6faef753d434a6883aac5797c2b0cb952e86a))
+
 ## [0.5.0](https://github.com/Autodesk/pgbelt/compare/v0.4.0...v0.5.0) (2023-10-06)
 
 
