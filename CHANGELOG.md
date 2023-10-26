@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/Autodesk/pgbelt/compare/v0.5.1...v0.5.2) (2023-10-26)
+
+
+### Bug Fixes
+
+* remote.py error handling needs to shore up plugin error ([#311](https://github.com/Autodesk/pgbelt/issues/311)) ([b47b07f](https://github.com/Autodesk/pgbelt/commit/b47b07f6705b1c8548b67d17b69e5a29e2de5178))
+
 ## [0.5.1](https://github.com/Autodesk/pgbelt/compare/v0.5.0...v0.5.1) (2023-10-06)
 
 
