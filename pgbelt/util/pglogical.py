@@ -11,10 +11,12 @@ from asyncpg.exceptions import UndefinedObjectError
 from asyncpg.exceptions import UniqueViolationError
 
 
-async def configure_pgl(pool: Pool, pgl_pw: str, logger: Logger) -> None:
+async def configure_pgl(
+    pool: Pool, pgl_pw: str, logger: Logger, owner_user: str
+) -> None:
     """
-    Set up the pglogical role, grant it superuser and replication, and create
-    the extension.
+    Set up the pglogical role, grant it superuser and replication, create
+    the extension and grant USAGE to its schema to the owner user.
     """
     logger.info("Creating pglogical user and extension...")
     async with pool.acquire() as conn:
@@ -53,6 +55,15 @@ async def configure_pgl(pool: Pool, pgl_pw: str, logger: Logger) -> None:
                 logger.debug("pglogical extension created")
             except DuplicateObjectError:
                 logger.debug("pglogical extension already created")
+
+    # TODO: Somehow test for this working in our integration test.
+    #     We need to make the DBs have a separate schema owner role to test this.
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(f"GRANT USAGE ON SCHEMA pglogical TO {owner_user};")
+            logger.debug(
+                f"GRANTed USAGE ON pglogical schema to Schema Owner {owner_user}"
+            )
 
 
 async def grant_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
