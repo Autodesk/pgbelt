@@ -56,6 +56,8 @@ async def configure_pgl(
             except DuplicateObjectError:
                 logger.debug("pglogical extension already created")
 
+    # TODO: Somehow test for this working in our integration test.
+    #     We need to make the DBs have a separate schema owner role to test this.
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(f"GRANT USAGE ON SCHEMA pglogical TO {owner_user};")
