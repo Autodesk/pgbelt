@@ -15,8 +15,8 @@ async def configure_pgl(
     pool: Pool, pgl_pw: str, logger: Logger, owner_user: str
 ) -> None:
     """
-    Set up the pglogical role, grant it superuser and replication, and create
-    the extension.
+    Set up the pglogical role, grant it superuser and replication, create
+    the extension and grant USAGE to its schema to the owner user.
     """
     logger.info("Creating pglogical user and extension...")
     async with pool.acquire() as conn:
