@@ -65,7 +65,12 @@ async def setup(
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
         dst_logger = get_logger(conf.db, conf.dc, "setup.dst")
-        await configure_pgl(src_root_pool, conf.src.pglogical_user.pw, src_logger)
+        await configure_pgl(
+            src_root_pool,
+            conf.src.pglogical_user.pw,
+            src_logger,
+            conf.src.owner_user.name,
+        )
         await grant_pgl(src_owner_pool, conf.tables, src_logger)
 
         schema_load_task = None
@@ -80,7 +85,12 @@ async def setup(
         if schema_load_task is not None:
             await schema_load_task
 
-        await configure_pgl(dst_root_pool, conf.dst.pglogical_user.pw, dst_logger)
+        await configure_pgl(
+            dst_root_pool,
+            conf.dst.pglogical_user.pw,
+            dst_logger,
+            conf.dst.owner_user.name,
+        )
         await grant_pgl(dst_owner_pool, conf.tables, dst_logger)
         await configure_node(dst_root_pool, "pg2", conf.dst.pglogical_dsn, dst_logger)
 
