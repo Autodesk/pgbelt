@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/Autodesk/pgbelt/compare/v0.5.3...v0.5.4) (2023-11-09)
+
+
+### Bug Fixes
+
+* bump pydantic from 1.10.13 to 2.4.2 ([#299](https://github.com/Autodesk/pgbelt/issues/299)) ([8597fcc](https://github.com/Autodesk/pgbelt/commit/8597fccca106606dd1513839bc23c170383f3f2b))
+
 ## [0.5.3](https://github.com/Autodesk/pgbelt/compare/v0.5.2...v0.5.3) (2023-11-09)
 
 
