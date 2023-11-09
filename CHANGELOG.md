@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/Autodesk/pgbelt/compare/v0.5.2...v0.5.3) (2023-11-09)
+
+
+### Bug Fixes
+
+* grant pglogical schema usage [#278](https://github.com/Autodesk/pgbelt/issues/278) ([#318](https://github.com/Autodesk/pgbelt/issues/318)) ([0de9290](https://github.com/Autodesk/pgbelt/commit/0de929074db26e5ca3d47ab9adfbf9bc3d055f0f))
+
 ## [0.5.2](https://github.com/Autodesk/pgbelt/compare/v0.5.1...v0.5.2) (2023-10-26)
 
 
