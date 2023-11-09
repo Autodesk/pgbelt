@@ -142,7 +142,7 @@ class DbupgradeConfig(BaseModel):
             pass
 
         async with aopen(self.file, "w") as f:
-            await f.write(self.json(indent=4))
+            await f.write(self.model_dump_json(indent=4))
 
         logger.info("Cached config to disk.")
 
