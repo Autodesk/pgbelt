@@ -87,8 +87,8 @@ async def teardown(
                 teardown_pgl(src_root_pool, src_logger),
                 teardown_pgl(dst_root_pool, dst_logger),
             )
-    finally:
-        await gather(
+        finally:
+            await gather(
                 revoke_pgl(src_root_pool, conf.tables, src_logger),
                 revoke_pgl(dst_root_pool, conf.tables, dst_logger),
             )
