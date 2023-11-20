@@ -154,7 +154,9 @@ async def resolve_remote_config(
         )
         return None
     except RemoteConfigError as e:
-        logger.error(f"Failed to resolve remote configuration for {db} {dc}. RemoteConfigError {e}")
+        logger.error(
+            f"Failed to resolve remote configuration for {db} {dc}. RemoteConfigError {e}"
+        )
         return None
     except ValidationError:
         logger.error(
