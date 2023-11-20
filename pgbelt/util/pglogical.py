@@ -209,7 +209,7 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
 
 async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
     """
-    Revoke data access permissions from pglogical
+    Revoke data access permissions from pglogical, and drop the pglogical role
     """
     logger.info("Revoking data access permissions from pglogical...")
     async with pool.acquire() as conn:
@@ -233,22 +233,22 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
                 else:
                     raise e
 
+    logger.info("Dropping pglogical role...")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DROP ROLE IF EXISTS pglogical;")
+            logger.debug("Pglogical role dropped")
+
 
 async def teardown_pgl(pool: Pool, logger: Logger) -> None:
     """
-    If they exist, drop the pglogical extension and then the user
+    If they exist, drop the pglogical extension
     """
     logger.info("Dropping pglogical extension...")
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("DROP EXTENSION IF EXISTS pglogical;")
             logger.debug("Pglogical extension dropped")
-
-    logger.info("Dropping pglogical user...")
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute("DROP ROLE IF EXISTS pglogical;")
-            logger.debug("Pglogical user dropped")
 
 
 async def subscription_status(pool: Pool, logger: Logger) -> str:
