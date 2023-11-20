@@ -237,7 +237,7 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("DROP ROLE IF EXISTS pglogical;")
-            logger.debug("Pglogical user dropped")
+            logger.debug("Pglogical role dropped")
 
 
 async def teardown_pgl(pool: Pool, logger: Logger) -> None:
