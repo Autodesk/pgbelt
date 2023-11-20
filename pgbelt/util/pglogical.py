@@ -233,7 +233,7 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
                 else:
                     raise e
 
-    logger.info("Dropping pglogical user...")
+    logger.info("Dropping pglogical role...")
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("DROP ROLE IF EXISTS pglogical;")
@@ -242,7 +242,7 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
 
 async def teardown_pgl(pool: Pool, logger: Logger) -> None:
     """
-    If they exist, drop the pglogical extension and then the user
+    If they exist, drop the pglogical extension
     """
     logger.info("Dropping pglogical extension...")
     async with pool.acquire() as conn:
