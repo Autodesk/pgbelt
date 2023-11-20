@@ -74,7 +74,6 @@ async def compare_data(
     await dst_pool.execute("SET extra_float_digits TO 0;")
 
     for table in set(pkeys):
-
         # If specific table list is defined and iterated table is not in that list, skip.
         if tables and (table not in tables):
             continue
