@@ -209,7 +209,7 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
 
 async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
     """
-    Revoke data access permissions from pglogical
+    Revoke data access permissions from pglogical, and drop the pglogical role
     """
     logger.info("Revoking data access permissions from pglogical...")
     async with pool.acquire() as conn:
