@@ -84,15 +84,14 @@ async def teardown(
             await sleep(15)
 
             await gather(
-                revoke_pgl(src_root_pool, conf.tables, src_logger),
-                revoke_pgl(dst_root_pool, conf.tables, dst_logger),
-            )
-
-            await gather(
                 teardown_pgl(src_root_pool, src_logger),
                 teardown_pgl(dst_root_pool, dst_logger),
             )
     finally:
+        await gather(
+            revoke_pgl(src_root_pool, conf.tables, src_logger),
+            revoke_pgl(dst_root_pool, conf.tables, dst_logger),
+        )
         await gather(*[p.close() for p in pools])
 
 

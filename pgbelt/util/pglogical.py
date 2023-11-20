@@ -233,6 +233,12 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
                 else:
                     raise e
 
+    logger.info("Dropping pglogical user...")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DROP ROLE IF EXISTS pglogical;")
+            logger.debug("Pglogical user dropped")
+
 
 async def teardown_pgl(pool: Pool, logger: Logger) -> None:
     """
@@ -243,12 +249,6 @@ async def teardown_pgl(pool: Pool, logger: Logger) -> None:
         async with conn.transaction():
             await conn.execute("DROP EXTENSION IF EXISTS pglogical;")
             logger.debug("Pglogical extension dropped")
-
-    logger.info("Dropping pglogical user...")
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute("DROP ROLE IF EXISTS pglogical;")
-            logger.debug("Pglogical user dropped")
 
 
 async def subscription_status(pool: Pool, logger: Logger) -> str:
