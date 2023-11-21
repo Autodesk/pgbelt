@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Autodesk/pgbelt/compare/v0.5.4...v0.6.0) (2023-11-20)
+
+
+### Features
+
+* refactor Teardown Command due to DROP EXTENSION woes ([#326](https://github.com/Autodesk/pgbelt/issues/326)) ([5de6300](https://github.com/Autodesk/pgbelt/commit/5de6300d597f3e3f45dd03b83c286fcc07b1ced0))
+
 ## [0.5.4](https://github.com/Autodesk/pgbelt/compare/v0.5.3...v0.5.4) (2023-11-09)
 
 
