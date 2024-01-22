@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/Autodesk/pgbelt/compare/v0.6.0...v0.6.1) (2024-01-22)
+
+
+### Bug Fixes
+
+* pglogical teardown will now always revoke all from all tables from pglogical role ([#362](https://github.com/Autodesk/pgbelt/issues/362)) ([89e892c](https://github.com/Autodesk/pgbelt/commit/89e892c323ffda4bfbedd4d4a04ec612202cbe81))
+
 ## [0.6.0](https://github.com/Autodesk/pgbelt/compare/v0.5.4...v0.6.0) (2023-11-20)
 
 
