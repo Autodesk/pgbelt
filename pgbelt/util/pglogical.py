@@ -215,14 +215,9 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
-                if tables:
-                    await conn.execute(
-                        f"REVOKE ALL ON TABLE {','.join(tables)} FROM pglogical;"
-                    )
-                else:
-                    await conn.execute(
-                        "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pglogical;"
-                    )
+                await conn.execute(
+                    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pglogical;"
+                )
                 await conn.execute(
                     "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM pglogical;"
                 )
