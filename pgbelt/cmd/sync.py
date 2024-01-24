@@ -185,7 +185,9 @@ async def _dump_and_load_all_tables(
 
 
 @run_with_configs
-async def sync(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def sync(
+    config_future: Awaitable[DbupgradeConfig], no_schema: bool = False
+) -> None:
     """
     Sync and validate all data that is not replicated with pglogical. This includes all
     tables without primary keys and all sequences. Also loads any previously omitted
@@ -218,10 +220,12 @@ async def sync(config_future: Awaitable[DbupgradeConfig]) -> None:
         # Creating indexes should run before validations and ANALYZE, but after all the data exists
         # in the destination database.
 
-        await gather(
-            apply_target_constraints(conf, dst_logger),
-            create_target_indexes(conf, dst_logger, during_sync=True),
-        )
+        # Do not load NOT VALID constraints or create INDEXes for exodus-style migrations
+        if not no_schema:
+            await gather(
+                apply_target_constraints(conf, dst_logger),
+                create_target_indexes(conf, dst_logger, during_sync=True),
+            )
 
         await gather(
             compare_100_rows(src_pool, dst_owner_pool, conf.tables, validation_logger),
