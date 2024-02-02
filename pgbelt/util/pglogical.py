@@ -98,13 +98,14 @@ async def configure_replication_set(
     Add each table in the given list to the default replication set
     """
     logger.info(f"Creating new replication set 'pgbelt'")
-    try:
-        await conn.execute(
-            "SELECT pglogical.create_replication_set('pgbelt');"
-        )
-        logger.debug(f"{table} added to default replication set")
-    except Exception as e:
-        logger.debug(f"Could not create replication set 'pgbelt': {e}")
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute(
+                "SELECT pglogical.create_replication_set('pgbelt');"
+            )
+            logger.debug(f"{table} added to default replication set")
+        except Exception as e:
+            logger.debug(f"Could not create replication set 'pgbelt': {e}")
     
     logger.info(f"Configuring default replication set with tables: {tables}")
     for table in tables:
