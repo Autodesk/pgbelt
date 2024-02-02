@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/Autodesk/pgbelt/compare/v0.6.1...v0.6.2) (2024-02-02)
+
+
+### Bug Fixes
+
+* stop using default replication set ([#371](https://github.com/Autodesk/pgbelt/issues/371)) ([cfa6276](https://github.com/Autodesk/pgbelt/commit/cfa62766c43c4f632582730339637be2f5021390))
+
 ## [0.6.1](https://github.com/Autodesk/pgbelt/compare/v0.6.0...v0.6.1) (2024-01-22)
 
 
