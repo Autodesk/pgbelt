@@ -105,7 +105,7 @@ async def configure_replication_set(
         except Exception as e:
             logger.debug(f"Could not create replication set 'pgbelt': {e}")
 
-    logger.info(f"Configuring default replication set with tables: {tables}")
+    logger.info(f"Configuring 'pgbelt' replication set with tables: {tables}")
     for table in tables:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -113,9 +113,9 @@ async def configure_replication_set(
                     await conn.execute(
                         f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{table}\"');"
                     )
-                    logger.debug(f"{table} added to default replication set")
+                    logger.debug(f"Table '{table}' added to 'pgbelt' replication set")
                 except UniqueViolationError:
-                    logger.debug(f"{table} already in default replication set")
+                    logger.debug(f"Table '{table}' already in 'pgbelt' replication set")
 
 
 async def configure_node(pool: Pool, name: str, dsn: str, logger: Logger) -> None:
@@ -153,6 +153,7 @@ async def configure_subscription(
                 await conn.execute(
                     f"""SELECT pglogical.create_subscription(
                         subscription_name:='{name}',
+                        replication_sets:='{{pgbelt}}',
                         provider_dsn:='{provider_dsn}',
                         synchronize_structure:=false,
                         synchronize_data:={'true' if name.startswith('pg1') else 'false'},
