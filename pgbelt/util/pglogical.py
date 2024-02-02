@@ -97,13 +97,22 @@ async def configure_replication_set(
     """
     Add each table in the given list to the default replication set
     """
+    logger.info(f"Creating new replication set pg1_pg2")
+    try:
+        await conn.execute(
+            "SELECT pglogical.create_replication_set('pgbelt');"
+        )
+        logger.debug(f"{table} added to default replication set")
+    except Exception e:
+        logger.debug(f"Could not create replication set pg1_pg2: {e}")
+    
     logger.info(f"Configuring default replication set with tables: {tables}")
     for table in tables:
         async with pool.acquire() as conn:
             async with conn.transaction():
                 try:
                     await conn.execute(
-                        f"SELECT pglogical.replication_set_add_table('default', '\"{table}\"');"
+                        f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{table}\"');"
                     )
                     logger.debug(f"{table} added to default replication set")
                 except UniqueViolationError:
