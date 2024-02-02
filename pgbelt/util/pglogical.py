@@ -206,8 +206,8 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
-                await conn.execute("SELECT pglogical.drop_replication_set('default');")
-                logger.debug("Replication set 'default' dropped")
+                await conn.execute("SELECT pglogical.drop_replication_set('pgbelt');")
+                logger.debug("Replication set 'pgbelt' dropped")
             except (
                 InvalidSchemaNameError,
                 UndefinedFunctionError,
