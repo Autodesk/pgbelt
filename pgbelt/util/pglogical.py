@@ -103,7 +103,7 @@ async def configure_replication_set(
             "SELECT pglogical.create_replication_set('pgbelt');"
         )
         logger.debug(f"{table} added to default replication set")
-    except Exception e:
+    except Exception as e:
         logger.debug(f"Could not create replication set 'pgbelt': {e}")
     
     logger.info(f"Configuring default replication set with tables: {tables}")
