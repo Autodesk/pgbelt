@@ -62,6 +62,27 @@ Install the egg locally:
     # install pgbelt and dev tools with make **setup**
     make setup
 
+### Better understanding of `pgbelt` and how it works
+
+To gain a better understanding of how the tool works, which helps with development, please read the [extended knowledge document](docs/extended_knowledge.md)!
+
+### How to spin up a local replication task for development
+
+This feature is very useful when you are making code changes to `pgbelt` and want to test against live databases to ensure correct behavior.
+
+To do this, this local development feature uses `docker` and `docker-compose` to spin up the following:
+
+1. Two Postgres Containers with networking configured between each other
+2. One container loaded with your local copy of `pgbelt`, built and installed for CLI usage.
+
+Simply run the following to spin the above up and drop yourself into your container with your local `pgbelt`:
+
+    make local-dev
+
+Once you are done, you can exit out of the above container. Then, for cleanliness, please run the following to clean up `docker` and `docker-compose`:
+
+    make clean-docker
+
 ### How to test the project
 
 You will want to run the full test suite (including integration tests) to ensure your contribution causes no issues.

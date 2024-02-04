@@ -46,6 +46,10 @@ Install pgbelt locally:
 
 See [this doc](docs/quickstart.md)!
 
+## Playbook
+
+This playbook gets updated actively. If you have any issues, solutions could be found in [this playbook](docs/playbook.md).
+
 ## Contributing
 
 We welcome contributions! See [this doc](CONTRIBUTING.md) on how to do so, including setting up your local development environment.
