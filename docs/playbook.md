@@ -2,7 +2,7 @@
 
 ## I see an incorrect credential error with the `pglogical` user when setting up replication. What do I do?
 
-It is very possible you have multiple people using the `pgbelt` tool to set up replication. The config's `pglogical` password is randomly generated in each person's config, and that is used during the `setup` stage. The password from the config is used to create the `pglogical` role in your databases.
+It is very possible you have multiple people using the `pgbelt` tool to set up replication. The config's `pglogical` password may be differnt in each person's config, and that is used during the `setup` stage. The password from the config is used to create the `pglogical` role in your databases.
 
 Therefore, the first person to run `setup` has set the `pglogical` user's password in the databases. The error likely comes from `pglogical` mentioning a `node` configuration, where the password is set.
 
