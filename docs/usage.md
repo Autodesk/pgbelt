@@ -470,6 +470,7 @@ $ belt sync [OPTIONS] DC [DB]
 **Options**:
 
 - `--help`: Show this message and exit.
+- `--no-schema`: Skip loading of NOT VALID constraints and creation of INDEXes for exodus-style migrations.
 
 ## `belt sync-sequences`
 
