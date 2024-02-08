@@ -66,7 +66,7 @@ async def configure_pgl(
             )
 
 
-async def grant_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
+async def grant_pgl(pool: Pool, tables: list[str], schema: str, logger: Logger) -> None:
     """
     Grant pglogical access to the data
 
@@ -83,10 +83,10 @@ async def grant_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
                 )
             else:
                 await conn.execute(
-                    "GRANT ALL ON ALL TABLES IN SCHEMA public TO pglogical;"
+                    f"GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO pglogical;"
                 )
             await conn.execute(
-                "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO pglogical;"
+                f"GRANT ALL ON ALL SEQUENCES IN SCHEMA {schema} TO pglogical;"
             )
             logger.debug("pglogical data grants complete")
 
@@ -216,7 +216,9 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
                 logger.debug("Replication set 'pgbelt' does not exist")
 
 
-async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
+async def revoke_pgl(
+    pool: Pool, tables: list[str], schema: str, logger: Logger
+) -> None:
     """
     Revoke data access permissions from pglogical, and drop the pglogical role
     """
@@ -225,10 +227,10 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
         async with conn.transaction():
             try:
                 await conn.execute(
-                    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pglogical;"
+                    f"REVOKE ALL ON ALL TABLES IN SCHEMA {schema} FROM pglogical;"
                 )
                 await conn.execute(
-                    "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM pglogical;"
+                    f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA {schema} FROM pglogical;"
                 )
                 logger.debug("Data access permissions revoked")
             except UndefinedObjectError as e:

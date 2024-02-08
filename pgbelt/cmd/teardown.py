@@ -80,8 +80,8 @@ async def teardown(
             teardown_node(dst_root_pool, "pg2", dst_logger),
         )
         await gather(
-            revoke_pgl(src_root_pool, conf.tables, src_logger),
-            revoke_pgl(dst_root_pool, conf.tables, dst_logger),
+            revoke_pgl(src_root_pool, conf.tables, conf.src.schema, src_logger),
+            revoke_pgl(dst_root_pool, conf.tables, conf.dst.schema, dst_logger),
         )
 
         if full:
