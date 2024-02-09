@@ -62,7 +62,9 @@ async def _check_pkeys(
     conf: DbupgradeConfig, logger: Logger
 ) -> tuple[list[str], list[str]]:
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
-        pkey_tables, no_pkey_tables, _ = await analyze_table_pkeys(pool, logger)
+        pkey_tables, no_pkey_tables, _ = await analyze_table_pkeys(
+            pool, conf.src.schema, logger
+        )
     return pkey_tables, no_pkey_tables
 
 

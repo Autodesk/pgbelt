@@ -35,7 +35,9 @@ async def _setup_src_node(
 
     await configure_node(src_root_pool, "pg1", conf.src.pglogical_dsn, src_logger)
     async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pglogical_pool:
-        pkey_tables, _, _ = await analyze_table_pkeys(src_pglogical_pool, src_logger)
+        pkey_tables, _, _ = await analyze_table_pkeys(
+            src_pglogical_pool, conf.src.schema, src_logger
+        )
 
     pglogical_tables = pkey_tables
     if conf.tables:
@@ -134,7 +136,9 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
 
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
-        pkeys, _, _ = await analyze_table_pkeys(src_pglogical_pool, src_logger)
+        pkeys, _, _ = await analyze_table_pkeys(
+            src_pglogical_pool, conf.src.schema, src_logger
+        )
         dst_logger = get_logger(conf.db, conf.dc, "setup.src")
 
         pglogical_tables = pkeys

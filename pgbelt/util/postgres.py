@@ -46,15 +46,20 @@ async def load_sequences(pool: Pool, seqs: dict[str, int], logger: Logger) -> No
 
 
 async def compare_data(
-    src_pool: Pool, dst_pool: Pool, query: str, tables: list[str], logger: Logger
+    src_pool: Pool,
+    dst_pool: Pool,
+    query: str,
+    tables: list[str],
+    src_schema: str,
+    logger: Logger,
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
-    1. Get all tables with primary keys
+    1. Get all tables with primary keys (from the source)
     2. For each of those tables, select * limit 100
     3. For each row, ensure the row in the destination is identical
     """
-    pkeys, _, pkeys_raw = await analyze_table_pkeys(src_pool, logger)
+    pkeys, _, pkeys_raw = await analyze_table_pkeys(src_pool, src_schema, logger)
 
     pkeys_dict = {}
     # {
@@ -154,7 +159,7 @@ async def compare_data(
 
 
 async def compare_100_rows(
-    src_pool: Pool, dst_pool: Pool, tables: list[str], logger: Logger
+    src_pool: Pool, dst_pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
@@ -174,11 +179,11 @@ async def compare_100_rows(
     ORDER BY {order_by_pkeys};
     """
 
-    await compare_data(src_pool, dst_pool, query, tables, logger)
+    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
 async def compare_latest_100_rows(
-    src_pool: Pool, dst_pool: Pool, tables: list[str], logger: Logger
+    src_pool: Pool, dst_pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Validate data between source and destination databases by comparing the latest row:
@@ -195,7 +200,7 @@ async def compare_latest_100_rows(
     LIMIT 100;
     """
 
-    await compare_data(src_pool, dst_pool, query, tables, logger)
+    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
 async def table_empty(pool: Pool, table: str, logger: Logger) -> bool:
@@ -208,17 +213,18 @@ async def table_empty(pool: Pool, table: str, logger: Logger) -> bool:
 
 
 async def analyze_table_pkeys(
-    pool: Pool, logger: Logger
+    pool: Pool, schema: str, logger: Logger
 ) -> tuple[list[str], list[str], Record]:
     """
-    return three lists of table names. the first element is all tables
-    with pkeys in public and the second is all tables without pkeys in public.
-    The third list is the raw rows of the primary key query with the table name,
-    constraint name, position and column name for the primary key.
+    Return three lists of table names. the first element is all tables
+    with pkeys in the config's named schema and the second is all tables
+    without pkeys in that schema. The third list is the raw rows of the
+    primary key query with the table name, constraint name, position and
+    column name for the primary key.
     """
     logger.info("Checking table primary keys...")
     pkeys_raw = await pool.fetch(
-        """
+        f"""
         SELECT kcu.table_name,
             tco.constraint_name,
             kcu.ordinal_position as position,
@@ -229,7 +235,7 @@ async def analyze_table_pkeys(
             AND kcu.constraint_schema = tco.constraint_schema
             AND kcu.constraint_name = tco.constraint_name
         WHERE tco.constraint_type = 'PRIMARY KEY'
-            AND kcu.table_schema = 'public'
+            AND kcu.table_schema = '{schema}'
         ORDER BY kcu.table_name,
                 position;
         """
@@ -237,11 +243,11 @@ async def analyze_table_pkeys(
     pkeys = [r[0] for r in pkeys_raw]
 
     all_tables = await pool.fetch(
-        """SELECT table_name
+        f"""SELECT table_name
         FROM
             information_schema.tables
         WHERE
-            table_schema = 'public'
+            table_schema = '{schema}'
             AND table_name != 'pg_stat_statements'
         ORDER BY 1;"""
     )
