@@ -103,8 +103,7 @@ Both your source and target database must satisfy the following requirements:
 
 - Be running postgreSQL version 9.6 or greater.
 - Each database must be accessible from the other on the network.
-- All data to be migrated must be in the public schema.
-- All data to be migrated must be owned by a single login user.
+- All data to be migrated must be owned by a single login user, and that user must have CREATE permissions to create objects.
 - There must be a postgres superuser with a login in the database.
 - Have the following parameters:
   - `max_replication_slots` >= 2 (at least 2 for use by this tool, add more if other tools are using slots as well)
