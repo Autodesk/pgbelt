@@ -168,6 +168,10 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
         config.src.pglogical_dsn,
     ]
 
+    # TODO: We should exclude the creation of a schema in the schema dump and load, and made that the responsibility of the user.
+    # Confirm if the CREATE SCHEMA statement is included in the schema dump, and if yes, exclude it.
+    # This will reveal itself in the integration test.
+
     out = await _execute_subprocess(command, "Retrieved source schema", logger)
 
     commands_raw = _parse_dump_commands(out.decode("utf-8"))
