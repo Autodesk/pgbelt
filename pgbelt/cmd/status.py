@@ -86,7 +86,9 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     src_pool, dst_pool = pools
 
     # Get the list of targeted tables by first getting all tables, then filtering whatever is in the config.
-    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(src_pool, src_logger)
+    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(
+        src_pool, conf.src.schema, src_logger
+    )
     all_tables = pkey_tables + non_pkey_tables
     target_tables = all_tables
     if conf.tables:

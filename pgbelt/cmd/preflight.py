@@ -36,6 +36,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
             and r["root"]["rolcreaterole"]
             and r["root"]["rolinherit"]
         ) and ("rds_superuser" in r["root"]["memberof"] or r["root"]["rolsuper"])
+        # TODO: New check - the config owner must be able to create objects in the named schema in the target database.
+        # Might be okay to check on both ends instead of checking just on the target...?
         owner_ok = r["owner"]["rolcanlogin"]
         pg_stat_statements = (
             "installed"
@@ -148,7 +150,13 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         ]
     ]
 
+    # TODO: Since we are now targeting tables and sequences in a named schema (from the config),
+    # we can drop the Schema column and instead add a schema column to the database.
+    # TODO: We should confirm the named schema exists in the database and alert the user if it does not (red in column if not found).
+
     for t in r["tables"]:
+        # TODO: The tables that show up here will be the ones that are in the named schema in the config.
+        # Due to this, if no tables show up, it's likely that the schema name is incorrect. We need to alert the user to this.
         can_replicate = t["Schema"] == "public" and t["Owner"] == r["owner_name"]
         replication = (
             ("pglogical" if t["Name"] in r["pkeys"] else "dump and load")
@@ -160,7 +168,9 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 style(t["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
                 style(replication, "green" if can_replicate else "red"),
-                style(t["Schema"], "green" if t["Schema"] == "public" else "red"),
+                style(
+                    t["Schema"], "green" if t["Schema"] == "public" else "red"
+                ),  # TODO: This is key. Ensure the table's owner matches the owner in the config.
                 style(t["Owner"], "green" if t["Owner"] == r["owner_name"] else "red"),
             ]
         )
@@ -175,12 +185,16 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     ]
 
     for s in r["sequences"]:
+        # TODO: The sequences that show up here will be the ones that are in the named schema in the config.
+        # Due to this, if no sequences show up, it's likely that the schema name is incorrect. We need to alert the user to this.
         can_replicate = s["Schema"] == "public" and s["Owner"] == r["owner_name"]
         sequences_table.append(
             [
                 style(s["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
-                style(s["Schema"], "green" if s["Schema"] == "public" else "red"),
+                style(
+                    s["Schema"], "green" if s["Schema"] == "public" else "red"
+                ),  # TODO: This is key. Ensure the sequence's owner matches the owner in the config.
                 style(s["Owner"], "green" if s["Owner"] == r["owner_name"] else "red"),
             ]
         )
@@ -220,6 +234,8 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
     table and sequence in the database can be replicated.
     If a row contains any red that sequence or table can not be replicated.
     """
+
+    # TODO: This entire precheck only checks the source database. We have to redesign this to check both the source and destination.
     conf = await config_future
     pools = await gather(
         create_pool(conf.src.root_uri, min_size=1),
@@ -235,7 +251,9 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
         result["db"] = conf.db
         result["root_name"] = conf.src.root_user.name
         result["owner_name"] = conf.src.owner_user.name
-        result["pkeys"], _, _ = await analyze_table_pkeys(owner_pool, src_logger)
+        result["pkeys"], _, _ = await analyze_table_pkeys(
+            owner_pool, conf.src.schema, src_logger
+        )
         return result
     finally:
         await gather(*[p.close() for p in pools])

@@ -327,6 +327,8 @@ async def precheck_info(
     except UndefinedObjectError:
         result["rds.logical_replication"] = "Not Applicable"
 
+    # TODO: This query returns all tables in the database, regardless of schema.
+    # We need to isolate this per schema according to the config, and try to alert if no tables are found.
     result["tables"] = await pool.fetch(
         """
         SELECT n.nspname as "Schema",
@@ -343,6 +345,8 @@ async def precheck_info(
         ORDER BY 1,2;"""
     )
 
+    # TODO: This query returns all sequences in the database, regardless of schema.
+    # We need to isolate this per schema according to the config, and try to alert if no tables are found.
     result["sequences"] = await pool.fetch(
         """
         SELECT n.nspname as "Schema",
@@ -374,6 +378,8 @@ async def precheck_info(
         WHERE r.rolname !~ '^pg_' AND (r.rolname = '{root_name}' OR r.rolname = '{owner_name}')
         ORDER BY 1;"""
     )
+
+    # TODO: add check for owner being able to create objects in the config's schema. Just like a t/f.
 
     for u in users:
         if u[0] == root_name:
