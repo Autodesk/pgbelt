@@ -79,6 +79,8 @@ Simply run the following to spin the above up and drop yourself into your contai
 
     make local-dev
 
+_Note_: the DC and DB for the above environment are [here](https://github.com/Autodesk/pgbelt/blob/main/tests/integration/conftest.py#L20-L21).
+
 Once you are done, you can exit out of the above container. Then, for cleanliness, please run the following to clean up `docker` and `docker-compose`:
 
     make clean-docker
