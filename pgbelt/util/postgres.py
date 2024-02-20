@@ -376,3 +376,35 @@ async def precheck_info(
             result["owner"] = u
 
     return result
+
+
+async def get_db_size(db: str, pool: Pool, logger: Logger) -> str:
+    """
+    Get the DB size
+    """
+    logger.info("Getting the DB size...")
+    result = {
+        "db_size": await pool.fetchval(f"SELECT pg_database_size('{db}');"),
+        "db_size_pretty": await pool.fetchval(
+            f"SELECT pg_size_pretty( pg_database_size('{db}') );"
+        ),
+    }
+
+    return result
+
+
+async def initialization_status(
+    db_src: str, db_dst: str, src_pool: Pool, dst_pool: Pool, logger: Logger
+) -> dict[str, str]:
+    """
+    Get the status of the initialization stage
+    """
+    logger.info("checking status of the initialization stage...")
+    src_db_size = await get_db_size(db_src, src_pool, logger)
+    dst_db_size = await get_db_size(db_dst, dst_pool, logger)
+    status = {
+        "src_db_size": src_db_size["db_size_pretty"],
+        "dst_db_size": dst_db_size["db_size_pretty"],
+        "progress": f"{str(round(int(dst_db_size['db_size'])/int(src_db_size['db_size'])*100 ,1))} %",
+    }
+    return status
