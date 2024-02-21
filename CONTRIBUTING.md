@@ -81,6 +81,8 @@ Simply run the following to spin the above up and drop yourself into your contai
 
 _Note_: the DC and DB for the above environment are [here](https://github.com/Autodesk/pgbelt/blob/main/tests/integration/conftest.py#L20-L21).
 
+Note: your local code will be _mounted_ to your container instead of copied. This allows you to edit your code on your laptop, then go into the container and run `pip3 install -e .` to update your container's `belt` binary for quick testing iterations.
+
 Once you are done, you can exit out of the above container. Then, for cleanliness, please run the following to clean up `docker` and `docker-compose`:
 
     make clean-docker
