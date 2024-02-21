@@ -1,4 +1,6 @@
 FROM python:3.11-slim
+COPY ./ /opt/pgbelt
+WORKDIR /opt/pgbelt
 
 RUN set -e \
     && apt-get -y update \
@@ -7,4 +9,5 @@ RUN set -e \
 
 RUN set -e \
     && python -m pip install --upgrade pip \
-    && pip install poetry poetry-dynamic-versioning
+    && pip install poetry poetry-dynamic-versioning \
+    && poetry install
