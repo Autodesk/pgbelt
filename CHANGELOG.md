@@ -2,119 +2,102 @@
 
 ## [0.6.2](https://github.com/Autodesk/pgbelt/compare/v0.6.1...v0.6.2) (2024-02-02)
 
-
 ### Bug Fixes
 
-* stop using default replication set ([#371](https://github.com/Autodesk/pgbelt/issues/371)) ([cfa6276](https://github.com/Autodesk/pgbelt/commit/cfa62766c43c4f632582730339637be2f5021390))
+- stop using default replication set ([#371](https://github.com/Autodesk/pgbelt/issues/371)) ([cfa6276](https://github.com/Autodesk/pgbelt/commit/cfa62766c43c4f632582730339637be2f5021390))
 
 ## [0.6.1](https://github.com/Autodesk/pgbelt/compare/v0.6.0...v0.6.1) (2024-01-22)
 
-
 ### Bug Fixes
 
-* pglogical teardown will now always revoke all from all tables from pglogical role ([#362](https://github.com/Autodesk/pgbelt/issues/362)) ([89e892c](https://github.com/Autodesk/pgbelt/commit/89e892c323ffda4bfbedd4d4a04ec612202cbe81))
+- pglogical teardown will now always revoke all from all tables from pglogical role ([#362](https://github.com/Autodesk/pgbelt/issues/362)) ([89e892c](https://github.com/Autodesk/pgbelt/commit/89e892c323ffda4bfbedd4d4a04ec612202cbe81))
 
 ## [0.6.0](https://github.com/Autodesk/pgbelt/compare/v0.5.4...v0.6.0) (2023-11-20)
 
-
 ### Features
 
-* refactor Teardown Command due to DROP EXTENSION woes ([#326](https://github.com/Autodesk/pgbelt/issues/326)) ([5de6300](https://github.com/Autodesk/pgbelt/commit/5de6300d597f3e3f45dd03b83c286fcc07b1ced0))
+- refactor Teardown Command due to DROP EXTENSION woes ([#326](https://github.com/Autodesk/pgbelt/issues/326)) ([5de6300](https://github.com/Autodesk/pgbelt/commit/5de6300d597f3e3f45dd03b83c286fcc07b1ced0))
 
 ## [0.5.4](https://github.com/Autodesk/pgbelt/compare/v0.5.3...v0.5.4) (2023-11-09)
 
-
 ### Bug Fixes
 
-* bump pydantic from 1.10.13 to 2.4.2 ([#299](https://github.com/Autodesk/pgbelt/issues/299)) ([8597fcc](https://github.com/Autodesk/pgbelt/commit/8597fccca106606dd1513839bc23c170383f3f2b))
+- bump pydantic from 1.10.13 to 2.4.2 ([#299](https://github.com/Autodesk/pgbelt/issues/299)) ([8597fcc](https://github.com/Autodesk/pgbelt/commit/8597fccca106606dd1513839bc23c170383f3f2b))
 
 ## [0.5.3](https://github.com/Autodesk/pgbelt/compare/v0.5.2...v0.5.3) (2023-11-09)
 
-
 ### Bug Fixes
 
-* grant pglogical schema usage [#278](https://github.com/Autodesk/pgbelt/issues/278) ([#318](https://github.com/Autodesk/pgbelt/issues/318)) ([0de9290](https://github.com/Autodesk/pgbelt/commit/0de929074db26e5ca3d47ab9adfbf9bc3d055f0f))
+- grant pglogical schema usage [#278](https://github.com/Autodesk/pgbelt/issues/278) ([#318](https://github.com/Autodesk/pgbelt/issues/318)) ([0de9290](https://github.com/Autodesk/pgbelt/commit/0de929074db26e5ca3d47ab9adfbf9bc3d055f0f))
 
 ## [0.5.2](https://github.com/Autodesk/pgbelt/compare/v0.5.1...v0.5.2) (2023-10-26)
 
-
 ### Bug Fixes
 
-* remote.py error handling needs to shore up plugin error ([#311](https://github.com/Autodesk/pgbelt/issues/311)) ([b47b07f](https://github.com/Autodesk/pgbelt/commit/b47b07f6705b1c8548b67d17b69e5a29e2de5178))
+- remote.py error handling needs to shore up plugin error ([#311](https://github.com/Autodesk/pgbelt/issues/311)) ([b47b07f](https://github.com/Autodesk/pgbelt/commit/b47b07f6705b1c8548b67d17b69e5a29e2de5178))
 
 ## [0.5.1](https://github.com/Autodesk/pgbelt/compare/v0.5.0...v0.5.1) (2023-10-06)
 
-
 ### Bug Fixes
 
-* index commands need to surface as CLI commands too ([#275](https://github.com/Autodesk/pgbelt/issues/275)) ([a8d6fae](https://github.com/Autodesk/pgbelt/commit/a8d6faef753d434a6883aac5797c2b0cb952e86a))
+- index commands need to surface as CLI commands too ([#275](https://github.com/Autodesk/pgbelt/issues/275)) ([a8d6fae](https://github.com/Autodesk/pgbelt/commit/a8d6faef753d434a6883aac5797c2b0cb952e86a))
 
 ## [0.5.0](https://github.com/Autodesk/pgbelt/compare/v0.4.0...v0.5.0) (2023-10-06)
 
-
 ### Features
 
-* stripping indexes and adding them later, and testing ([#273](https://github.com/Autodesk/pgbelt/issues/273)) ([c730e78](https://github.com/Autodesk/pgbelt/commit/c730e7852fdf40001633fd074b5aac4128a48af2))
-
+- stripping indexes and adding them later, and testing ([#273](https://github.com/Autodesk/pgbelt/issues/273)) ([c730e78](https://github.com/Autodesk/pgbelt/commit/c730e7852fdf40001633fd074b5aac4128a48af2))
 
 ### Bug Fixes
 
-* precheck parameter value guidelines updated for [#267](https://github.com/Autodesk/pgbelt/issues/267) ([#268](https://github.com/Autodesk/pgbelt/issues/268)) ([e423929](https://github.com/Autodesk/pgbelt/commit/e42392993da1500ef564c3f6cc287f89531651e0))
+- precheck parameter value guidelines updated for [#267](https://github.com/Autodesk/pgbelt/issues/267) ([#268](https://github.com/Autodesk/pgbelt/issues/268)) ([e423929](https://github.com/Autodesk/pgbelt/commit/e42392993da1500ef564c3f6cc287f89531651e0))
 
 ## [0.4.0](https://github.com/Autodesk/pgbelt/compare/v0.3.0...v0.4.0) (2023-07-10)
 
-
 ### Features
 
-* ability to not write logs to disk if needed ([#255](https://github.com/Autodesk/pgbelt/issues/255)) ([69469c0](https://github.com/Autodesk/pgbelt/commit/69469c0c16f1891992e7d15f4725369de3162cd7))
+- ability to not write logs to disk if needed ([#255](https://github.com/Autodesk/pgbelt/issues/255)) ([69469c0](https://github.com/Autodesk/pgbelt/commit/69469c0c16f1891992e7d15f4725369de3162cd7))
 
 ## [0.3.0](https://github.com/Autodesk/pgbelt/compare/v0.2.4...v0.3.0) (2023-06-29)
 
-
 ### Features
 
-* check-connectivity command ([#253](https://github.com/Autodesk/pgbelt/issues/253)) ([6ebfff7](https://github.com/Autodesk/pgbelt/commit/6ebfff7a80573a1a33f1c54096fe300786e205c3))
+- check-connectivity command ([#253](https://github.com/Autodesk/pgbelt/issues/253)) ([6ebfff7](https://github.com/Autodesk/pgbelt/commit/6ebfff7a80573a1a33f1c54096fe300786e205c3))
 
 ## [0.2.4](https://github.com/Autodesk/pgbelt/compare/v0.2.3...v0.2.4) (2023-06-15)
 
-
 ### Bug Fixes
 
-* allowing backwards compatibility down to python 3.9 ([#247](https://github.com/Autodesk/pgbelt/issues/247)) ([78b2fd8](https://github.com/Autodesk/pgbelt/commit/78b2fd8d05368f23ecd6c1ece223893bb424731c))
+- allowing backwards compatibility down to python 3.9 ([#247](https://github.com/Autodesk/pgbelt/issues/247)) ([78b2fd8](https://github.com/Autodesk/pgbelt/commit/78b2fd8d05368f23ecd6c1ece223893bb424731c))
 
 ## [0.2.3](https://github.com/Autodesk/pgbelt/compare/v0.2.2...v0.2.3) (2023-05-04)
 
-
 ### Bug Fixes
 
-* double quotes on table names ([#228](https://github.com/Autodesk/pgbelt/issues/228)) ([893773a](https://github.com/Autodesk/pgbelt/commit/893773aa113b719f32e4e5486e585c584499cd9e))
+- double quotes on table names ([#228](https://github.com/Autodesk/pgbelt/issues/228)) ([893773a](https://github.com/Autodesk/pgbelt/commit/893773aa113b719f32e4e5486e585c584499cd9e))
 
 ## [0.2.2](https://github.com/Autodesk/pgbelt/compare/v0.2.1...v0.2.2) (2023-05-02)
 
-
 ### Bug Fixes
 
-* undo bump of virtualenv, back to 20.21.0 ([#223](https://github.com/Autodesk/pgbelt/issues/223)) ([01bfe6f](https://github.com/Autodesk/pgbelt/commit/01bfe6fc167df009d451ac83666f1075a4a0ae05))
+- undo bump of virtualenv, back to 20.21.0 ([#223](https://github.com/Autodesk/pgbelt/issues/223)) ([01bfe6f](https://github.com/Autodesk/pgbelt/commit/01bfe6fc167df009d451ac83666f1075a4a0ae05))
 
 ## [0.2.1](https://github.com/Autodesk/pgbelt/compare/v0.2.0...v0.2.1) (2023-05-02)
 
-
 ### Bug Fixes
 
-* typer doesn't support union types from python 3.11 ([#220](https://github.com/Autodesk/pgbelt/issues/220)) ([0315390](https://github.com/Autodesk/pgbelt/commit/03153909bcdf4e621b3e7c66aa5a99e55c9ceea4))
+- typer doesn't support union types from python 3.11 ([#220](https://github.com/Autodesk/pgbelt/issues/220)) ([0315390](https://github.com/Autodesk/pgbelt/commit/03153909bcdf4e621b3e7c66aa5a99e55c9ceea4))
 
 ## [0.2.0](https://github.com/Autodesk/pgbelt/compare/v0.1.2...v0.2.0) (2023-04-28)
 
-
 ### Features
 
-* update to python 3.11 ([#191](https://github.com/Autodesk/pgbelt/issues/191)) ([3c44681](https://github.com/Autodesk/pgbelt/commit/3c44681bfda3679bff10022eb9bfcb56fdd9e50a))
-
+- update to python 3.11 ([#191](https://github.com/Autodesk/pgbelt/issues/191)) ([3c44681](https://github.com/Autodesk/pgbelt/commit/3c44681bfda3679bff10022eb9bfcb56fdd9e50a))
 
 ### Bug Fixes
 
-* incorrect precheck command in quickstart.md ([#172](https://github.com/Autodesk/pgbelt/issues/172)) ([36ce96f](https://github.com/Autodesk/pgbelt/commit/36ce96feb6f5c98bcb3c7a0648a25e4f3b9ce655))
-* no need to find and replace owners in schema ([#215](https://github.com/Autodesk/pgbelt/issues/215)) ([dfe1324](https://github.com/Autodesk/pgbelt/commit/dfe1324a56f57e75fa44dfe7196e104c34988695))
+- incorrect precheck command in quickstart.md ([#172](https://github.com/Autodesk/pgbelt/issues/172)) ([36ce96f](https://github.com/Autodesk/pgbelt/commit/36ce96feb6f5c98bcb3c7a0648a25e4f3b9ce655))
+- no need to find and replace owners in schema ([#215](https://github.com/Autodesk/pgbelt/issues/215)) ([dfe1324](https://github.com/Autodesk/pgbelt/commit/dfe1324a56f57e75fa44dfe7196e104c34988695))
 
 ## [0.1.2](https://github.com/Autodesk/pgbelt/compare/v0.1.1...v0.1.2) (2022-10-03)
 

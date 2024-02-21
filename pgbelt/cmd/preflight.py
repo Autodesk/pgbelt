@@ -52,10 +52,14 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 style(r["db"], "green"),
                 style(
                     r["server_version"],
-                    "green"
-                    if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0])
-                    >= 9.6
-                    else "red",
+                    (
+                        "green"
+                        if float(
+                            r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0]
+                        )
+                        >= 9.6
+                        else "red"
+                    ),
                 ),
                 style(
                     r["max_replication_slots"],
@@ -76,9 +80,11 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
                 style(pglogical, "green" if pglogical == "installed" else "red"),
                 style(
                     r["rds.logical_replication"],
-                    "green"
-                    if r["rds.logical_replication"] in ["on", "Not Applicable"]
-                    else "red",
+                    (
+                        "green"
+                        if r["rds.logical_replication"] in ["on", "Not Applicable"]
+                        else "red"
+                    ),
                 ),
                 style(root_ok, "green" if root_ok else "red"),
                 style(owner_ok, "green" if owner_ok else "red"),

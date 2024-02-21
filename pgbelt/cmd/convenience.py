@@ -34,9 +34,7 @@ def src_dsn(
     echo(
         conf.src.owner_dsn
         if owner
-        else conf.src.pglogical_dsn
-        if pglogical
-        else conf.src.root_dsn
+        else conf.src.pglogical_dsn if pglogical else conf.src.root_dsn
     )
 
 
@@ -56,9 +54,7 @@ def dst_dsn(
     echo(
         conf.dst.owner_dsn
         if owner
-        else conf.dst.pglogical_dsn
-        if pglogical
-        else conf.dst.root_dsn
+        else conf.dst.pglogical_dsn if pglogical else conf.dst.root_dsn
     )
 
 
