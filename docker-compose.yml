@@ -82,7 +82,7 @@ services:
       TEST_PG_DST_PORT: 5432
       TEST_PG_DST_ROOT_USERNAME: postgres
       TEST_PG_DST_ROOT_PASSWORD: postgres
-    command: bash -c "poetry run python3 tests/integration/conftest.py && pip3 install -e . && bash"
+    command: bash -c "cd /pgbelt-volume/ && poetry install && poetry run python3 tests/integration/conftest.py && pip3 install -e . && bash"
     depends_on:
       db-src:
         condition: service_healthy
@@ -90,6 +90,8 @@ services:
         condition: service_healthy
     networks:
       - datacenter
+    volumes:
+      - ./:/pgbelt-volume/:rw
 
 networks:
   datacenter:
