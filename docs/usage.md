@@ -17,26 +17,32 @@ $ belt [OPTIONS] COMMAND [ARGS]...
 **Commands**:
 
 - `analyze`: Run ANALYZE in the destination database.
+- `check-connectivity`: Returns exit code 0 if pgbelt can connect...
 - `check-pkeys`: Print out lists of tables with and without...
+- `create-indexes`: Creates indexes from the file...
 - `dst-dsn`: Print a dsn to stdout that you can use to...
+- `dump-constraints`: Dumps the NOT VALID constraints from the...
+- `dump-indexes`: Dumps the CREATE INDEX statements from the...
 - `dump-schema`: Dumps and sanitizes the schema from the...
-- `dump-tables`: Dump all tables without primary keys from the...
-- `load-constraints`: Loads the NOT VALID constraints from the file...
+- `dump-tables`: Dump all tables without primary keys from...
+- `load-constraints`: Loads the NOT VALID constraints from the...
 - `load-schema`: Loads the sanitized schema from the file...
-- `load-tables`: Load all locally saved table data files into...
-- `precheck`: Report whether your source database meets the...
+- `load-tables`: Load all locally saved table data files...
+- `precheck`: Report whether your source database meets...
+- `remove-constraints`: Removes NOT VALID constraints from the...
+- `remove-indexes`: Removes indexes from the target database.
 - `restore-logins`: Grant permission to log in for any user...
-- `revoke-logins`: Discovers all users in the db who can log in,...
+- `revoke-logins`: Discovers all users in the db who can log...
 - `setup`: Configures pglogical to replicate all...
 - `setup-back-replication`: Configures pglogical to replicate all...
 - `src-dsn`: Print a dsn to stdout that you can use to...
-- `status`: Print out a table of status information for...
+- `status`: Print out a table of status information...
 - `sync`: Sync and validate all data that is not...
-- `sync-sequences`: Retrieve the current value of all sequences...
+- `sync-sequences`: Retrieve the current value of all...
 - `sync-tables`: Dump and load all tables from the source...
-- `teardown`: Removes all pglogical configuration from both...
+- `teardown`: Removes all pglogical configuration from...
 - `teardown-back-replication`: Stops pglogical replication from the...
-- `teardown-forward-replication`: Stops pglogical replication from the source...
+- `teardown-forward-replication`: Stops pglogical replication from the...
 - `validate-data`: Compares data in the source and target...
 
 ## `belt analyze`
@@ -52,6 +58,35 @@ If the db name is not given run on all dbs in the dc.
 
 ```console
 $ belt analyze [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
+- `--help`: Show this message and exit.
+
+## `belt check-connectivity`
+
+Returns exit code 0 if pgbelt can connect to all databases in a datacenter
+(if db is not specified), or to both src and dst of a database.
+
+This is done by checking network access to the database ports ONLY.
+
+If any connection times out, the command will exit 1. It will test ALL connections
+before returning exit code 1 or 0, and output which connections passed/failed.
+
+Requires both src and dst to be not null in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt check-connectivity [OPTIONS] DC [DB]
 ```
 
 **Arguments**:
@@ -82,6 +117,32 @@ $ belt check-pkeys [OPTIONS] DC DB
 
 - `--help`: Show this message and exit.
 
+## `belt create-indexes`
+
+Creates indexes from the file schemas/dc/db/indexes.sql into the destination
+as the owner user. This must only be done after most data is synchronized
+(at minimum after the initializing phase) from the source to the destination
+database.
+
+Can be run with a null src in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt create-indexes [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
+- `--help`: Show this message and exit.
+
 ## `belt dst-dsn`
 
 Print a dsn to stdout that you can use to connect to the destination db:
@@ -102,17 +163,68 @@ $ belt dst-dsn [OPTIONS] DC DB
 
 **Options**:
 
-- `--owner / --no-owner`: Use the owner credentials [default: False]
-- `--pglogical / --no-pglogical`: Use the pglogical credentials. [default: False]
+- `--owner / --no-owner`: Use the owner credentials [default: no-owner]
+- `--pglogical / --no-pglogical`: Use the pglogical credentials. [default: no-pglogical]
+- `--help`: Show this message and exit.
+
+## `belt dump-constraints`
+
+Dumps the NOT VALID constraints from the target database onto disk, in
+the schemas directory.
+
+Can be run with a null src in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt dump-constraints [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
+- `--help`: Show this message and exit.
+
+## `belt dump-indexes`
+
+Dumps the CREATE INDEX statements from the target database onto disk, in
+the schemas directory.
+
+Can be run with a null src in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt dump-indexes [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
 - `--help`: Show this message and exit.
 
 ## `belt dump-schema`
 
 Dumps and sanitizes the schema from the source database, then saves it to
-a file. Three files will be generated. One contains the entire sanitized
-schema, one contains the schema with all NOT VALID constraints removed, and
-another contains only the NOT VALID constraints that were removed. These
-files will be saved in the schemas directory.
+a file. Four files will be generated:
+
+1. The entire sanitized schema
+2. The schema with all NOT VALID constraints and CREATE INDEX statements removed,
+3. A file that contains only the CREATE INDEX statements
+4. A file that contains only the NOT VALID constraints
+   These files will be saved in the schemas directory.
 
 Requires both src and dst to be not null in the config file.
 
@@ -158,7 +270,7 @@ $ belt dump-tables [OPTIONS] DC [DB]
 
 **Options**:
 
-- `--tables TEXT`: Specific tables to dump [default: ]
+- `--tables TEXT`: Specific tables to dump
 - `--help`: Show this message and exit.
 
 ## `belt load-constraints`
@@ -239,7 +351,7 @@ $ belt load-tables [OPTIONS] DC [DB]
 
 **Options**:
 
-- `--tables TEXT`: Specific tables to load [default: ]
+- `--tables TEXT`: Specific tables to load
 - `--help`: Show this message and exit.
 
 ## `belt precheck`
@@ -261,6 +373,56 @@ If the db name is not given run on all dbs in the dc.
 
 ```console
 $ belt precheck [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
+- `--help`: Show this message and exit.
+
+## `belt remove-constraints`
+
+Removes NOT VALID constraints from the target database. This must be done
+before setting up replication, and should only be used if the schema in the
+target database was loaded outside of pgbelt.
+
+Can be run with a null src in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt remove-constraints [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+- `DC`: [required]
+- `[DB]`
+
+**Options**:
+
+- `--help`: Show this message and exit.
+
+## `belt remove-indexes`
+
+Removes indexes from the target database. This must be done
+before setting up replication, and should only be used if the schema in the
+target database was loaded outside of pgbelt.
+
+Can be run with a null src in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt remove-indexes [OPTIONS] DC [DB]
 ```
 
 **Arguments**:
@@ -351,7 +513,7 @@ $ belt setup [OPTIONS] DC [DB]
 
 **Options**:
 
-- `--schema / --no-schema`: Copy the schema? [default: True]
+- `--schema / --no-schema`: Copy the schema? [default: schema]
 - `--help`: Show this message and exit.
 
 ## `belt setup-back-replication`
@@ -402,8 +564,8 @@ $ belt src-dsn [OPTIONS] DC DB
 
 **Options**:
 
-- `--owner / --no-owner`: Use the owner credentials [default: False]
-- `--pglogical / --no-pglogical`: Use the pglogical credentials. [default: False]
+- `--owner / --no-owner`: Use the owner credentials [default: no-owner]
+- `--pglogical / --no-pglogical`: Use the pglogical credentials. [default: no-pglogical]
 - `--help`: Show this message and exit.
 
 ## `belt status`
@@ -469,8 +631,8 @@ $ belt sync [OPTIONS] DC [DB]
 
 **Options**:
 
+- `--no-schema / --no-no-schema`: [default: no-no-schema]
 - `--help`: Show this message and exit.
-- `--no-schema`: Skip loading of NOT VALID constraints and creation of INDEXes for exodus-style migrations.
 
 ## `belt sync-sequences`
 
@@ -522,7 +684,7 @@ $ belt sync-tables [OPTIONS] DC [DB]
 
 **Options**:
 
-- `--tables TEXT`: Specific tables to sync [default: ]
+- `--tables TEXT`: Specific tables to sync
 - `--help`: Show this message and exit.
 
 ## `belt teardown`
@@ -552,7 +714,7 @@ $ belt teardown [OPTIONS] DC [DB]
 
 **Options**:
 
-- `--full / --no-full`: Remove pglogical user and extension [default: False]
+- `--full / --no-full`: Remove pglogical user and extension [default: no-full]
 - `--help`: Show this message and exit.
 
 ## `belt teardown-back-replication`
