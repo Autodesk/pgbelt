@@ -23,3 +23,6 @@ local-dev: ## Sets up docker containers for Postgres DBs and gets you into a doc
 
 clean-docker: ## Stop and remove all docker containers and images made from local testing
 	docker stop $$(docker ps -aq --filter name=^/pgbelt) && docker rm $$(docker ps -aq --filter name=^/pgbelt) && docker-compose down --rmi all
+
+generate-usage-docs: ## Generate usage docs
+	pip3 install typer-cli && typer pgbelt/main.py utils docs --name belt > docs/usage.md
