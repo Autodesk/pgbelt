@@ -2,6 +2,9 @@
 # Useful for local development where you want to test with a large dataset
 # Need to chunk inserts otherwise the query goes too large for the docker container to handle.
 
+# NOTE: The existing parameters in the script generate a 5GB SQL file and 10000MB of on-disk data to use.
+# This could overwhelm your laptop's Docker engine (you might need to bump your Docker engine allocated memory).
+
 set_size = 100000
 num_sets = 1000
 set_num = 0

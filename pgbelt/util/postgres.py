@@ -4,8 +4,6 @@ from asyncpg import Pool
 from asyncpg import Record
 from asyncpg.exceptions import UndefinedObjectError
 
-from typer import echo
-
 
 async def dump_sequences(
     pool: Pool, targeted_sequences: list[str], logger: Logger
@@ -401,7 +399,6 @@ async def get_dataset_size(
         schemaname = '{schema}'
     AND tablename IN ({tables_string});
     """
-    print(query)
 
     # Yes it's a duplicate, but it's a pretty one. Rather let Postgres do this than Python.
     pretty_query = f"""
