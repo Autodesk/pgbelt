@@ -385,7 +385,7 @@ async def get_dataset_size(
     """
     Get the total disk size of a dataset (via list of tables)
     """
-    logger.info(f"Getting the targeted dataset size...")
+    logger.info("Getting the targeted dataset size...")
 
     # Tables string must be of form "'table1', 'table2', ..."
     tables_string = ", ".join([f"'{t}'" for t in tables])
@@ -434,9 +434,9 @@ async def initialization_progress(
     dst_dataset_size = await get_dataset_size(tables, dst_pool, dst_logger)
 
     # Eliminate None values
-    if src_dataset_size["db_size"] == None:
+    if src_dataset_size["db_size"] is None:
         src_dataset_size["db_size"] = 0
-    if dst_dataset_size["db_size"] == None:
+    if dst_dataset_size["db_size"] is None:
         dst_dataset_size["db_size"] = 0
 
     # Eliminate division by zero
