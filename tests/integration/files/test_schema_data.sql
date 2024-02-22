@@ -83,6 +83,7 @@ SELECT pg_catalog.setval('public.users_id_seq', 1, false);
 ALTER TABLE ONLY public.Users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+-- Extra table with PK for testing exodus migrations
 CREATE TABLE public.Users2 (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
