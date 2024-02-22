@@ -202,7 +202,7 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
     """
     Tear down the replication_set
     """
-    logger.info("Dropping replication set 'default'...")
+    logger.info("Dropping replication set 'pgbelt'...")
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
@@ -213,7 +213,7 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
                 UndefinedFunctionError,
                 InternalServerError,
             ):
-                logger.debug("Replication set 'default' does not exist")
+                logger.debug("Replication set 'pgbelt' does not exist")
 
 
 async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:

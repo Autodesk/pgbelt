@@ -378,33 +378,76 @@ async def precheck_info(
     return result
 
 
-async def get_db_size(db: str, pool: Pool, logger: Logger) -> str:
+# TODO: Need to add schema here when working on non-public schema support.
+async def get_dataset_size(
+    tables: list[str], pool: Pool, logger: Logger, schema: str = "public"
+) -> str:
     """
-    Get the DB size
+    Get the total disk size of a dataset (via list of tables)
     """
-    logger.info("Getting the DB size...")
+    logger.info("Getting the targeted dataset size...")
+
+    # Tables string must be of form "'table1', 'table2', ..."
+    tables_string = ", ".join([f"'{t}'" for t in tables])
+
+    query = f"""
+    SELECT
+        sum(pg_total_relation_size(schemaname || '.' || tablename)) AS total_relation_size
+    FROM
+        pg_tables
+    WHERE
+        schemaname = '{schema}'
+    AND tablename IN ({tables_string});
+    """
+
+    # Yes it's a duplicate, but it's a pretty one. Rather let Postgres do this than Python.
+    pretty_query = f"""
+    SELECT
+        pg_size_pretty(sum(pg_total_relation_size(schemaname || '.' || tablename))) AS total_relation_size
+    FROM
+        pg_tables
+    WHERE
+        schemaname = '{schema}'
+    AND tablename IN ({tables_string});
+    """
+
     result = {
-        "db_size": await pool.fetchval(f"SELECT pg_database_size('{db}');"),
-        "db_size_pretty": await pool.fetchval(
-            f"SELECT pg_size_pretty( pg_database_size('{db}') );"
-        ),
+        "db_size": await pool.fetchval(query),
+        "db_size_pretty": await pool.fetchval(pretty_query),
     }
 
     return result
 
 
-async def initialization_status(
-    db_src: str, db_dst: str, src_pool: Pool, dst_pool: Pool, logger: Logger
+async def initialization_progress(
+    tables: list[str],
+    src_pool: Pool,
+    dst_pool: Pool,
+    src_logger: Logger,
+    dst_logger: Logger,
 ) -> dict[str, str]:
     """
-    Get the status of the initialization stage
+    Get the size progress of the initialization stage
     """
-    logger.info("checking status of the initialization stage...")
-    src_db_size = await get_db_size(db_src, src_pool, logger)
-    dst_db_size = await get_db_size(db_dst, dst_pool, logger)
+
+    src_dataset_size = await get_dataset_size(tables, src_pool, src_logger)
+    dst_dataset_size = await get_dataset_size(tables, dst_pool, dst_logger)
+
+    # Eliminate None values
+    if src_dataset_size["db_size"] is None:
+        src_dataset_size["db_size"] = 0
+    if dst_dataset_size["db_size"] is None:
+        dst_dataset_size["db_size"] = 0
+
+    # Eliminate division by zero
+    if src_dataset_size["db_size"] == 0 and dst_dataset_size["db_size"] == 0:
+        progress = "0 %"
+    else:
+        progress = f"{str(round(int(dst_dataset_size['db_size'])/int(src_dataset_size['db_size'])*100 ,1))} %"
+
     status = {
-        "src_db_size": src_db_size["db_size_pretty"],
-        "dst_db_size": dst_db_size["db_size_pretty"],
-        "progress": f"{str(round(int(dst_db_size['db_size'])/int(src_db_size['db_size'])*100 ,1))} %",
+        "src_dataset_size": src_dataset_size["db_size_pretty"] or "0 bytes",
+        "dst_dataset_size": dst_dataset_size["db_size_pretty"] or "0 bytes",
+        "progress": progress,
     }
     return status

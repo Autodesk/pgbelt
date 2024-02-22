@@ -7,7 +7,8 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util import get_logger
 from pgbelt.util.pglogical import dst_status
 from pgbelt.util.pglogical import src_status
-from pgbelt.util.postgres import initialization_status
+from pgbelt.util.postgres import initialization_progress
+from pgbelt.util.postgres import analyze_table_pkeys
 from tabulate import tabulate
 from typer import echo
 from typer import style
@@ -23,8 +24,8 @@ async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:
             style("flush_lag", "yellow"),
             style("write_lag", "yellow"),
             style("replay_lag", "yellow"),
-            style("src_db_size", "yellow"),
-            style("dst_db_size", "yellow"),
+            style("src_dataset_size", "yellow"),
+            style("dst_dataset_size", "yellow"),
             style("progress", "yellow"),
         ]
     ]
@@ -45,8 +46,8 @@ async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:
                 style(r["flush_lag"], "green" if r["flush_lag"] == "0" else "red"),
                 style(r["write_lag"], "green" if r["write_lag"] == "0" else "red"),
                 style(r["replay_lag"], "green" if r["replay_lag"] == "0" else "red"),
-                style(r["src_db_size"], "green"),
-                style(r["dst_db_size"], "green"),
+                style(r["src_dataset_size"], "green"),
+                style(r["dst_dataset_size"], "green"),
                 style(r["progress"], "green"),
             ]
         )
@@ -77,7 +78,6 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     conf = await conf_future
     src_logger = get_logger(conf.db, conf.dc, "status.src")
     dst_logger = get_logger(conf.db, conf.dc, "status.dst")
-    initialization_logger = get_logger(conf.db, conf.dc, "status.initialization")
 
     pools = await gather(
         create_pool(dsn=conf.src.root_uri, min_size=1),
@@ -85,20 +85,27 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     )
     src_pool, dst_pool = pools
 
+    # Get the list of targeted tables by first getting all tables, then filtering whatever is in the config.
+    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(src_pool, src_logger)
+    all_tables = pkey_tables + non_pkey_tables
+    target_tables = all_tables
+    if conf.tables:
+        target_tables = [t for t in all_tables if t in conf.tables]
+
     try:
         result = await gather(
             src_status(src_pool, src_logger),
             dst_status(dst_pool, dst_logger),
-            initialization_status(
-                conf.src.db, conf.dst.db, src_pool, dst_pool, initialization_logger
+            initialization_progress(
+                target_tables, src_pool, dst_pool, src_logger, dst_logger
             ),
         )
 
         result[0].update(result[1])
         result[0]["db"] = conf.db
-        if result[0]["pg1_pg2"] != "initializing":
-            result[2]["src_db_size"] = "n/a"
-            result[2]["dst_db_size"] = "n/a"
+        if result[0]["pg1_pg2"] == "replicating":
+            result[2]["src_dataset_size"] = "n/a"
+            result[2]["dst_dataset_size"] = "n/a"
             result[2]["progress"] = "n/a"
         result[0].update(result[2])
         return result[0]
