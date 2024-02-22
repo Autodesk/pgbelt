@@ -82,3 +82,36 @@ SELECT pg_catalog.setval('public.users_id_seq', 1, false);
 
 ALTER TABLE ONLY public.Users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+CREATE TABLE public.Users2 (
+    id bigint NOT NULL,
+    hash_firstname text NOT NULL,
+    hash_lastname text NOT NULL,
+    gender character varying(6) NOT NULL,
+    CONSTRAINT users_gender_check CHECK (((gender)::text = ANY (ARRAY[('male'::character varying)::text, ('female'::character varying)::text])))
+);
+
+
+ALTER TABLE public.Users2 OWNER TO owner;
+
+CREATE SEQUENCE public.users2_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.users2_id_seq OWNER TO owner;
+
+SELECT pg_catalog.setval('public.users2_id_seq', 1, false);
+
+ALTER TABLE ONLY public.Users2
+    ADD CONSTRAINT users2_pkey PRIMARY KEY (id);
+
+INSERT INTO public.users2 (id, hash_firstname, hash_lastname, gender)
+    VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
+    (2, 'garbagefirst1', 'garbagelast1', 'female'),
+    (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
+    (4, 'dsdssdgarbagefirst', 'dgsaggggdjjjsrbagelast', 'female'),
+    (5, 'dsdssdgarbagefirt', 'dgsagggdjjjsrbagelast', 'female');

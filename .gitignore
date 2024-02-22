@@ -13,6 +13,7 @@ build/*
 dist/*
 logs/*
 configs/integrationtest-datacenter/*
+schemas/*
 .python-version
 .mypy_cache
 __pycache__/
