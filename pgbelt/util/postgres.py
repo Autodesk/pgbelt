@@ -317,7 +317,7 @@ async def precheck_info(
         ),
         "tables": [],
         "sequences": [],
-        "users": [],
+        "users": {},
     }
 
     try:
@@ -381,11 +381,12 @@ async def precheck_info(
 
     # TODO: add check for owner being able to create objects in the config's schema. Just like a t/f.
 
+    # We only care about the root and owner users.
     for u in users:
         if u[0] == root_name:
-            result["root"] = u
+            result["users"]["root"] = u
         if u[0] == owner_name:
-            result["owner"] = u
+            result["users"]["owner"] = u
 
     return result
 
