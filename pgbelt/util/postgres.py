@@ -300,7 +300,12 @@ async def enable_login_users(pool: Pool, users: list[str], logger: Logger) -> No
 
 
 async def precheck_info(
-    pool: Pool, root_name: str, owner_name: str, logger: Logger
+    pool: Pool,
+    root_name: str,
+    owner_name: str,
+    target_tables: list[str],
+    target_sequences: list[str],
+    logger: Logger,
 ) -> dict:
     """
     Return a dictionary of information about the database used to determine
@@ -327,8 +332,6 @@ async def precheck_info(
     except UndefinedObjectError:
         result["rds.logical_replication"] = "Not Applicable"
 
-    # TODO: This query returns all tables in the database, regardless of schema.
-    # We need to isolate this per schema according to the config, and try to alert if no tables are found.
     result["tables"] = await pool.fetch(
         """
         SELECT n.nspname as "Schema",
@@ -345,8 +348,10 @@ async def precheck_info(
         ORDER BY 1,2;"""
     )
 
-    # TODO: This query returns all sequences in the database, regardless of schema.
-    # We need to isolate this per schema according to the config, and try to alert if no tables are found.
+    # We filter the table list if the user has specified a list of tables to target.
+    if target_tables:
+        result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
+
     result["sequences"] = await pool.fetch(
         """
         SELECT n.nspname as "Schema",
@@ -362,6 +367,12 @@ async def precheck_info(
           AND pg_catalog.pg_table_is_visible(c.oid)
         ORDER BY 1,2;"""
     )
+
+    # We filter the sequence list if the user has specified a list of sequences to target.
+    if target_sequences:
+        result["sequences"] = [
+            s for s in result["sequences"] if s["Name"] in target_sequences
+        ]
 
     users = await pool.fetch(
         f"""

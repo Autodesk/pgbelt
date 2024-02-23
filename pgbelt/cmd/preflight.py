@@ -27,6 +27,7 @@ def _summary_table(results: dict) -> list[list]:
             "pg_stat_statements": "installed",
             "pglogical": "installed",
             "rds.logical_replication": "on",
+            "schema: "public",
             "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
                 "root": {
                     "rolname": "root",
@@ -62,6 +63,7 @@ def _summary_table(results: dict) -> list[list]:
             style("rds.logical_replication", "yellow"),
             style("root user ok", "yellow"),
             style("owner user ok", "yellow"),
+            style("targeted schema", "yellow"),
         ]
     ]
 
@@ -130,6 +132,7 @@ def _summary_table(results: dict) -> list[list]:
                 ),
                 style(root_ok, "green" if root_ok else "red"),
                 style(owner_ok, "green" if owner_ok else "red"),
+                style(r["schema"], "green"),
             ]
         )
 
@@ -209,7 +212,9 @@ def _users_table(users: dict) -> list[list]:
     return users_table
 
 
-def _tables_table(tables: list[dict], pkeys: list[dict], owner_name: str) -> list[list]:
+def _tables_table(
+    tables: list[dict], pkeys: list[dict], owner_name: str, schema_name: str
+) -> list[list]:
     """
     Takes a list of table dicts and returns a table of the tables for echo.
 
@@ -235,9 +240,7 @@ def _tables_table(tables: list[dict], pkeys: list[dict], owner_name: str) -> lis
     ]
 
     for t in tables:
-        # TODO: The tables that show up here will be the ones that are in the named schema in the config.
-        # Due to this, if no tables show up, it's likely that the schema name is incorrect. We need to alert the user to this.
-        can_replicate = t["Schema"] == "public" and t["Owner"] == owner_name
+        can_replicate = t["Schema"] == schema_name and t["Owner"] == owner_name
         replication = (
             ("pglogical" if t["Name"] in pkeys else "dump and load")
             if can_replicate
@@ -248,9 +251,7 @@ def _tables_table(tables: list[dict], pkeys: list[dict], owner_name: str) -> lis
                 style(t["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
                 style(replication, "green" if can_replicate else "red"),
-                style(
-                    t["Schema"], "green" if t["Schema"] == "public" else "red"
-                ),  # TODO: This is key. Ensure the table's owner matches the owner in the config.
+                style(t["Schema"], "green" if t["Schema"] == schema_name else "red"),
                 style(t["Owner"], "green" if t["Owner"] == owner_name else "red"),
             ]
         )
@@ -258,7 +259,9 @@ def _tables_table(tables: list[dict], pkeys: list[dict], owner_name: str) -> lis
     return tables_table
 
 
-def _sequences_table(sequences: list[dict], owner_name: str) -> list[list]:
+def _sequences_table(
+    sequences: list[dict], owner_name: str, schema_name: str
+) -> list[list]:
     """
     Takes a list of sequence dicts and returns a table of the sequences for echo.
 
@@ -283,15 +286,13 @@ def _sequences_table(sequences: list[dict], owner_name: str) -> list[list]:
     ]
 
     for s in sequences:
-        # TODO: The sequences that show up here will be the ones that are in the named schema in the config.
-        # Due to this, if no sequences show up, it's likely that the schema name is incorrect. We need to alert the user to this.
-        can_replicate = s["Schema"] == "public" and s["Owner"] == owner_name
+        can_replicate = s["Schema"] == schema_name and s["Owner"] == owner_name
         sequences_table.append(
             [
                 style(s["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
                 style(
-                    s["Schema"], "green" if s["Schema"] == "public" else "red"
+                    s["Schema"], "green" if s["Schema"] == schema_name else "red"
                 ),  # TODO: This is key. Ensure the sequence's owner matches the owner in the config.
                 style(s["Owner"], "green" if s["Owner"] == owner_name else "red"),
             ]
@@ -332,9 +333,11 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
 
     users_table = _users_table(r["users"])
     tables_table = _tables_table(
-        r["tables"], r["pkeys"], r["users"]["owner"]["rolname"]
+        r["tables"], r["pkeys"], r["users"]["owner"]["rolname"], r["schema"]
     )
-    sequences_table = _sequences_table(r["sequences"], r["users"]["owner"]["rolname"])
+    sequences_table = _sequences_table(
+        r["sequences"], r["users"]["owner"]["rolname"], r["schema"]
+    )
 
     source_display_string = (
         style("\nSource DB Configuration Summary", "yellow")
@@ -383,12 +386,18 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
     try:
         src_logger = get_logger(conf.db, conf.dc, "preflight.src")
         result = await precheck_info(
-            root_pool, conf.src.root_user.name, conf.src.owner_user.name, src_logger
+            root_pool,
+            conf.src.root_user.name,
+            conf.src.owner_user.name,
+            conf.tables,
+            conf.sequences,
+            src_logger,
         )
         result["db"] = conf.db
         result["pkeys"], _, _ = await analyze_table_pkeys(
             owner_pool, conf.src.schema, src_logger
         )
+        result["schema"] = conf.src.schema
         return result
     finally:
         await gather(*[p.close() for p in pools])
