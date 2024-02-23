@@ -407,7 +407,9 @@ async def get_dataset_size(
     tables: list[str], schema: str, pool: Pool, logger: Logger
 ) -> str:
     """
-    Get the total disk size of a dataset (via list of tables)
+    Get the total disk size of a dataset (via list of tables).
+
+    This function ALWAYS expects a list of tables. If not, the calling function should handle that.
     """
     logger.info("Getting the targeted dataset size...")
 

@@ -94,6 +94,11 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     if conf.tables:
         target_tables = [t for t in all_tables if t in conf.tables]
 
+    if not target_tables:
+        raise ValueError(
+            f"Targeted tables not found in the source database. Please check your config's schema and tables. DB: {conf.db} DC: {conf.dc}, SCHEMA: {conf.src.schema} TABLES: {conf.tables}."
+        )
+
     try:
         result = await gather(
             src_status(src_pool, src_logger),
