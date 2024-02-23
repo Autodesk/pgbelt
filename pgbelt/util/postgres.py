@@ -305,6 +305,7 @@ async def precheck_info(
     owner_name: str,
     target_tables: list[str],
     target_sequences: list[str],
+    schema: str,
     logger: Logger,
 ) -> dict:
     """
@@ -385,12 +386,11 @@ async def precheck_info(
                 WHERE m.member = r.oid) as memberof
         , r.rolreplication
         , r.rolbypassrls
+        , has_schema_privilege(r.rolname, '{schema}', 'CREATE') AS can_create
         FROM pg_catalog.pg_roles r
         WHERE r.rolname !~ '^pg_' AND (r.rolname = '{root_name}' OR r.rolname = '{owner_name}')
         ORDER BY 1;"""
     )
-
-    # TODO: add check for owner being able to create objects in the config's schema. Just like a t/f.
 
     # We only care about the root and owner users.
     for u in users:
@@ -404,7 +404,7 @@ async def precheck_info(
 
 # TODO: Need to add schema here when working on non-public schema support.
 async def get_dataset_size(
-    tables: list[str], pool: Pool, logger: Logger, schema: str = "public"
+    tables: list[str], schema: str, pool: Pool, logger: Logger
 ) -> str:
     """
     Get the total disk size of a dataset (via list of tables)
@@ -445,6 +445,8 @@ async def get_dataset_size(
 
 async def initialization_progress(
     tables: list[str],
+    src_schema: str,
+    dst_schema: str,
     src_pool: Pool,
     dst_pool: Pool,
     src_logger: Logger,
@@ -454,8 +456,8 @@ async def initialization_progress(
     Get the size progress of the initialization stage
     """
 
-    src_dataset_size = await get_dataset_size(tables, src_pool, src_logger)
-    dst_dataset_size = await get_dataset_size(tables, dst_pool, dst_logger)
+    src_dataset_size = await get_dataset_size(tables, src_schema, src_pool, src_logger)
+    dst_dataset_size = await get_dataset_size(tables, dst_schema, dst_pool, dst_logger)
 
     # Eliminate None values
     if src_dataset_size["db_size"] is None:

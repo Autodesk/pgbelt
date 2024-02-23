@@ -12,14 +12,15 @@ from typer import echo
 from typer import style
 
 
-def _summary_table(results: dict) -> list[list]:
+def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
+
+    The summary table alters slightly if the results are for a destination database.
 
     results format:
     [
         {
-            "db": "db_name",
             "server_version": "9.6.20",
             "max_replication_slots": "10",
             "max_worker_processes": "10",
@@ -78,9 +79,16 @@ def _summary_table(results: dict) -> list[list]:
             "rds_superuser" in r["users"]["root"]["memberof"]
             or r["users"]["root"]["rolsuper"]
         )
-        # TODO: New check - the config owner must be able to create objects in the named schema in the target database.
-        # Might be okay to check on both ends instead of checking just on the target...?
-        owner_ok = r["users"]["owner"]["rolcanlogin"]
+
+        # If this is a destination database, we need to check if the owner can create objects.
+
+        if is_dest_db:
+            owner_ok = (r["users"]["owner"]["rolcanlogin"]) and (
+                r["users"]["owner"]["can_create"]
+            )
+        else:
+            owner_ok = r["users"]["owner"]["rolcanlogin"]
+
         pg_stat_statements = (
             "installed"
             if "pg_stat_statements" in r["shared_preload_libraries"]
@@ -139,9 +147,11 @@ def _summary_table(results: dict) -> list[list]:
     return summary_table
 
 
-def _users_table(users: dict) -> list[list]:
+def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
     """
     Takes a dict of user info and returns a table of the users for echo.
+
+    The users table alters slightly if the results are for a destination database.
 
     users format:
     {
@@ -176,6 +186,11 @@ def _users_table(users: dict) -> list[list]:
         ]
     ]
 
+    if is_dest_db:
+        users_table[0].insert(
+            5, style("can create objects in targeted schema", "yellow")
+        )
+
     root_in_superusers = (
         "rds_superuser" in users["root"]["memberof"] and users["root"]["rolinherit"]
     ) or (users["root"]["rolsuper"])
@@ -193,6 +208,7 @@ def _users_table(users: dict) -> list[list]:
                 "green" if users["root"]["rolcreaterole"] else "red",
             ),
             style(root_in_superusers, "green" if root_in_superusers else "red"),
+            style("not required", "green"),
         ]
     )
 
@@ -206,6 +222,10 @@ def _users_table(users: dict) -> list[list]:
             ),
             style("not required", "green"),
             style("not required", "green"),
+            style(
+                users["owner"]["can_create"],
+                "green" if users["owner"]["can_create"] else "red",
+            ),
         ]
     )
 
@@ -291,9 +311,7 @@ def _sequences_table(
             [
                 style(s["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
-                style(
-                    s["Schema"], "green" if s["Schema"] == schema_name else "red"
-                ),  # TODO: This is key. Ensure the sequence's owner matches the owner in the config.
+                style(s["Schema"], "green" if s["Schema"] == schema_name else "red"),
                 style(s["Owner"], "green" if s["Owner"] == owner_name else "red"),
             ]
         )
@@ -306,60 +324,161 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     Print out the results of the prechecks in a human readable format.
     If there are multiple databases, only print the summary table.
     If there is only one database, print the summary table and more detailed info.
+
+    results format:
+    [
+        {
+            "db": "db_name",
+            "src": {
+                "server_version": "9.6.20",
+                "max_replication_slots": "10",
+                "max_worker_processes": "10",
+                "max_wal_senders": "10",
+                "pg_stat_statements": "installed",
+                "pglogical": "installed",
+                "rds.logical_replication": "on",
+                "schema: "public",
+                "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
+                    "root": {
+                        "rolname": "root",
+                        "rolcanlogin": True,
+                        "rolcreaterole": True,
+                        "rolinherit": True,
+                        "rolsuper": True,
+                        "memberof": ["rds_superuser", ...]
+                    },
+                    "owner": {
+                        "rolname": "owner",
+                        "rolcanlogin": True,
+                        "rolcreaterole": False,
+                        "rolinherit": True,
+                        "rolsuper": False,
+                        "memberof": ["rds_superuser", ...],
+                        "can_create": True
+                    }
+                }
+            },
+            "dst": {
+                "server_version": "9.6.20",
+                "max_replication_slots": "10",
+                "max_worker_processes": "10",
+                "max_wal_senders": "10",
+                "pg_stat_statements": "installed",
+                "pglogical": "installed",
+                "rds.logical_replication": "on",
+                "schema: "public",
+                "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
+                    "root": {
+                        "rolname": "root",
+                        "rolcanlogin": True,
+                        "rolcreaterole": True,
+                        "rolinherit": True,
+                        "rolsuper": True,
+                        "memberof": ["rds_superuser", ...]
+                    },
+                    "owner": {
+                        "rolname": "owner",
+                        "rolcanlogin": True,
+                        "rolcreaterole": False,
+                        "rolinherit": True,
+                        "rolsuper": False,
+                        "memberof": ["rds_superuser", ...],
+                        "can_create": True
+                    }
+                }
+            }
+        },
+        ...
+    ]
     """
 
-    summary_table = _summary_table(results)
+    src_summaries = []
+    dst_summaries = []
+    for r in results:
+        src_summaries.append(r["src"])
+        dst_summaries.append(r["dst"])
+
+    src_summary_table = _summary_table(src_summaries)
+    dst_summary_table = _summary_table(dst_summaries, is_dest_db=True)
 
     if len(results) != 1:
 
         # For mulitple databases, we only print the summary table.
-        # TODO: Add a summary table for desination DBs.
 
-        multi_display_string = (
-            style("\nSource DB Configuration Summary", "yellow")
+        src_multi_display_string = (
+            style("\nSource DB Configuration Summary", "blue")
             + "\n"
-            + tabulate(summary_table, headers="firstrow")
+            + tabulate(src_summary_table, headers="firstrow")
         )
-        echo(multi_display_string)
+        echo(src_multi_display_string)
+        dst_multi_display_string = (
+            style("\nDestination DB Configuration Summary", "blue")
+            + "\n"
+            + tabulate(dst_summary_table, headers="firstrow")
+        )
+        echo(dst_multi_display_string)
 
-        return multi_display_string
+        return src_multi_display_string, dst_multi_display_string
 
     # If we ran only on one db print more detailed info
     r = results[0]
 
-    # TODO: Since we are now targeting tables and sequences in a named schema (from the config),
-    # we can drop the Schema column and instead add a schema column to the database.
     # TODO: We should confirm the named schema exists in the database and alert the user if it does not (red in column if not found).
 
-    users_table = _users_table(r["users"])
-    tables_table = _tables_table(
-        r["tables"], r["pkeys"], r["users"]["owner"]["rolname"], r["schema"]
+    # Source DB Tables
+
+    src_users_table = _users_table(r["src"]["users"])
+    src_tables_table = _tables_table(
+        r["src"]["tables"],
+        r["src"]["pkeys"],
+        r["src"]["users"]["owner"]["rolname"],
+        r["src"]["schema"],
     )
-    sequences_table = _sequences_table(
-        r["sequences"], r["users"]["owner"]["rolname"], r["schema"]
+    src_sequences_table = _sequences_table(
+        r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["src"]["schema"]
     )
 
     source_display_string = (
-        style("\nSource DB Configuration Summary", "yellow")
+        style("\nSource DB Configuration Summary", "blue")
         + "\n"
-        + tabulate(summary_table, headers="firstrow")
+        + "\n"
+        + tabulate(src_summary_table, headers="firstrow")
         + "\n"
         + style("\nRequired Users Summary", "yellow")
         + "\n"
-        + tabulate(users_table, headers="firstrow")
+        + tabulate(src_users_table, headers="firstrow")
         + "\n"
         + style("\nTable Compatibility Summary", "yellow")
         + "\n"
-        + tabulate(tables_table, headers="firstrow")
+        + tabulate(src_tables_table, headers="firstrow")
         + "\n"
         + style("\nSequence Compatibility Summary", "yellow")
         + "\n"
-        + tabulate(sequences_table, headers="firstrow")
+        + tabulate(src_sequences_table, headers="firstrow")
     )
 
     echo(source_display_string)
 
-    return summary_table
+    echo("\n" + "=" * 80)
+
+    # Destination DB Tables
+
+    dst_users_table = _users_table(r["dst"]["users"], is_dest_db=True)
+
+    destination_display_string = (
+        style("\nDestination DB Configuration Summary", "blue")
+        + "\n"
+        + "\n"
+        + tabulate(dst_summary_table, headers="firstrow")
+        + "\n"
+        + style("\nRequired Users Summary", "yellow")
+        + "\n"
+        + tabulate(dst_users_table, headers="firstrow")
+    )
+
+    echo(destination_display_string)
+
+    return src_summary_table, dst_summary_table
 
 
 @run_with_configs(skip_dst=True, results_callback=_print_prechecks)
@@ -375,29 +494,52 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
     If a row contains any red that sequence or table can not be replicated.
     """
 
-    # TODO: This entire precheck only checks the source database. We have to redesign this to check both the source and destination.
     conf = await config_future
     pools = await gather(
         create_pool(conf.src.root_uri, min_size=1),
         create_pool(conf.src.owner_uri, min_size=1),
+        create_pool(conf.dst.root_uri, min_size=1),
     )
-    root_pool, owner_pool = pools
+    src_root_pool, src_owner_pool, dst_root_pool = pools
 
     try:
         src_logger = get_logger(conf.db, conf.dc, "preflight.src")
-        result = await precheck_info(
-            root_pool,
+        dst_logger = get_logger(conf.db, conf.dc, "preflight.dst")
+
+        result = {}
+
+        # Source DB Data
+        result["src"] = await precheck_info(
+            src_root_pool,
             conf.src.root_user.name,
             conf.src.owner_user.name,
             conf.tables,
             conf.sequences,
+            conf.src.schema,
             src_logger,
         )
-        result["db"] = conf.db
-        result["pkeys"], _, _ = await analyze_table_pkeys(
-            owner_pool, conf.src.schema, src_logger
+        result["src"]["pkeys"], _, _ = await analyze_table_pkeys(
+            src_owner_pool, conf.src.schema, src_logger
         )
-        result["schema"] = conf.src.schema
+        result["src"]["schema"] = conf.src.schema
+
+        # Destination DB Data
+        result["dst"] = await precheck_info(
+            dst_root_pool,
+            conf.dst.root_user.name,
+            conf.dst.owner_user.name,
+            conf.tables,
+            conf.sequences,
+            conf.dst.schema,
+            dst_logger,
+        )
+        # No need to analyze pkeys for the destination database (we use this to determine replication method in only the forward case).
+        result["dst"]["schema"] = conf.dst.schema
+
+        # The precheck view code treats "db" as the name of the database pair, not the logical dbname of the database.
+        result["src"]["db"] = conf.db
+        result["dst"]["db"] = conf.db
+
         return result
     finally:
         await gather(*[p.close() for p in pools])

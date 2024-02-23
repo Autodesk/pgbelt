@@ -99,7 +99,13 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
             src_status(src_pool, src_logger),
             dst_status(dst_pool, dst_logger),
             initialization_progress(
-                target_tables, src_pool, dst_pool, src_logger, dst_logger
+                target_tables,
+                conf.src.schema,
+                conf.dst.schema,
+                src_pool,
+                dst_pool,
+                src_logger,
+                dst_logger,
             ),
         )
 
