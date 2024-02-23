@@ -42,6 +42,7 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
     "ip": "<###.###.###.###>",
     "db": "<internaldbname1src>",
     "port": "<####>",
+    // Optional key: "schema": "<someschema>". If the key isn't specified, the default will be "public".
     "root_user": {
       "name": "<root-username>",
       "pw": "<root-password>"
@@ -63,6 +64,7 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
     "ip": "<###.###.###.###>",
     "db": "<internaldbname1dest>",
     "port": "<####>",
+    // Optional key: "schema": "<someschema>". If the key isn't specified, the default will be "public".
     "root_user": {
       "name": "<root-username>",
       "pw": "<root-password>"
