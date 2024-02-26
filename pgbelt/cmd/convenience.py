@@ -63,7 +63,7 @@ async def _check_pkeys(
 ) -> tuple[list[str], list[str]]:
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
         pkey_tables, no_pkey_tables, _ = await analyze_table_pkeys(
-            pool, conf.schema, logger
+            pool, conf.schema_name, logger
         )
     return pkey_tables, no_pkey_tables
 

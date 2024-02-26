@@ -107,7 +107,7 @@ class DbupgradeConfig(BaseModel):
     dst: DbConfig The database we are moving data into.
     tables: Optional[list[str]] A list of tables to replicate. If not provided all tables in the named schema will be replicated.
     sequences: Optional[list[str]] A list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
-    schema: Optional[str] The schema to operate on. Defaults to "public".
+    schema_name: Optional[str] The schema to operate on. Defaults to "public".
     """
 
     db: str
@@ -116,7 +116,7 @@ class DbupgradeConfig(BaseModel):
     dst: Optional[DbConfig] = None
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
-    schema: Optional[str] = "public"
+    schema_name: Optional[str] = "public"
 
     _not_empty = validator("db", "dc", allow_reuse=True)(not_empty)
 

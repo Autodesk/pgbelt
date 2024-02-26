@@ -36,7 +36,7 @@ async def _setup_src_node(
     await configure_node(src_root_pool, "pg1", conf.src.pglogical_dsn, src_logger)
     async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pglogical_pool:
         pkey_tables, _, _ = await analyze_table_pkeys(
-            src_pglogical_pool, conf.schema, src_logger
+            src_pglogical_pool, conf.schema_name, src_logger
         )
 
     pglogical_tables = pkey_tables
@@ -79,7 +79,7 @@ async def setup(
             src_logger,
             conf.src.owner_user.name,
         )
-        await grant_pgl(src_owner_pool, conf.tables, conf.schema, src_logger)
+        await grant_pgl(src_owner_pool, conf.tables, conf.schema_name, src_logger)
 
         # Load schema into destination
         schema_load_task = None
@@ -102,7 +102,7 @@ async def setup(
             dst_logger,
             conf.dst.owner_user.name,
         )
-        await grant_pgl(dst_owner_pool, conf.tables, conf.schema, dst_logger)
+        await grant_pgl(dst_owner_pool, conf.tables, conf.schema_name, dst_logger)
 
         # Also configure the node on the destination... of itself. #TODO: This is a bit weird, confirm if this is necessary.
         await configure_node(dst_root_pool, "pg2", conf.dst.pglogical_dsn, dst_logger)
@@ -137,7 +137,7 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
         pkeys, _, _ = await analyze_table_pkeys(
-            src_pglogical_pool, conf.schema, src_logger
+            src_pglogical_pool, conf.schema_name, src_logger
         )
         dst_logger = get_logger(conf.db, conf.dc, "setup.src")
 

@@ -432,10 +432,10 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         r["src"]["tables"],
         r["src"]["pkeys"],
         r["src"]["users"]["owner"]["rolname"],
-        r["src"]["schema"],
+        r["schema"],
     )
     src_sequences_table = _sequences_table(
-        r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["src"]["schema"]
+        r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["schema"]
     )
 
     source_display_string = (
@@ -515,13 +515,13 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
             conf.src.owner_user.name,
             conf.tables,
             conf.sequences,
-            conf.src.schema,
+            conf.schema_name,
             src_logger,
         )
         result["src"]["pkeys"], _, _ = await analyze_table_pkeys(
-            src_owner_pool, conf.src.schema, src_logger
+            src_owner_pool, conf.schema_name, src_logger
         )
-        result["src"]["schema"] = conf.src.schema
+        result["schema"] = conf.schema_name
 
         # Destination DB Data
         result["dst"] = await precheck_info(
@@ -530,11 +530,10 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
             conf.dst.owner_user.name,
             conf.tables,
             conf.sequences,
-            conf.dst.schema,
+            conf.schema_name,
             dst_logger,
         )
         # No need to analyze pkeys for the destination database (we use this to determine replication method in only the forward case).
-        result["dst"]["schema"] = conf.dst.schema
 
         # The precheck view code treats "db" as the name of the database pair, not the logical dbname of the database.
         result["src"]["db"] = conf.db

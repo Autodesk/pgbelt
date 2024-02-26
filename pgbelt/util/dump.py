@@ -164,7 +164,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "--schema-only",
         "--no-owner",
         "-n",
-        config.src.schema,
+        config.schema_name,
         config.src.pglogical_dsn,
     ]
 
@@ -243,7 +243,7 @@ async def dump_dst_not_valid_constraints(
         "--schema-only",
         "--no-owner",
         "-n",
-        config.src.schema,
+        config.schema_name,
         config.dst.pglogical_dsn,
     ]
 
@@ -349,7 +349,7 @@ async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None
         "--schema-only",
         "--no-owner",
         "-n",
-        config.src.schema,
+        config.schema_name,
         config.dst.pglogical_dsn,
     ]
 
