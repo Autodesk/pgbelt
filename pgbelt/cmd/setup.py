@@ -43,7 +43,9 @@ async def _setup_src_node(
     if conf.tables:
         pglogical_tables = [t for t in pkey_tables if t in conf.tables]
 
-    await configure_replication_set(src_root_pool, pglogical_tables, src_logger)
+    await configure_replication_set(
+        src_root_pool, pglogical_tables, conf.schema_name, src_logger
+    )
 
 
 @run_with_configs
@@ -145,7 +147,9 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
         if conf.tables:
             pglogical_tables = [t for t in pkeys if t in conf.tables]
 
-        await configure_replication_set(dst_root_pool, pglogical_tables, dst_logger)
+        await configure_replication_set(
+            dst_root_pool, pglogical_tables, conf.schema_name, dst_logger
+        )
         await configure_subscription(
             src_root_pool, "pg2_pg1", conf.dst.pglogical_dsn, src_logger
         )

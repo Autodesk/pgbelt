@@ -432,11 +432,31 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         r["src"]["tables"],
         r["src"]["pkeys"],
         r["src"]["users"]["owner"]["rolname"],
-        r["schema"],
+        r["src"]["schema"],
     )
     src_sequences_table = _sequences_table(
-        r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["schema"]
+        r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["src"]["schema"]
     )
+
+    if len(src_tables_table) == 1:
+        src_tables_table = [
+            [
+                style(
+                    "ALERT: Not able to find tables to replicate, check your config's 'schema_name'",
+                    "red",
+                )
+            ]
+        ]
+
+    if len(src_sequences_table) == 1:
+        src_sequences_table = [
+            [
+                style(
+                    "ALERT: Not able to find sequences to replicate, check your config's 'schema_name'",
+                    "red",
+                )
+            ]
+        ]
 
     source_display_string = (
         style("\nSource DB Configuration Summary", "blue")
@@ -450,11 +470,16 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         + "\n"
         + style("\nTable Compatibility Summary", "yellow")
         + "\n"
-        + tabulate(src_tables_table, headers="firstrow")
+        + tabulate(
+            src_tables_table, headers="firstrow" if len(src_tables_table) > 1 else ""
+        )
         + "\n"
         + style("\nSequence Compatibility Summary", "yellow")
         + "\n"
-        + tabulate(src_sequences_table, headers="firstrow")
+        + tabulate(
+            src_sequences_table,
+            headers="firstrow" if len(src_sequences_table) > 1 else "",
+        )
     )
 
     echo(source_display_string)
@@ -521,7 +546,7 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
         result["src"]["pkeys"], _, _ = await analyze_table_pkeys(
             src_owner_pool, conf.schema_name, src_logger
         )
-        result["schema"] = conf.schema_name
+        result["src"]["schema"] = conf.schema_name
 
         # Destination DB Data
         result["dst"] = await precheck_info(
@@ -534,6 +559,7 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
             dst_logger,
         )
         # No need to analyze pkeys for the destination database (we use this to determine replication method in only the forward case).
+        result["dst"]["schema"] = conf.schema_name
 
         # The precheck view code treats "db" as the name of the database pair, not the logical dbname of the database.
         result["src"]["db"] = conf.db

@@ -93,7 +93,7 @@ async def dump_source_tables(
                 [
                     "pg_dump",
                     "--data-only",
-                    f"--table={table}",
+                    f"--table={config.schema_name}.{table}",
                     "-Fc",
                     "-f",
                     table_file(config.db, config.dc, table),
@@ -125,7 +125,7 @@ async def load_dumped_tables(
     async with create_pool(config.dst.root_uri, min_size=1) as pool:
         to_load = []
         for t in tables:
-            if await table_empty(pool, t, logger):
+            if await table_empty(pool, t, config.schema_name, logger):
                 to_load.append(table_file(config.db, config.dc, t))
             else:
                 logger.warning(
