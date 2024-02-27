@@ -316,7 +316,7 @@ async def precheck_info(
     """
     logger.info("Checking db requirements...")
     result = {
-        "server_version": await pool.fetchval("SHOW server_version;"),
+        "server_version": await pool.fetchval("SHOW server_version"),
         "max_replication_slots": await pool.fetchval("SHOW max_replication_slots;"),
         "max_worker_processes": await pool.fetchval("SHOW max_worker_processes;"),
         "max_wal_senders": await pool.fetchval("SHOW max_wal_senders;"),
@@ -326,7 +326,11 @@ async def precheck_info(
         "tables": [],
         "sequences": [],
         "users": {},
+        "extensions": [],
     }
+
+    # server_version shows 13.14 (Debian 13.14-1.pgdg120+2) in the output. Remove the Debian part.
+    result["server_version"] = result["server_version"].split(" ")[0]
 
     try:
         result["rds.logical_replication"] = await pool.fetchval(
@@ -399,6 +403,14 @@ async def precheck_info(
             result["users"]["root"] = u
         if u[0] == owner_name:
             result["users"]["owner"] = u
+
+    result["extensions"] = await pool.fetch(
+        """
+        SELECT extname
+        FROM pg_extension
+        ORDER BY extname;
+        """
+    )
 
     return result
 

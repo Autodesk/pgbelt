@@ -12,7 +12,7 @@ from typer import echo
 from typer import style
 
 
-def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
+def _summary_table(results: dict, compared_extensions: list[str] = None) -> list[list]:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
 
@@ -25,10 +25,10 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
             "max_replication_slots": "10",
             "max_worker_processes": "10",
             "max_wal_senders": "10",
-            "pg_stat_statements": "installed",
-            "pglogical": "installed",
+            "shared_preload_libraries": ["pg_stat_statements", ...],
             "rds.logical_replication": "on",
             "schema: "public",
+            "extensions": ["uuid-ossp", ...],
             "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
                 "root": {
                     "rolname": "root",
@@ -59,12 +59,12 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
             style("max_replication_slots", "yellow"),
             style("max_worker_processes", "yellow"),
             style("max_wal_senders", "yellow"),
-            style("pg_stat_statements", "yellow"),
-            style("pglogical", "yellow"),
+            style("shared_preload_libraries", "yellow"),
             style("rds.logical_replication", "yellow"),
             style("root user ok", "yellow"),
             style("owner user ok", "yellow"),
             style("targeted schema", "yellow"),
+            style("extensions ok", "yellow"),
         ]
     ]
 
@@ -80,6 +80,10 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
             or r["users"]["root"]["rolsuper"]
         )
 
+        # Interestingly enough, we can tell if this is being run for a destination database if the compared_extensions is not None.
+        # This is because it is only set when we are ensuring all source extensions are in the destination.
+        is_dest_db = compared_extensions is not None
+
         # If this is a destination database, we need to check if the owner can create objects.
 
         if is_dest_db:
@@ -89,16 +93,15 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
         else:
             owner_ok = r["users"]["owner"]["rolcanlogin"]
 
-        pg_stat_statements = (
-            "installed"
-            if "pg_stat_statements" in r["shared_preload_libraries"]
-            else "not installed"
-        )
-        pglogical = (
-            "installed"
-            if "pglogical" in r["shared_preload_libraries"]
-            else "not installed"
-        )
+        shared_preload_libraries = "ok"
+        missing = []
+        if "pg_stat_statements" not in r["shared_preload_libraries"]:
+            missing.append("pg_stat_statements")
+        if "pglogical" not in r["shared_preload_libraries"]:
+            missing.append("pglogical")
+        if missing:
+            shared_preload_libraries = ", ".join(missing) + " are missing!"
+
         summary_table.append(
             [
                 style(r["db"], "green"),
@@ -126,10 +129,9 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
                     "green" if int(r["max_wal_senders"]) >= 10 else "red",
                 ),
                 style(
-                    pg_stat_statements,
-                    "green" if pg_stat_statements == "installed" else "red",
+                    shared_preload_libraries,
+                    "green" if shared_preload_libraries == "ok" else "red",
                 ),
-                style(pglogical, "green" if pglogical == "installed" else "red"),
                 style(
                     r["rds.logical_replication"],
                     (
@@ -143,6 +145,16 @@ def _summary_table(results: dict, is_dest_db: bool = False) -> list[list]:
                 style(r["schema"], "green"),
             ]
         )
+
+        # If this is a destinatino DB, we are ensuring all source extensions are in the destination.
+        # If not, we don't want this column in the table.
+        if is_dest_db:
+            extensions_ok = all(
+                [e in r["extensions"] for e in compared_extensions]
+            ) and all([e in compared_extensions for e in r["extensions"]])
+            summary_table[-1].append(
+                style(extensions_ok, "green" if extensions_ok else "red")
+            )
 
     return summary_table
 
@@ -319,6 +331,43 @@ def _sequences_table(
     return sequences_table
 
 
+def _extensions_table(
+    source_extensions: list[str], destination_extensions: list[str]
+) -> list[list]:
+    """
+
+    Takes a list of source and destination extensions and returns a table of the extensions for echo.
+    It will flag any extensions that are not in the destination database but are in the source database.
+
+    *_extensions format:
+    [
+        "uuid-ossp",
+        ...
+    ]
+
+    """
+
+    extensions_table = [
+        [
+            style("extension in source DB", "yellow"),
+            style("is in destination", "yellow"),
+        ]
+    ]
+
+    for e in source_extensions:
+        extensions_table.append(
+            [
+                style(e["extname"], "green"),
+                style(
+                    e in destination_extensions,
+                    "green" if e in destination_extensions else "red",
+                ),
+            ]
+        )
+
+    return extensions_table
+
+
 async def _print_prechecks(results: list[dict]) -> list[list]:
     """
     Print out the results of the prechecks in a human readable format.
@@ -399,7 +448,9 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         dst_summaries.append(r["dst"])
 
     src_summary_table = _summary_table(src_summaries)
-    dst_summary_table = _summary_table(dst_summaries, is_dest_db=True)
+    dst_summary_table = _summary_table(
+        dst_summaries, compared_extensions=r["src"]["extensions"]
+    )
 
     if len(results) != 1:
 
@@ -489,12 +540,19 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     # Destination DB Tables
 
     dst_users_table = _users_table(r["dst"]["users"], is_dest_db=True)
+    extenstions_table = _extensions_table(
+        r["src"]["extensions"], r["dst"]["extensions"]
+    )
 
     destination_display_string = (
         style("\nDestination DB Configuration Summary", "blue")
         + "\n"
         + "\n"
         + tabulate(dst_summary_table, headers="firstrow")
+        + "\n"
+        + style("\nExtension Matchup Summary", "yellow")
+        + "\n"
+        + tabulate(extenstions_table, headers="firstrow")
         + "\n"
         + style("\nRequired Users Summary", "yellow")
         + "\n"
