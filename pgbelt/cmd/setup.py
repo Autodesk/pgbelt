@@ -29,15 +29,23 @@ async def _dump_and_load_schema(
 async def _setup_src_node(
     conf: DbupgradeConfig, src_root_pool: Pool, src_logger: Logger
 ) -> None:
+    """
+    Configure the pglogical node and replication set on the Source database.
+    """
+
     await configure_node(src_root_pool, "pg1", conf.src.pglogical_dsn, src_logger)
     async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pglogical_pool:
-        pkey_tables, _, _ = await analyze_table_pkeys(src_pglogical_pool, src_logger)
+        pkey_tables, _, _ = await analyze_table_pkeys(
+            src_pglogical_pool, conf.schema_name, src_logger
+        )
 
     pglogical_tables = pkey_tables
     if conf.tables:
         pglogical_tables = [t for t in pkey_tables if t in conf.tables]
 
-    await configure_replication_set(src_root_pool, pglogical_tables, src_logger)
+    await configure_replication_set(
+        src_root_pool, pglogical_tables, conf.schema_name, src_logger
+    )
 
 
 @run_with_configs
@@ -65,33 +73,40 @@ async def setup(
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
         dst_logger = get_logger(conf.db, conf.dc, "setup.dst")
+
+        # Configure Source for pglogical (before we can configure the plugin)
         await configure_pgl(
             src_root_pool,
             conf.src.pglogical_user.pw,
             src_logger,
             conf.src.owner_user.name,
         )
-        await grant_pgl(src_owner_pool, conf.tables, src_logger)
+        await grant_pgl(src_owner_pool, conf.tables, conf.schema_name, src_logger)
 
+        # Load schema into destination
         schema_load_task = None
         if schema:
             schema_load_task = create_task(
                 _dump_and_load_schema(conf, src_logger, dst_logger)
             )
 
+        # Configure Pglogical plugin on Source
         src_node_task = create_task(_setup_src_node(conf, src_root_pool, src_logger))
 
-        # we need to wait for the schema to exist in the target before setting up pglogical there
+        # We need to wait for the schema to exist in the target before setting up pglogical there
         if schema_load_task is not None:
             await schema_load_task
 
+        # Configure Destination for pglogical (before we can configure the plugin)
         await configure_pgl(
             dst_root_pool,
             conf.dst.pglogical_user.pw,
             dst_logger,
             conf.dst.owner_user.name,
         )
-        await grant_pgl(dst_owner_pool, conf.tables, dst_logger)
+        await grant_pgl(dst_owner_pool, conf.tables, conf.schema_name, dst_logger)
+
+        # Also configure the node on the destination... of itself. #TODO: This is a bit weird, confirm if this is necessary.
         await configure_node(dst_root_pool, "pg2", conf.dst.pglogical_dsn, dst_logger)
 
         # The source node must be set up before we create a subscription
@@ -123,14 +138,18 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
 
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
-        pkeys, _, _ = await analyze_table_pkeys(src_pglogical_pool, src_logger)
+        pkeys, _, _ = await analyze_table_pkeys(
+            src_pglogical_pool, conf.schema_name, src_logger
+        )
         dst_logger = get_logger(conf.db, conf.dc, "setup.src")
 
         pglogical_tables = pkeys
         if conf.tables:
             pglogical_tables = [t for t in pkeys if t in conf.tables]
 
-        await configure_replication_set(dst_root_pool, pglogical_tables, dst_logger)
+        await configure_replication_set(
+            dst_root_pool, pglogical_tables, conf.schema_name, dst_logger
+        )
         await configure_subscription(
             src_root_pool, "pg2_pg1", conf.dst.pglogical_dsn, src_logger
         )

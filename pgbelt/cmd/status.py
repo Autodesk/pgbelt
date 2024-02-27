@@ -86,18 +86,31 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     src_pool, dst_pool = pools
 
     # Get the list of targeted tables by first getting all tables, then filtering whatever is in the config.
-    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(src_pool, src_logger)
+    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(
+        src_pool, conf.schema_name, src_logger
+    )
     all_tables = pkey_tables + non_pkey_tables
     target_tables = all_tables
     if conf.tables:
         target_tables = [t for t in all_tables if t in conf.tables]
+
+    if not target_tables:
+        raise ValueError(
+            f"Targeted tables not found in the source database. Please check your config's schema and tables. DB: {conf.db} DC: {conf.dc}, SCHEMA: {conf.schema_name} TABLES: {conf.tables}."
+        )
 
     try:
         result = await gather(
             src_status(src_pool, src_logger),
             dst_status(dst_pool, dst_logger),
             initialization_progress(
-                target_tables, src_pool, dst_pool, src_logger, dst_logger
+                target_tables,
+                conf.schema_name,
+                conf.schema_name,
+                src_pool,
+                dst_pool,
+                src_logger,
+                dst_logger,
             ),
         )
 

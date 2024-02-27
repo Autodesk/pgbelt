@@ -6,7 +6,7 @@ from asyncpg.exceptions import UndefinedObjectError
 
 
 async def dump_sequences(
-    pool: Pool, targeted_sequences: list[str], logger: Logger
+    pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
 ) -> dict[str, int]:
     """
     return a dictionary of sequence names mapped to their last values
@@ -18,12 +18,13 @@ async def dump_sequences(
     if targeted_sequences:
         for seq in [r[0] for r in seqs if r[0] in targeted_sequences]:
             seq_vals[seq.strip()] = await pool.fetchval(
-                f"SELECT last_value FROM {seq};"
+                f"SELECT last_value FROM {schema}.{seq};"
             )
     else:
         for seq in [r[0] for r in seqs]:
-            seq_vals[seq.strip()] = await pool.fetchval(
-                f"SELECT last_value FROM {seq};"
+            seq_stripped = seq.strip()
+            seq_vals[f"{schema}.{seq_stripped}"] = await pool.fetchval(
+                f"SELECT last_value FROM {schema}.{seq};"
             )
 
     logger.debug(f"Dumped sequences: {seq_vals}")
@@ -46,15 +47,20 @@ async def load_sequences(pool: Pool, seqs: dict[str, int], logger: Logger) -> No
 
 
 async def compare_data(
-    src_pool: Pool, dst_pool: Pool, query: str, tables: list[str], logger: Logger
+    src_pool: Pool,
+    dst_pool: Pool,
+    query: str,
+    tables: list[str],
+    schema: str,
+    logger: Logger,
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
-    1. Get all tables with primary keys
+    1. Get all tables with primary keys (from the source)
     2. For each of those tables, select * limit 100
     3. For each row, ensure the row in the destination is identical
     """
-    pkeys, _, pkeys_raw = await analyze_table_pkeys(src_pool, logger)
+    pkeys, _, pkeys_raw = await analyze_table_pkeys(src_pool, schema, logger)
 
     pkeys_dict = {}
     # {
@@ -77,22 +83,23 @@ async def compare_data(
         # If specific table list is defined and iterated table is not in that list, skip.
         if tables and (table not in tables):
             continue
+        full_table_name = f"{schema}.{table}"
 
-        logger.debug(f"Validating table {table}...")
+        logger.debug(f"Validating table {full_table_name}...")
         order_by_pkeys = ",".join(pkeys_dict[table])
 
         src_rows = await src_pool.fetch(
-            query.format(table=table, order_by_pkeys=order_by_pkeys)
+            query.format(table=full_table_name, order_by_pkeys=order_by_pkeys)
         )
 
         # There is a chance tables are empty...
         if len(src_rows) == 0:
             dst_rows = await dst_pool.fetch(
-                query.format(table=table, order_by_pkeys=order_by_pkeys)
+                query.format(table=full_table_name, order_by_pkeys=order_by_pkeys)
             )
             if len(dst_rows) != 0:
                 raise AssertionError(
-                    f"Table {table} has 0 rows in source but nonzero rows in target... Big problem. Please investigate."
+                    f"Table {full_table_name} has 0 rows in source but nonzero rows in target... Big problem. Please investigate."
                 )
             else:
                 continue
@@ -114,7 +121,7 @@ async def compare_data(
             src_pkeys_string = src_pkeys_string[:-1]
             pkey_vals_dict[pkey] = src_pkeys_string
 
-        dst_query = f"SELECT * FROM {table} WHERE "
+        dst_query = f"SELECT * FROM {full_table_name} WHERE "
 
         for k, v in pkey_vals_dict.items():
             dst_query = dst_query + f"{k} IN ({v}) AND "
@@ -131,7 +138,7 @@ async def compare_data(
 
         if len(src_rows) != len(dst_rows):
             raise AssertionError(
-                f'Row count of the sample taken from table "{table}" '
+                f'Row count of the sample taken from table "{full_table_name}" '
                 "does not match in source and destination!\n"
                 f"Query: {dst_query}"
             )
@@ -141,7 +148,7 @@ async def compare_data(
             if src_row != dst_row:
                 raise AssertionError(
                     "Row match failure between source and destination.\n"
-                    f"Table: {table}\n"
+                    f"Table: {full_table_name}\n"
                     f"Source Row: {src_row}\n"
                     f"Dest Row: {dst_row}"
                 )
@@ -154,7 +161,7 @@ async def compare_data(
 
 
 async def compare_100_rows(
-    src_pool: Pool, dst_pool: Pool, tables: list[str], logger: Logger
+    src_pool: Pool, dst_pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
@@ -174,11 +181,11 @@ async def compare_100_rows(
     ORDER BY {order_by_pkeys};
     """
 
-    await compare_data(src_pool, dst_pool, query, tables, logger)
+    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
 async def compare_latest_100_rows(
-    src_pool: Pool, dst_pool: Pool, tables: list[str], logger: Logger
+    src_pool: Pool, dst_pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Validate data between source and destination databases by comparing the latest row:
@@ -195,30 +202,31 @@ async def compare_latest_100_rows(
     LIMIT 100;
     """
 
-    await compare_data(src_pool, dst_pool, query, tables, logger)
+    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
-async def table_empty(pool: Pool, table: str, logger: Logger) -> bool:
+async def table_empty(pool: Pool, table: str, schema: str, logger: Logger) -> bool:
     """
     return true if the table is empty
     """
     logger.info(f"Checking if table {table} is empty...")
-    result = await pool.fetch(f"SELECT * FROM {table} LIMIT 1;")
+    result = await pool.fetch(f"SELECT * FROM {schema}.{table} LIMIT 1;")
     return len(result) == 0
 
 
 async def analyze_table_pkeys(
-    pool: Pool, logger: Logger
+    pool: Pool, schema: str, logger: Logger
 ) -> tuple[list[str], list[str], Record]:
     """
-    return three lists of table names. the first element is all tables
-    with pkeys in public and the second is all tables without pkeys in public.
-    The third list is the raw rows of the primary key query with the table name,
-    constraint name, position and column name for the primary key.
+    Return three lists of table names. the first element is all tables
+    with pkeys in the config's named schema and the second is all tables
+    without pkeys in that schema. The third list is the raw rows of the
+    primary key query with the table name, constraint name, position and
+    column name for the primary key.
     """
     logger.info("Checking table primary keys...")
     pkeys_raw = await pool.fetch(
-        """
+        f"""
         SELECT kcu.table_name,
             tco.constraint_name,
             kcu.ordinal_position as position,
@@ -229,7 +237,7 @@ async def analyze_table_pkeys(
             AND kcu.constraint_schema = tco.constraint_schema
             AND kcu.constraint_name = tco.constraint_name
         WHERE tco.constraint_type = 'PRIMARY KEY'
-            AND kcu.table_schema = 'public'
+            AND kcu.table_schema = '{schema}'
         ORDER BY kcu.table_name,
                 position;
         """
@@ -237,11 +245,11 @@ async def analyze_table_pkeys(
     pkeys = [r[0] for r in pkeys_raw]
 
     all_tables = await pool.fetch(
-        """SELECT table_name
+        f"""SELECT table_name
         FROM
             information_schema.tables
         WHERE
-            table_schema = 'public'
+            table_schema = '{schema}'
             AND table_name != 'pg_stat_statements'
         ORDER BY 1;"""
     )
@@ -294,7 +302,13 @@ async def enable_login_users(pool: Pool, users: list[str], logger: Logger) -> No
 
 
 async def precheck_info(
-    pool: Pool, root_name: str, owner_name: str, logger: Logger
+    pool: Pool,
+    root_name: str,
+    owner_name: str,
+    target_tables: list[str],
+    target_sequences: list[str],
+    schema: str,
+    logger: Logger,
 ) -> dict:
     """
     Return a dictionary of information about the database used to determine
@@ -311,7 +325,7 @@ async def precheck_info(
         ),
         "tables": [],
         "sequences": [],
-        "users": [],
+        "users": {},
     }
 
     try:
@@ -333,9 +347,12 @@ async def precheck_info(
               AND n.nspname <> 'pg_catalog'
               AND n.nspname !~ '^pg_toast'
               AND n.nspname <> 'information_schema'
-          AND pg_catalog.pg_table_is_visible(c.oid)
+              AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
     )
+    # We filter the table list if the user has specified a list of tables to target.
+    if target_tables:
+        result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
 
     result["sequences"] = await pool.fetch(
         """
@@ -349,9 +366,15 @@ async def precheck_info(
               AND n.nspname <> 'pg_catalog'
               AND n.nspname !~ '^pg_toast'
               AND n.nspname <> 'information_schema'
-          AND pg_catalog.pg_table_is_visible(c.oid)
+              AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
     )
+
+    # We filter the sequence list if the user has specified a list of sequences to target.
+    if target_sequences:
+        result["sequences"] = [
+            s for s in result["sequences"] if s["Name"] in target_sequences
+        ]
 
     users = await pool.fetch(
         f"""
@@ -364,26 +387,30 @@ async def precheck_info(
                 WHERE m.member = r.oid) as memberof
         , r.rolreplication
         , r.rolbypassrls
+        , has_schema_privilege(r.rolname, '{schema}', 'CREATE') AS can_create
         FROM pg_catalog.pg_roles r
         WHERE r.rolname !~ '^pg_' AND (r.rolname = '{root_name}' OR r.rolname = '{owner_name}')
         ORDER BY 1;"""
     )
 
+    # We only care about the root and owner users.
     for u in users:
         if u[0] == root_name:
-            result["root"] = u
+            result["users"]["root"] = u
         if u[0] == owner_name:
-            result["owner"] = u
+            result["users"]["owner"] = u
 
     return result
 
 
 # TODO: Need to add schema here when working on non-public schema support.
 async def get_dataset_size(
-    tables: list[str], pool: Pool, logger: Logger, schema: str = "public"
+    tables: list[str], schema: str, pool: Pool, logger: Logger
 ) -> str:
     """
-    Get the total disk size of a dataset (via list of tables)
+    Get the total disk size of a dataset (via list of tables).
+
+    This function ALWAYS expects a list of tables. If not, the calling function should handle that.
     """
     logger.info("Getting the targeted dataset size...")
 
@@ -421,6 +448,8 @@ async def get_dataset_size(
 
 async def initialization_progress(
     tables: list[str],
+    src_schema: str,
+    dst_schema: str,
     src_pool: Pool,
     dst_pool: Pool,
     src_logger: Logger,
@@ -430,8 +459,8 @@ async def initialization_progress(
     Get the size progress of the initialization stage
     """
 
-    src_dataset_size = await get_dataset_size(tables, src_pool, src_logger)
-    dst_dataset_size = await get_dataset_size(tables, dst_pool, dst_logger)
+    src_dataset_size = await get_dataset_size(tables, src_schema, src_pool, src_logger)
+    dst_dataset_size = await get_dataset_size(tables, dst_schema, dst_pool, dst_logger)
 
     # Eliminate None values
     if src_dataset_size["db_size"] is None:

@@ -22,12 +22,13 @@ from typer import Option
 
 async def _sync_sequences(
     targeted_sequences: list[str],
+    schema: str,
     src_pool: Pool,
     dst_pool: Pool,
     src_logger: Logger,
     dst_logger: Logger,
 ) -> None:
-    seq_vals = await dump_sequences(src_pool, targeted_sequences, src_logger)
+    seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
     await load_sequences(dst_pool, seq_vals, dst_logger)
 
 
@@ -47,7 +48,7 @@ async def sync_sequences(config_future: Awaitable[DbupgradeConfig]) -> None:
         src_logger = get_logger(conf.db, conf.dc, "sync.src")
         dst_logger = get_logger(conf.db, conf.dc, "sync.dst")
         await _sync_sequences(
-            conf.sequences, src_pool, dst_pool, src_logger, dst_logger
+            conf.sequences, conf.schema_name, src_pool, dst_pool, src_logger, dst_logger
         )
     finally:
         await gather(*[p.close() for p in pools])
@@ -72,7 +73,7 @@ async def dump_tables(
         tables = tables.split(",")
     else:
         async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
-            _, tables, _ = await analyze_table_pkeys(src_pool, logger)
+            _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)
 
         if conf.tables:
             tables = [t for t in tables if t in conf.tables]
@@ -127,7 +128,9 @@ async def sync_tables(
         dump_tables = tables.split(",")
     else:
         async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
-            _, dump_tables, _ = await analyze_table_pkeys(src_pool, src_logger)
+            _, dump_tables, _ = await analyze_table_pkeys(
+                src_pool, conf.schema_name, src_logger
+            )
 
         if conf.tables:
             dump_tables = [t for t in dump_tables if t in conf.tables]
@@ -167,8 +170,10 @@ async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
     try:
         logger = get_logger(conf.db, conf.dc, "sync")
         await gather(
-            compare_100_rows(src_pool, dst_pool, conf.tables, logger),
-            compare_latest_100_rows(src_pool, dst_pool, conf.tables, logger),
+            compare_100_rows(src_pool, dst_pool, conf.tables, conf.schema_name, logger),
+            compare_latest_100_rows(
+                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            ),
         )
     finally:
         await gather(*[p.close() for p in pools])
@@ -177,7 +182,7 @@ async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
 async def _dump_and_load_all_tables(
     conf: DbupgradeConfig, src_pool: Pool, src_logger: Logger, dst_logger: Logger
 ) -> None:
-    _, tables, _ = await analyze_table_pkeys(src_pool, src_logger)
+    _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, src_logger)
     if conf.tables:
         tables = [t for t in tables if t in conf.tables]
     await dump_source_tables(conf, tables, src_logger)
@@ -212,7 +217,12 @@ async def sync(
 
         await gather(
             _sync_sequences(
-                conf.sequences, src_pool, dst_root_pool, src_logger, dst_logger
+                conf.sequences,
+                conf.schema_name,
+                src_pool,
+                dst_root_pool,
+                src_logger,
+                dst_logger,
             ),
             _dump_and_load_all_tables(conf, src_pool, src_logger, dst_logger),
         )
@@ -228,9 +238,19 @@ async def sync(
             )
 
         await gather(
-            compare_100_rows(src_pool, dst_owner_pool, conf.tables, validation_logger),
+            compare_100_rows(
+                src_pool,
+                dst_owner_pool,
+                conf.tables,
+                conf.schema_name,
+                validation_logger,
+            ),
             compare_latest_100_rows(
-                src_pool, dst_owner_pool, conf.tables, validation_logger
+                src_pool,
+                dst_owner_pool,
+                conf.tables,
+                conf.schema_name,
+                validation_logger,
             ),
             run_analyze(dst_owner_pool, dst_logger),
         )

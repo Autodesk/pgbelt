@@ -93,7 +93,7 @@ async def dump_source_tables(
                 [
                     "pg_dump",
                     "--data-only",
-                    f"--table={table}",
+                    f"--table={config.schema_name}.{table}",
                     "-Fc",
                     "-f",
                     table_file(config.db, config.dc, table),
@@ -125,7 +125,7 @@ async def load_dumped_tables(
     async with create_pool(config.dst.root_uri, min_size=1) as pool:
         to_load = []
         for t in tables:
-            if await table_empty(pool, t, logger):
+            if await table_empty(pool, t, config.schema_name, logger):
                 to_load.append(table_file(config.db, config.dc, t))
             else:
                 logger.warning(
@@ -164,9 +164,13 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "--schema-only",
         "--no-owner",
         "-n",
-        "public",
+        config.schema_name,
         config.src.pglogical_dsn,
     ]
+
+    # TODO: We should exclude the creation of a schema in the schema dump and load, and made that the responsibility of the user.
+    # Confirm if the CREATE SCHEMA statement is included in the schema dump, and if yes, exclude it.
+    # This will reveal itself in the integration test.
 
     out = await _execute_subprocess(command, "Retrieved source schema", logger)
 
@@ -239,7 +243,7 @@ async def dump_dst_not_valid_constraints(
         "--schema-only",
         "--no-owner",
         "-n",
-        "public",
+        config.schema_name,
         config.dst.pglogical_dsn,
     ]
 
@@ -345,7 +349,7 @@ async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None
         "--schema-only",
         "--no-owner",
         "-n",
-        "public",
+        config.schema_name,
         config.dst.pglogical_dsn,
     ]
 

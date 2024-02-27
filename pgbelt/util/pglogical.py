@@ -66,7 +66,7 @@ async def configure_pgl(
             )
 
 
-async def grant_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
+async def grant_pgl(pool: Pool, tables: list[str], schema: str, logger: Logger) -> None:
     """
     Grant pglogical access to the data
 
@@ -83,16 +83,16 @@ async def grant_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
                 )
             else:
                 await conn.execute(
-                    "GRANT ALL ON ALL TABLES IN SCHEMA public TO pglogical;"
+                    f"GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO pglogical;"
                 )
             await conn.execute(
-                "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO pglogical;"
+                f"GRANT ALL ON ALL SEQUENCES IN SCHEMA {schema} TO pglogical;"
             )
             logger.debug("pglogical data grants complete")
 
 
 async def configure_replication_set(
-    pool: Pool, tables: list[str], logger: Logger
+    pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Add each table in the given list to the default replication set
@@ -105,17 +105,23 @@ async def configure_replication_set(
         except Exception as e:
             logger.debug(f"Could not create replication set 'pgbelt': {e}")
 
-    logger.info(f"Configuring 'pgbelt' replication set with tables: {tables}")
+    logger.info(
+        f"Configuring 'pgbelt' replication set with tables from schema {schema}: {tables}"
+    )
     for table in tables:
         async with pool.acquire() as conn:
             async with conn.transaction():
                 try:
                     await conn.execute(
-                        f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{table}\"');"
+                        f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{schema}\".\"{table}\"');"
                     )
-                    logger.debug(f"Table '{table}' added to 'pgbelt' replication set")
+                    logger.debug(
+                        f"Table '{table}' added to 'pgbelt' replication set from schema {schema}"
+                    )
                 except UniqueViolationError:
-                    logger.debug(f"Table '{table}' already in 'pgbelt' replication set")
+                    logger.debug(
+                        f"Table '{table}' already in 'pgbelt' replication set from schema {schema}"
+                    )
 
 
 async def configure_node(pool: Pool, name: str, dsn: str, logger: Logger) -> None:
@@ -214,9 +220,15 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
                 InternalServerError,
             ):
                 logger.debug("Replication set 'pgbelt' does not exist")
+            except ObjectNotInPrerequisiteStateError:
+                logger.debug(
+                    "pglogical node was already dropped, so we can't drop the replication set. This is okay, keep going."
+                )
 
 
-async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
+async def revoke_pgl(
+    pool: Pool, tables: list[str], schema: str, logger: Logger
+) -> None:
     """
     Revoke data access permissions from pglogical, and drop the pglogical role
     """
@@ -225,10 +237,10 @@ async def revoke_pgl(pool: Pool, tables: list[str], logger: Logger) -> None:
         async with conn.transaction():
             try:
                 await conn.execute(
-                    "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pglogical;"
+                    f"REVOKE ALL ON ALL TABLES IN SCHEMA {schema} FROM pglogical;"
                 )
                 await conn.execute(
-                    "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM pglogical;"
+                    f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA {schema} FROM pglogical;"
                 )
                 logger.debug("Data access permissions revoked")
             except UndefinedObjectError as e:

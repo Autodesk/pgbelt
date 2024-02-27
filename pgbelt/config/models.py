@@ -49,7 +49,7 @@ class DbConfig(BaseModel):
     db: str The dbname to operate on. If you want to migrate multiple dbs in a single instance set up a separate config.
     port: str The port to connect to.
     root_user: User A superuser. Usually the postgres user.
-    owner_user: User A user who owns all the data in the public schema or who has equivalent permissions. # noqa: RST301
+    owner_user: User A user who owns all the data in the your specified schema or who has equivalent permissions. # noqa: RST301
                      This user will end up owning all the data if this is describing the target instance.
     pglogical_user: User A user for use with pglogical. Will be created if it does not exist.
     other_users: list[User] A list of other users whose passwords we might not know.
@@ -105,6 +105,9 @@ class DbupgradeConfig(BaseModel):
     dc: str A name used to identify the environment this database pair is in. Used in cli commands.
     src: DbConfig The database we are moving data out of.
     dst: DbConfig The database we are moving data into.
+    tables: Optional[list[str]] A list of tables to replicate. If not provided all tables in the named schema will be replicated.
+    sequences: Optional[list[str]] A list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
+    schema_name: Optional[str] The schema to operate on. Defaults to "public".
     """
 
     db: str
@@ -113,6 +116,7 @@ class DbupgradeConfig(BaseModel):
     dst: Optional[DbConfig] = None
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
+    schema_name: Optional[str] = "public"
 
     _not_empty = validator("db", "dc", allow_reuse=True)(not_empty)
 
