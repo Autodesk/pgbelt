@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/Autodesk/pgbelt/compare/v0.6.2...v0.7.0) (2024-02-27)
+
+
+### Features
+
+* add percent progress to initializing status view ([#387](https://github.com/Autodesk/pgbelt/issues/387)) ([6139cfc](https://github.com/Autodesk/pgbelt/commit/6139cfc25d8ce4a272adf0587085455f136cdb66))
+* handle exodus-style migrations ([#377](https://github.com/Autodesk/pgbelt/issues/377)) ([09c6887](https://github.com/Autodesk/pgbelt/commit/09c68878a4332698393956d5ee166134b84da8af))
+* pgbelt now supports non-public schemas! ([#398](https://github.com/Autodesk/pgbelt/issues/398)) ([1f1fa87](https://github.com/Autodesk/pgbelt/commit/1f1fa87e6f884fd6ae16de7d032d4d79d24929ba))
+* precheck now compares extensions of DBs ([#406](https://github.com/Autodesk/pgbelt/issues/406)) ([b74ce43](https://github.com/Autodesk/pgbelt/commit/b74ce438855ebf611672ccdfa7c0768fd4f6cd58))
+
+
+### Bug Fixes
+
+* sizes in status to should target config dataset instead of whole DB ([#395](https://github.com/Autodesk/pgbelt/issues/395)) ([80bf6ba](https://github.com/Autodesk/pgbelt/commit/80bf6bac8532ea57cd867597203392bf23d78f63))
+
 ## [0.6.2](https://github.com/Autodesk/pgbelt/compare/v0.6.1...v0.6.2) (2024-02-02)
 
 ### Bug Fixes
