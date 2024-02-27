@@ -339,7 +339,7 @@ def _extensions_table(
     Takes a list of source and destination extensions and returns a table of the extensions for echo.
     It will flag any extensions that are not in the destination database but are in the source database.
 
-    *_extensions format:
+    <source/destination>_extensions format:
     [
         "uuid-ossp",
         ...
