@@ -12,7 +12,7 @@ venv
 build/*
 dist/*
 logs/*
-configs/integrationtest-datacenter/*
+configs/testdc/*
 schemas/*
 .python-version
 .mypy_cache

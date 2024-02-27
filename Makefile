@@ -18,7 +18,7 @@ test: ## Run tests
 
 tests: test
 
-local-dev: ## Sets up docker containers for Postgres DBs and gets you into a docker container with pgbelt installed. DC: integrationtest-datacenter, DB: integrationtestdb
+local-dev: ## Sets up docker containers for Postgres DBs and gets you into a docker container with pgbelt installed. DC: testdc, DB: testdb
 	docker build . -t autodesk/pgbelt:latest && docker build tests/integration/files/postgres13-pglogical-docker/ -t autodesk/postgres-pglogical-docker:13 && docker-compose run localtest
 
 clean-docker: ## Stop and remove all docker containers and images made from local testing
