@@ -238,18 +238,18 @@ async def _test_main_workflow(config):
 
 # Run the main integration test with objects in the public schema
 @pytest.mark.asyncio
-async def test_main_workflow_public_schema(setup_db_upgrade_config_public_schema):
+async def test_main_workflow_public_schema(setup_db_upgrade_configs):
 
-    await _test_main_workflow(setup_db_upgrade_config_public_schema)
+    await _test_main_workflow(setup_db_upgrade_configs["public-full"])
 
 
 # Run the main integration test with objects in a non-public schema
 @pytest.mark.asyncio
 async def test_main_workflow_non_public_schema(
-    setup_db_upgrade_config_non_public_schema,
+    setup_db_upgrade_configs,
 ):
 
-    await _test_main_workflow(setup_db_upgrade_config_non_public_schema)
+    await _test_main_workflow(setup_db_upgrade_configs["nonpublic-full"])
 
 
 # TODO: fix up the exodus-style tests, the dump comparision step obviously fails because not all data was moved.
