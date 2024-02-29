@@ -12,20 +12,26 @@ async def dump_sequences(
     return a dictionary of sequence names mapped to their last values
     """
     logger.info("Dumping sequence values...")
-    seqs = await pool.fetch("SELECT sequence_name FROM information_schema.sequences;")
+    # Get all sequences in the schema
+    seqs = await pool.fetch(
+        f"""
+        SELECT '{schema}' || '.' || sequence_name
+        FROM information_schema.sequences
+        WHERE sequence_schema = '{schema}';
+        """
+    )
 
     seq_vals = {}
+    final_seqs = []
+    # If we get a list of targeted sequences, we only want to dump whichever of those are found in the database and schema.
     if targeted_sequences:
-        for seq in [r[0] for r in seqs if r[0] in targeted_sequences]:
-            seq_vals[seq.strip()] = await pool.fetchval(
-                f"SELECT last_value FROM {schema}.{seq};"
-            )
-    else:
-        for seq in [r[0] for r in seqs]:
-            seq_stripped = seq.strip()
-            seq_vals[f"{schema}.{seq_stripped}"] = await pool.fetchval(
-                f"SELECT last_value FROM {schema}.{seq};"
-            )
+        final_seqs = [r[0] for r in seqs if r[0] in targeted_sequences]
+    else:  # Otherwise, we want to dump all sequences found in the schema.
+        final_seqs = [r[0] for r in seqs]
+
+    for seq in final_seqs:
+        res = await pool.fetchval(f"SELECT last_value FROM {seq};")
+        seq_vals[seq.strip()] = res
 
     logger.debug(f"Dumped sequences: {seq_vals}")
     return seq_vals
