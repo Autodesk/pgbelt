@@ -28,7 +28,19 @@ async def _sync_sequences(
     src_logger: Logger,
     dst_logger: Logger,
 ) -> None:
-    seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
+
+    # Note: When in an exodus migration with a non-public schema, the sequence names must be prefixed with the schema name.
+    # This may not be done by the user, so we must do it here.
+    proper_sequence_names = None
+    if targeted_sequences is not None:
+        proper_sequence_names = []
+        for seq in targeted_sequences:
+            if f"{schema}." not in seq:
+                proper_sequence_names.append(f"{schema}.{seq}")
+            else:
+                proper_sequence_names.append(seq)
+
+    seq_vals = await dump_sequences(src_pool, proper_sequence_names, schema, src_logger)
     await load_sequences(dst_pool, seq_vals, dst_logger)
 
 

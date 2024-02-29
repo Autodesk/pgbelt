@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-  db-src:
+  db-src-set-public-schema-full: &db
     image: autodesk/postgres-pglogical-docker:13
     environment:
       POSTGRES_PASSWORD: postgres
@@ -16,20 +16,47 @@ services:
       timeout: 5s
       retries: 5
 
-  db-dst:
-    image: autodesk/postgres-pglogical-docker:13
-    environment:
-      POSTGRES_PASSWORD: postgres
-      PGDATA: /tmp/pgdata
-    restart: on-failure
+  db-dst-set-public-schema-full:
+    <<: *db
     networks:
       datacenter:
         ipv4_address: 10.5.0.6
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
+  db-src-set-non-public-schema-full:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.7
+
+  db-dst-set-non-public-schema-full:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.8
+
+  db-src-set-public-schema-exodus:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.9
+
+  db-dst-set-public-schema-exodus:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.10
+
+  db-src-set-non-public-schema-exodus:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.11
+
+  db-dst-set-non-public-schema-exodus:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.12
 
   flake8:
     image: autodesk/pgbelt:latest
@@ -46,23 +73,31 @@ services:
   tests:
     image: autodesk/pgbelt:latest
     environment:
-      TEST_PG_SRC_HOST: localhost
-      TEST_PG_SRC_IP: 10.5.0.5
-      TEST_PG_SRC_DB: src
-      TEST_PG_SRC_PORT: 5432
-      TEST_PG_SRC_ROOT_USERNAME: postgres
-      TEST_PG_SRC_ROOT_PASSWORD: postgres
-      TEST_PG_DST_HOST: localhost
-      TEST_PG_DST_IP: 10.5.0.6
-      TEST_PG_DST_DB: dst
-      TEST_PG_DST_PORT: 5432
-      TEST_PG_DST_ROOT_USERNAME: postgres
-      TEST_PG_DST_ROOT_PASSWORD: postgres
+      PUBLIC_FULL_SRC_IP: 10.5.0.5
+      PUBLIC_FULL_DST_IP: 10.5.0.6
+      NONPUBLIC_FULL_SRC_IP: 10.5.0.7
+      NONPUBLIC_FULL_DST_IP: 10.5.0.8
+      PUBLIC_EXODUS_SRC_IP: 10.5.0.9
+      PUBLIC_EXODUS_DST_IP: 10.5.0.10
+      NONPUBLIC_EXODUS_SRC_IP: 10.5.0.11
+      NONPUBLIC_EXODUS_DST_IP: 10.5.0.12
     command: poetry run pytest --cov=pgbelt tests/
     depends_on:
-      db-src:
+      db-src-set-public-schema-full:
         condition: service_healthy
-      db-dst:
+      db-dst-set-public-schema-full:
+        condition: service_healthy
+      db-src-set-non-public-schema-full:
+        condition: service_healthy
+      db-dst-set-non-public-schema-full:
+        condition: service_healthy
+      db-src-set-public-schema-exodus:
+        condition: service_healthy
+      db-dst-set-public-schema-exodus:
+        condition: service_healthy
+      db-src-set-non-public-schema-exodus:
+        condition: service_healthy
+      db-dst-set-non-public-schema-exodus:
         condition: service_healthy
     networks:
       - datacenter
@@ -70,23 +105,31 @@ services:
   localtest:
     image: autodesk/pgbelt:latest
     environment:
-      TEST_PG_SRC_HOST: localhost
-      TEST_PG_SRC_IP: 10.5.0.5
-      TEST_PG_SRC_DB: src
-      TEST_PG_SRC_PORT: 5432
-      TEST_PG_SRC_ROOT_USERNAME: postgres
-      TEST_PG_SRC_ROOT_PASSWORD: postgres
-      TEST_PG_DST_HOST: localhost
-      TEST_PG_DST_IP: 10.5.0.6
-      TEST_PG_DST_DB: dst
-      TEST_PG_DST_PORT: 5432
-      TEST_PG_DST_ROOT_USERNAME: postgres
-      TEST_PG_DST_ROOT_PASSWORD: postgres
+      PUBLIC_FULL_SRC_IP: 10.5.0.5
+      PUBLIC_FULL_DST_IP: 10.5.0.6
+      NONPUBLIC_FULL_SRC_IP: 10.5.0.7
+      NONPUBLIC_FULL_DST_IP: 10.5.0.8
+      PUBLIC_EXODUS_SRC_IP: 10.5.0.9
+      PUBLIC_EXODUS_DST_IP: 10.5.0.10
+      NONPUBLIC_EXODUS_SRC_IP: 10.5.0.11
+      NONPUBLIC_EXODUS_DST_IP: 10.5.0.12
     command: bash -c "cd /pgbelt-volume/ && poetry run python3 tests/integration/conftest.py --non-public-schema && pip3 install -e . && bash"
     depends_on:
-      db-src:
+      db-src-set-public-schema-full:
         condition: service_healthy
-      db-dst:
+      db-dst-set-public-schema-full:
+        condition: service_healthy
+      db-src-set-non-public-schema-full:
+        condition: service_healthy
+      db-dst-set-non-public-schema-full:
+        condition: service_healthy
+      db-src-set-public-schema-exodus:
+        condition: service_healthy
+      db-dst-set-public-schema-exodus:
+        condition: service_healthy
+      db-src-set-non-public-schema-exodus:
+        condition: service_healthy
+      db-dst-set-non-public-schema-exodus:
         condition: service_healthy
     networks:
       - datacenter

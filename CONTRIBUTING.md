@@ -72,7 +72,7 @@ This feature is very useful when you are making code changes to `pgbelt` and wan
 
 To do this, this local development feature uses `docker` and `docker-compose` to spin up the following:
 
-1. Two Postgres Containers with networking configured between each other
+1. 4 Pairs of Postgres Containers with networking configured between each other. These 4 sets are used for the following integration test cases: public schema & whole DB, public schema & exodus-style migration (only a subset is moved), non-public schema & whole DB, non-public schema & exodus-style migration (only a subset is moved)
 2. One container loaded with your local copy of `pgbelt`, built and installed for CLI usage.
 
 Simply run the following to spin the above up and drop yourself into your container with your local `pgbelt`:
