@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/Autodesk/pgbelt/compare/v0.7.0...v0.7.1) (2024-03-01)
+
+
+### Bug Fixes
+
+* various small fixes found from new integration testing ([#409](https://github.com/Autodesk/pgbelt/issues/409)) ([0309c56](https://github.com/Autodesk/pgbelt/commit/0309c5646c2d58e8d9c41299e4762a02c211f512))
+
 ## [0.7.0](https://github.com/Autodesk/pgbelt/compare/v0.6.2...v0.7.0) (2024-02-27)
 
 
