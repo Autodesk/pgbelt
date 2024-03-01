@@ -7,9 +7,12 @@ from pgbelt.util.dump import _parse_dump_commands
 from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
+from asyncpg import create_pool
 
 import pgbelt
 import pytest
+
+from typer import echo
 
 
 async def _check_status(
@@ -316,8 +319,41 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                 print(
                     f"Ensuring {setname} source and destination data for table {table} are the same..."
                 )
+
                 assert src_table_data[table] == dst_table_data[table]
 
+            # We also need to ensure the sequences are the same
+            # I'm using the same code as in the sync_sequences function to do this because it has
+            # all the logic to handle exodus-style migrations and target the right sequences.
+            src_pool, dst_pool = await asyncio.gather(
+                create_pool(configs[setname].src.pglogical_uri, min_size=1),
+                create_pool(configs[setname].dst.root_uri, min_size=1),
+            )
+            src_seq_vals = await pgbelt.util.postgres.dump_sequences(
+                src_pool,
+                configs[setname].sequences,
+                configs[setname].schema_name,
+                pgbelt.util.logs.get_logger(
+                    configs[setname].db,
+                    configs[setname].dc,
+                    "integration-sequences.src",
+                ),
+            )
+            dst_seq_vals = await pgbelt.util.postgres.dump_sequences(
+                dst_pool,
+                configs[setname].sequences,
+                configs[setname].schema_name,
+                pgbelt.util.logs.get_logger(
+                    configs[setname].db,
+                    configs[setname].dc,
+                    "integration-sequences.dst",
+                ),
+            )
+
+            print(
+                f"Ensuring {setname} source and destination sequences are the same..."
+            )
+            assert src_seq_vals == dst_seq_vals
         else:
             print(f"Ensuring {setname} source and destination dumps are the same...")
             assert src_dumps_filtered[i] == dst_dumps_filtered[i]

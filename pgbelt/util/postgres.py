@@ -21,6 +21,18 @@ async def dump_sequences(
         """
     )
 
+    # Note: When in an exodus migration with a non-public schema, the sequence names must be prefixed with the schema name.
+    # This may not be done by the user, so we must do it here.
+    proper_sequence_names = None
+    if targeted_sequences is not None:
+        proper_sequence_names = []
+        for seq in targeted_sequences:
+            if f"{schema}." not in seq:
+                proper_sequence_names.append(f"{schema}.{seq}")
+            else:
+                proper_sequence_names.append(seq)
+    targeted_sequences = proper_sequence_names
+
     seq_vals = {}
     final_seqs = []
     # If we get a list of targeted sequences, we only want to dump whichever of those are found in the database and schema.
