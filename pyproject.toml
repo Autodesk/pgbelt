@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pgbelt"
-version = "0.7.0"
+version = "0.7.1"
 description = "A CLI tool used to manage Postgres data migrations from beginning to end, for a single database or a fleet, leveraging pglogical replication."
 authors = ["Varjitt Jeeva <varjitt.jeeva@autodesk.com>"]
 readme = "README.md"
