@@ -11,10 +11,10 @@ CREATE TABLE public.fruits (
 ALTER TABLE public.fruits OWNER TO owner;
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: owner
+-- Name: UsersCapital; Type: TABLE; Schema: public; Owner: owner
 --
 
-CREATE TABLE public.Users (
+CREATE TABLE public.UsersCapital (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
@@ -23,13 +23,13 @@ CREATE TABLE public.Users (
 );
 
 
-ALTER TABLE public.Users OWNER TO owner;
+ALTER TABLE public.UsersCapital OWNER TO owner;
 
 --
--- Name: users2; Type: TABLE; Schema: public; Owner: owner
+-- Name: UsersCapital2; Type: TABLE; Schema: public; Owner: owner
 --
 
-CREATE TABLE public.Users2 (
+CREATE TABLE public.UsersCapital2 (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
@@ -38,13 +38,13 @@ CREATE TABLE public.Users2 (
 );
 
 
-ALTER TABLE public.Users2 OWNER TO owner;
+ALTER TABLE public.UsersCapital2 OWNER TO owner;
 
 --
 -- Name: users_idx; Type: INDEX; Schema: public; Owner: owner
 --
 
-CREATE INDEX users_idx ON public.Users (
+CREATE INDEX users_idx ON public.UsersCapital (
     hash_firstname,
     hash_lastname
 );
@@ -53,16 +53,16 @@ CREATE INDEX users_idx ON public.Users (
 -- Name: users2_idx; Type: INDEX; Schema: public; Owner: owner
 --
 
-CREATE INDEX users2_idx ON public.Users (
+CREATE INDEX users2_idx ON public.UsersCapital (
     hash_firstname,
     hash_lastname
 );
 
 --
--- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
+-- Name: userS_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
 --
 
-CREATE SEQUENCE public.users_id_seq
+CREATE SEQUENCE public.userS_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -70,7 +70,7 @@ CREATE SEQUENCE public.users_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.users_id_seq OWNER TO owner;
+ALTER TABLE public.userS_id_seq OWNER TO owner;
 
 --
 -- Name: users2_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
@@ -96,10 +96,10 @@ INSERT INTO public.fruits (id, name)
     (4, 'grape');
 
 --
--- Data for Name: Users; Type: TABLE DATA; Schema: public; Owner: owner
+-- Data for Name: UsersCapital; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public.users (id, hash_firstname, hash_lastname, gender)
+INSERT INTO public.UsersCapital (id, hash_firstname, hash_lastname, gender)
     VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
     (2, 'garbagefirst1', 'garbagelast1', 'female'),
     (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
@@ -111,7 +111,7 @@ INSERT INTO public.users (id, hash_firstname, hash_lastname, gender)
 -- Data for Name: Users2; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public.users2 (id, hash_firstname, hash_lastname, gender)
+INSERT INTO public.UsersCapital2 (id, hash_firstname, hash_lastname, gender)
     VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
     (2, 'garbagefirst1', 'garbagelast1', 'female'),
     (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
@@ -120,10 +120,10 @@ INSERT INTO public.users2 (id, hash_firstname, hash_lastname, gender)
 
 
 --
--- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
+-- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
 --
 
-SELECT pg_catalog.setval('public.users_id_seq', 1, false);
+SELECT pg_catalog.setval('public.userS_id_seq', 1, false);
 
 
 --
@@ -134,16 +134,16 @@ SELECT pg_catalog.setval('public.users2_id_seq', 1, false);
 
 
 --
--- Name: Users users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
+-- Name: UsersCapital users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
 --
 
-ALTER TABLE ONLY public.Users
+ALTER TABLE ONLY public.UsersCapital
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 
 --
--- Name: Users users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
+-- Name: UsersCapital users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
 --
 
-ALTER TABLE ONLY public.Users2
+ALTER TABLE ONLY public.UsersCapital2
     ADD CONSTRAINT users2_pkey PRIMARY KEY (id);
