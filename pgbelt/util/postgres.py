@@ -372,9 +372,22 @@ async def precheck_info(
               AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
     )
+
     # We filter the table list if the user has specified a list of tables to target.
+    # Note, from issue #420, the above query will return the table names in lowercase,
+    # so we need to map the target_tables to lowercase.
     if target_tables:
-        result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
+
+        result["tables"] = [
+            t
+            for t in result["tables"]
+            if t["Name"] in list(map(str.lower, target_tables))
+        ]
+
+        # We will not recapitalize the table names in the result["tables"] list,
+        # to preserve how Postgres sees those tables in its system catalog. Easy
+        # rabbit hole later if we keep patching the table names to match the user's
+        # input.
 
     result["sequences"] = await pool.fetch(
         """
@@ -392,11 +405,21 @@ async def precheck_info(
         ORDER BY 1,2;"""
     )
 
-    # We filter the sequence list if the user has specified a list of sequences to target.
+    # We filter the table list if the user has specified a list of tables to target.
+    # Note, from issue #420, the above query will return the table names in lowercase,
+    # so we need to map the target_tables to lowercase.
     if target_sequences:
+
         result["sequences"] = [
-            s for s in result["sequences"] if s["Name"] in target_sequences
+            t
+            for t in result["sequences"]
+            if t["Name"] in list(map(str.lower, target_sequences))
         ]
+
+        # We will not recapitalize the table names in the result["tables"] list,
+        # to preserve how Postgres sees those tables in its system catalog. Easy
+        # rabbit hole later if we keep patching the table names to match the user's
+        # input.
 
     users = await pool.fetch(
         f"""
