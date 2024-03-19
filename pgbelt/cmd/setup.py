@@ -41,7 +41,23 @@ async def _setup_src_node(
 
     pglogical_tables = pkey_tables
     if conf.tables:
-        pglogical_tables = [t for t in pkey_tables if t in conf.tables]
+        pglogical_tables = [
+            t
+            for t in pkey_tables
+            if t
+            in list(
+                map(str.lower, conf.tables)
+            )  # Postgres returns table names in lowercase (in analyze_table_pkeys)
+        ]
+
+    # Intentionally throw an error if no tables are found, so that the user can correct their config.
+    # When reported by a certain user, errors showed when running the status command, but it was ignored,
+    # then the user ran setup and since that DIDN'T throw an error, they assumed everything was fine.
+
+    if not pglogical_tables:
+        raise ValueError(
+            f"No tables were targeted to replicate. Please check your config's schema and tables. DB: {conf.db} DC: {conf.dc}, SCHEMA: {conf.schema_name} TABLES: {conf.tables}.\nIf TABLES is [], all tables in the schema should be replicated, but pgbelt still found no tables.\nCheck the schema name or reach out to the pgbelt team for help."
+        )
 
     await configure_replication_set(
         src_root_pool, pglogical_tables, conf.schema_name, src_logger
@@ -145,7 +161,14 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
 
         pglogical_tables = pkeys
         if conf.tables:
-            pglogical_tables = [t for t in pkeys if t in conf.tables]
+            pglogical_tables = [
+                t
+                for t in pkeys
+                if t
+                in list(
+                    map(str.lower, conf.tables)
+                )  # Postgres returns table names in lowercase (in analyze_table_pkeys)
+            ]
 
         await configure_replication_set(
             dst_root_pool, pglogical_tables, conf.schema_name, dst_logger

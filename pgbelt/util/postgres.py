@@ -97,10 +97,16 @@ async def compare_data(
     dst_old_extra_float_digits = await dst_pool.fetchval("SHOW extra_float_digits;")
     await dst_pool.execute("SET extra_float_digits TO 0;")
 
+    has_run = False
     for table in set(pkeys):
-        # If specific table list is defined and iterated table is not in that list, skip.
-        if tables and (table not in tables):
+        # If specific table list is defined and the iterated table is not in that list, skip.
+        # Note that the pkeys tables returned from Postgres are all lowercased, so we need to
+        # map the passed conf tables to lowercase.
+        if tables and (table not in list(map(str.lower, tables))):
             continue
+
+        has_run = True  # If this runs, we have at least one table to compare. We will use this flag to throw an error if no tables are found.
+
         full_table_name = f"{schema}.{table}"
 
         logger.debug(f"Validating table {full_table_name}...")
@@ -170,6 +176,13 @@ async def compare_data(
                     f"Source Row: {src_row}\n"
                     f"Dest Row: {dst_row}"
                 )
+
+    # Just a paranoia check. If this throws, then it's possible pgbelt didn't migrate any data.
+    # This was found in issue #420, and previous commands threw errors before this issue could arise.
+    if not has_run:
+        raise ValueError(
+            "No tables were found to compare. Please reach out to the pgbelt for help, and check if your data was migrated."
+        )
 
     await src_pool.execute(f"SET extra_float_digits TO {src_old_extra_float_digits};")
     await dst_pool.execute(f"SET extra_float_digits TO {dst_old_extra_float_digits};")
@@ -372,9 +385,22 @@ async def precheck_info(
               AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
     )
+
     # We filter the table list if the user has specified a list of tables to target.
+    # Note, from issue #420, the above query will return the table names in lowercase,
+    # so we need to map the target_tables to lowercase.
     if target_tables:
-        result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
+
+        result["tables"] = [
+            t
+            for t in result["tables"]
+            if t["Name"] in list(map(str.lower, target_tables))
+        ]
+
+        # We will not recapitalize the table names in the result["tables"] list,
+        # to preserve how Postgres sees those tables in its system catalog. Easy
+        # rabbit hole later if we keep patching the table names to match the user's
+        # input.
 
     result["sequences"] = await pool.fetch(
         """
@@ -392,11 +418,21 @@ async def precheck_info(
         ORDER BY 1,2;"""
     )
 
-    # We filter the sequence list if the user has specified a list of sequences to target.
+    # We filter the table list if the user has specified a list of tables to target.
+    # Note, from issue #420, the above query will return the table names in lowercase,
+    # so we need to map the target_tables to lowercase.
     if target_sequences:
+
         result["sequences"] = [
-            s for s in result["sequences"] if s["Name"] in target_sequences
+            t
+            for t in result["sequences"]
+            if t["Name"] in list(map(str.lower, target_sequences))
         ]
+
+        # We will not recapitalize the table names in the result["tables"] list,
+        # to preserve how Postgres sees those tables in its system catalog. Easy
+        # rabbit hole later if we keep patching the table names to match the user's
+        # input.
 
     users = await pool.fetch(
         f"""
