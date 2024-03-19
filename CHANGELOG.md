@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/Autodesk/pgbelt/compare/v0.7.1...v0.7.2) (2024-03-19)
+
+
+### Bug Fixes
+
+* support for table names with capitals ([#422](https://github.com/Autodesk/pgbelt/issues/422)) ([4512f2f](https://github.com/Autodesk/pgbelt/commit/4512f2f083cde6208ad344b61bd6e41e96745bf9))
+
 ## [0.7.1](https://github.com/Autodesk/pgbelt/compare/v0.7.0...v0.7.1) (2024-03-01)
 
 
