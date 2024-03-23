@@ -259,7 +259,7 @@ async def dump_dst_not_valid_constraints(
         if "NOT VALID" in command:
             if config.tables:
                 regex_matches = search(
-                    r"ALTER TABLE [ONLY ]*(?P<table>[a-zA-Z0-9._]+)+\s+ADD CONSTRAINT (?P<constraint>[a-zA-Z0-9._]+)+.*",
+                    r"ALTER TABLE [ONLY ]*(?P<table>[\w.]+)+\s+ADD CONSTRAINT (?P<constraint>[\w.]+)+.*",
                     c,
                 )
                 if not regex_matches:
@@ -299,7 +299,7 @@ async def remove_dst_not_valid_constraints(
     queries = ""
     for c in not_valid_constraints.split(";"):
         regex_matches = search(
-            r"ALTER TABLE [ONLY ]*(?P<table>[a-zA-Z0-9._]+)+\s+ADD CONSTRAINT (?P<constraint>[a-zA-Z0-9._]+)+.*",
+            r"ALTER TABLE [ONLY ]*(?P<table>[\w.]+)+\s+ADD CONSTRAINT (?P<constraint>[\w.]+)+.*",
             c,
         )
         if not regex_matches:
@@ -364,7 +364,7 @@ async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None
     for c in commands_raw:
         if "CREATE" in command and "INDEX" in command:
             regex_matches = search(
-                r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+                r"CREATE [UNIQUE ]*INDEX (?P<index>[\w.]+)+.*",
                 c,
             )
             if not regex_matches:
@@ -398,7 +398,7 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
     queries = ""
     for c in create_index_statements.split(";"):
         regex_matches = search(
-            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[\w.]+)+.*",
             c,
         )
         if not regex_matches:
@@ -440,7 +440,7 @@ async def create_target_indexes(
     for c in create_index_statements.split(";"):
         # Get the Index Name
         regex_matches = search(
-            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[\w.]+)+.*",
             c,
         )
         if not regex_matches:
