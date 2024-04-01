@@ -92,14 +92,7 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
     all_tables = pkey_tables + non_pkey_tables
     target_tables = all_tables
     if conf.tables:
-        target_tables = [
-            t
-            for t in all_tables
-            if t
-            in list(
-                map(str.lower, conf.tables)
-            )  # Postgres gave us lowercase table names in analyze_table_pkeys
-        ]
+        target_tables = [t for t in all_tables if t in conf.tables]
 
     if not target_tables:
         raise ValueError(

@@ -77,14 +77,7 @@ async def dump_tables(
             _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)
 
         if conf.tables:
-            tables = [
-                t
-                for t in tables
-                if t
-                in list(
-                    map(str.lower, conf.tables)
-                )  # Postgres returns table names in lowercase (in analyze_table_pkeys)
-            ]
+            tables = [t for t in tables if t in conf.tables]
 
     await dump_source_tables(conf, tables, logger)
 
@@ -192,14 +185,7 @@ async def _dump_and_load_all_tables(
 ) -> None:
     _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, src_logger)
     if conf.tables:
-        tables = [
-            t
-            for t in tables
-            if t
-            in list(
-                map(str.lower, conf.tables)
-            )  # Postgres returns table names in lowercase (in analyze_table_pkeys)
-        ]
+        tables = [t for t in tables if t in conf.tables]
     await dump_source_tables(conf, tables, src_logger)
     await load_dumped_tables(conf, tables, dst_logger)
 

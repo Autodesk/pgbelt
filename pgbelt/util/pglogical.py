@@ -78,7 +78,7 @@ async def grant_pgl(pool: Pool, tables: list[str], schema: str, logger: Logger) 
     async with pool.acquire() as conn:
         async with conn.transaction():
             if tables:
-                tables_with_schema = [f"{schema}.{table}" for table in tables]
+                tables_with_schema = [f'{schema}."{table}"' for table in tables]
                 await conn.execute(
                     f"GRANT ALL ON TABLE {','.join(tables_with_schema)} TO pglogical;"
                 )

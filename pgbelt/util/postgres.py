@@ -100,14 +100,12 @@ async def compare_data(
     has_run = False
     for table in set(pkeys):
         # If specific table list is defined and the iterated table is not in that list, skip.
-        # Note that the pkeys tables returned from Postgres are all lowercased, so we need to
-        # map the passed conf tables to lowercase.
-        if tables and (table not in list(map(str.lower, tables))):
+        if tables and (table not in tables):
             continue
 
         has_run = True  # If this runs, we have at least one table to compare. We will use this flag to throw an error if no tables are found.
 
-        full_table_name = f"{schema}.{table}"
+        full_table_name = f'{schema}."{table}"'
 
         logger.debug(f"Validating table {full_table_name}...")
         order_by_pkeys = ",".join(pkeys_dict[table])
@@ -387,15 +385,9 @@ async def precheck_info(
     )
 
     # We filter the table list if the user has specified a list of tables to target.
-    # Note, from issue #420, the above query will return the table names in lowercase,
-    # so we need to map the target_tables to lowercase.
     if target_tables:
 
-        result["tables"] = [
-            t
-            for t in result["tables"]
-            if t["Name"] in list(map(str.lower, target_tables))
-        ]
+        result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
 
         # We will not recapitalize the table names in the result["tables"] list,
         # to preserve how Postgres sees those tables in its system catalog. Easy
@@ -419,14 +411,10 @@ async def precheck_info(
     )
 
     # We filter the table list if the user has specified a list of tables to target.
-    # Note, from issue #420, the above query will return the table names in lowercase,
-    # so we need to map the target_tables to lowercase.
     if target_sequences:
 
         result["sequences"] = [
-            t
-            for t in result["sequences"]
-            if t["Name"] in list(map(str.lower, target_sequences))
+            t for t in result["sequences"] if t["Name"] in target_sequences
         ]
 
         # We will not recapitalize the table names in the result["tables"] list,
@@ -485,7 +473,7 @@ async def get_dataset_size(
 
     query = f"""
     SELECT
-        sum(pg_total_relation_size(schemaname || '.' || tablename)) AS total_relation_size
+        sum(pg_total_relation_size(schemaname || '."' || tablename || '"')) AS total_relation_size
     FROM
         pg_tables
     WHERE
@@ -496,7 +484,7 @@ async def get_dataset_size(
     # Yes it's a duplicate, but it's a pretty one. Rather let Postgres do this than Python.
     pretty_query = f"""
     SELECT
-        pg_size_pretty(sum(pg_total_relation_size(schemaname || '.' || tablename))) AS total_relation_size
+        pg_size_pretty(sum(pg_total_relation_size(schemaname || '."' || tablename || '"'))) AS total_relation_size
     FROM
         pg_tables
     WHERE
