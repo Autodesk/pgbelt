@@ -79,7 +79,7 @@ async def load_remote_conf_def(
         async with aopen(config_file, mode="r") as f:
             raw_json = await f.read()
 
-        return RemoteConfigDefinition.parse_raw(raw_json)
+        return RemoteConfigDefinition.model_validate_json(raw_json)
     except FileNotFoundError:
         logger.error(f"No remote config definition exists at {config_file}")
     except JSONDecodeError:
