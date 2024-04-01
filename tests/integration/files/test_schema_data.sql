@@ -14,7 +14,7 @@ ALTER TABLE public.fruits OWNER TO owner;
 -- Name: UsersCapital; Type: TABLE; Schema: public; Owner: owner
 --
 
-CREATE TABLE public.UsersCapital (
+CREATE TABLE public."UsersCapital" (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
@@ -23,13 +23,13 @@ CREATE TABLE public.UsersCapital (
 );
 
 
-ALTER TABLE public.UsersCapital OWNER TO owner;
+ALTER TABLE public."UsersCapital" OWNER TO owner;
 
 --
 -- Name: UsersCapital2; Type: TABLE; Schema: public; Owner: owner
 --
 
-CREATE TABLE public.UsersCapital2 (
+CREATE TABLE public."UsersCapital2" (
     id bigint NOT NULL,
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
@@ -38,13 +38,13 @@ CREATE TABLE public.UsersCapital2 (
 );
 
 
-ALTER TABLE public.UsersCapital2 OWNER TO owner;
+ALTER TABLE public."UsersCapital2" OWNER TO owner;
 
 --
 -- Name: users_idx; Type: INDEX; Schema: public; Owner: owner
 --
 
-CREATE INDEX users_idx ON public.UsersCapital (
+CREATE INDEX users_idx ON public."UsersCapital" (
     hash_firstname,
     hash_lastname
 );
@@ -53,7 +53,7 @@ CREATE INDEX users_idx ON public.UsersCapital (
 -- Name: users2_idx; Type: INDEX; Schema: public; Owner: owner
 --
 
-CREATE INDEX users2_idx ON public.UsersCapital (
+CREATE INDEX users2_idx ON public."UsersCapital" (
     hash_firstname,
     hash_lastname
 );
@@ -99,7 +99,7 @@ INSERT INTO public.fruits (id, name)
 -- Data for Name: UsersCapital; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public.UsersCapital (id, hash_firstname, hash_lastname, gender)
+INSERT INTO public."UsersCapital" (id, hash_firstname, hash_lastname, gender)
     VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
     (2, 'garbagefirst1', 'garbagelast1', 'female'),
     (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
@@ -111,7 +111,7 @@ INSERT INTO public.UsersCapital (id, hash_firstname, hash_lastname, gender)
 -- Data for Name: Users2; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public.UsersCapital2 (id, hash_firstname, hash_lastname, gender)
+INSERT INTO public."UsersCapital2" (id, hash_firstname, hash_lastname, gender)
     VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
     (2, 'garbagefirst1', 'garbagelast1', 'female'),
     (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
@@ -137,7 +137,7 @@ SELECT pg_catalog.setval('public.users2_id_seq', 1, false);
 -- Name: UsersCapital users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
 --
 
-ALTER TABLE ONLY public.UsersCapital
+ALTER TABLE ONLY public."UsersCapital"
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 
@@ -145,5 +145,5 @@ ALTER TABLE ONLY public.UsersCapital
 -- Name: UsersCapital users_pkey; Type: CONSTRAINT; Schema: public; Owner: owner
 --
 
-ALTER TABLE ONLY public.UsersCapital2
+ALTER TABLE ONLY public."UsersCapital2"
     ADD CONSTRAINT users2_pkey PRIMARY KEY (id);
