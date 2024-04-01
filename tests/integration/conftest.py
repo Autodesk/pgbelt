@@ -1,8 +1,6 @@
 from os import environ
-from sys import argv
 from shutil import rmtree
 
-import pytest
 import pytest_asyncio
 import asyncio
 from asyncpg import create_pool
@@ -216,7 +214,6 @@ async def _empty_out_databases(configs: dict[str, DbupgradeConfig]) -> None:
                 )
 
 
-@pytest.mark.asyncio
 @pytest_asyncio.fixture
 async def setup_db_upgrade_configs():
     """

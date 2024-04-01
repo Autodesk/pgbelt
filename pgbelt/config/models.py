@@ -9,7 +9,7 @@ from pgbelt.util import get_logger
 from pgbelt.util.asyncfuncs import makedirs
 from pydantic import BaseModel
 from pydantic import ValidationError
-from pydantic import validator
+from pydantic import field_validator
 
 
 def config_dir(db: str, dc: str) -> str:
@@ -37,7 +37,7 @@ class User(BaseModel):
     name: str
     pw: Optional[str] = None
 
-    _not_empty = validator("name", "pw", allow_reuse=True)(not_empty)
+    _not_empty = field_validator("name", "pw")(not_empty)
 
 
 class DbConfig(BaseModel):
@@ -64,9 +64,9 @@ class DbConfig(BaseModel):
     pglogical_user: User
     other_users: Optional[list[User]] = None
 
-    _not_empty = validator("host", "ip", "db", "port", allow_reuse=True)(not_empty)
+    _not_empty = field_validator("host", "ip", "db", "port")(not_empty)
 
-    @validator("root_user", "owner_user", "pglogical_user")
+    @field_validator("root_user", "owner_user", "pglogical_user")
     def has_password(cls, v) -> User:  # noqa: N805
         if not v.pw:
             raise ValueError
@@ -118,7 +118,7 @@ class DbupgradeConfig(BaseModel):
     sequences: Optional[list[str]] = None
     schema_name: Optional[str] = "public"
 
-    _not_empty = validator("db", "dc", allow_reuse=True)(not_empty)
+    _not_empty = field_validator("db", "dc")(not_empty)
 
     @property
     def file(self) -> str:
@@ -167,7 +167,7 @@ class DbupgradeConfig(BaseModel):
             return None
 
         try:
-            out = cls.parse_raw(raw)
+            out = cls.model_validate_json(raw)
         except ValidationError:
             logger.info("Cached config was not a valid DbupgradeConfig")
             return None
