@@ -301,7 +301,7 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                         src_table_data[table] = src_table_data[table] + line + "\n"
                     elif len(src_table_data[table]) > 0:
                         src_table_data[table] = src_table_data[table] + line + "\n"
-                        if line == "\.":
+                        if line == "\\.":
                             break
             dst_table_data = {}
             for table in configs[setname].tables:
@@ -311,7 +311,7 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                         dst_table_data[table] = dst_table_data[table] + line + "\n"
                     elif len(dst_table_data[table]) > 0:
                         dst_table_data[table] = dst_table_data[table] + line + "\n"
-                        if line == "\.":
+                        if line == "\\.":
                             break
 
             # Ensure the targeted data is the same
