@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.3](https://github.com/Autodesk/pgbelt/compare/v0.7.2...v0.7.3) (2024-04-01)
+
+
+### Bug Fixes
+
+* actual table capitalization support - integration tests didn't actually have capitals inside the DBs ([99c78b7](https://github.com/Autodesk/pgbelt/commit/99c78b7dfb916ebf04d662c496ba62dc3dba839e))
+* actual table capitalization support ([#436](https://github.com/Autodesk/pgbelt/issues/436)) ([99c78b7](https://github.com/Autodesk/pgbelt/commit/99c78b7dfb916ebf04d662c496ba62dc3dba839e))
+
 ## [0.7.2](https://github.com/Autodesk/pgbelt/compare/v0.7.1...v0.7.2) (2024-03-19)
 
 
