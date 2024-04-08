@@ -33,7 +33,8 @@ async def _create_dbupgradeconfigs() -> dict[str, DbupgradeConfig]:
             pw="postgres",
         ),
         # We will create the owner_user in the DBs via the integration test setup.
-        "owner_user": User(name="owner", pw="ownerpassword"),
+        # Due to issue #440, we're adding a special character to the password to ensure this still works.
+        "owner_user": User(name="owner", pw="owner#password"),
         "pglogical_user": User(name="pglogical", pw="pglogicalpassword"),
         "db": "testdb",
     }

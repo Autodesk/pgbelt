@@ -10,6 +10,7 @@ from pgbelt.util.asyncfuncs import makedirs
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import field_validator
+from urllib.parse import quote
 
 
 def config_dir(db: str, dc: str) -> str:
@@ -86,15 +87,24 @@ class DbConfig(BaseModel):
 
     @property
     def root_uri(self) -> str:
-        return f"postgresql://{self.root_user.name}:{self.root_user.pw}@{self.ip}:{self.port}/{self.db}"
+        password = quote(
+            self.root_user.pw
+        )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
+        return f"postgresql://{self.root_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
     @property
     def owner_uri(self) -> str:
-        return f"postgresql://{self.owner_user.name}:{self.owner_user.pw}@{self.ip}:{self.port}/{self.db}"
+        password = quote(
+            self.owner_user.pw
+        )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
+        return f"postgresql://{self.owner_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
     @property
     def pglogical_uri(self) -> str:
-        return f"postgresql://{self.pglogical_user.name}:{self.pglogical_user.pw}@{self.ip}:{self.port}/{self.db}"
+        password = quote(
+            self.pglogical_user.pw
+        )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
+        return f"postgresql://{self.pglogical_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
 
 class DbupgradeConfig(BaseModel):
