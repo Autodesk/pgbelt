@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.4](https://github.com/Autodesk/pgbelt/compare/v0.7.3...v0.7.4) (2024-04-08)
+
+
+### Bug Fixes
+
+* support for password special characters, fixes [#440](https://github.com/Autodesk/pgbelt/issues/440) ([#441](https://github.com/Autodesk/pgbelt/issues/441)) ([71b0f9d](https://github.com/Autodesk/pgbelt/commit/71b0f9d41add54967420c31ad86ac38b10ccdf2a))
+
 ## [0.7.3](https://github.com/Autodesk/pgbelt/compare/v0.7.2...v0.7.3) (2024-04-01)
 
 
