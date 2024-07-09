@@ -55,7 +55,12 @@ async def revoke_logins(config_future: Awaitable[DbupgradeConfig]) -> None:
             await _populate_logins(conf.src, pool, logger)
             save_task = asyncio.create_task(conf.save())
 
-        to_disable = [conf.src.owner_user.name]
+        to_disable = []
+        # Sometimes the owner user is the same as the root user.
+        # When that happens, we don't want to disable the owner user.
+        # If the owner user is different, we want to disable the owner user.
+        if conf.src.owner_user.name != conf.src.root_user.name:
+            to_disable.append(conf.src.owner_user.name)
 
         if conf.src.other_users is not None:
             to_disable += [
