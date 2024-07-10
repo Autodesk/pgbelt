@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.5](https://github.com/Autodesk/pgbelt/compare/v0.7.4...v0.7.5) (2024-07-10)
+
+
+### Bug Fixes
+
+* revoke-logins skips owner if owner is same as root [#509](https://github.com/Autodesk/pgbelt/issues/509) ([#510](https://github.com/Autodesk/pgbelt/issues/510)) ([ed7e758](https://github.com/Autodesk/pgbelt/commit/ed7e7588a710be696d857c86e46ec84e850dbff4))
+
+
+### Documentation
+
+* update quickstart and code comments to explain how to teardown properly ([#511](https://github.com/Autodesk/pgbelt/issues/511)) ([9f6a4a5](https://github.com/Autodesk/pgbelt/commit/9f6a4a593c4a20561b0efd5b0f112b7523288a53))
+
 ## [0.7.4](https://github.com/Autodesk/pgbelt/compare/v0.7.3...v0.7.4) (2024-04-08)
 
 
