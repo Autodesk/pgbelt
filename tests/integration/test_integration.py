@@ -12,8 +12,6 @@ from asyncpg import create_pool
 import pgbelt
 import pytest
 
-from typer import echo
-
 
 async def _check_status(
     configs: dict[str, DbupgradeConfig], src_dst_status: str, dst_src_status: str
