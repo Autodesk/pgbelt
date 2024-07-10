@@ -42,13 +42,13 @@ async def teardown_forward_replication(config_future: Awaitable[DbupgradeConfig]
 @run_with_configs
 async def teardown(
     config_future: Awaitable[DbupgradeConfig],
-    full: bool = Option(False, help="Remove pglogical user and extension"),
+    full: bool = Option(False, help="Remove pglogical extension"),
 ):
     """
     Removes all pglogical configuration from both databases. If any replication is
-    configured this will stop it.
+    configured this will stop it. It will also drop the pglogical user.
 
-    If run with --full the pglogical users and extension will be dropped.
+    If run with --full the pglogical extension will be dropped.
 
     WARNING: running with --full may cause the database to lock up. You should be
     prepared to reboot the database if you do this.

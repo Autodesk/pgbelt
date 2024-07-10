@@ -181,9 +181,18 @@ $ belt sync testdatacenter1 database1
 
 ## Step 7: Enable write traffic to the destination host
 
-This is done outside of PgBelt, with your application. Note -- reverse replication will be ongoing until you feel a rollback is unnecessary. To stop reverse replication, simply run the following:
+Enabling write traffic to the destination host is done outside of PgBelt, with your application.
 
-    $ belt teardown-back-replication testdatacenter1 database1
+## Step 8: Teardown pgbelt replication and leftover objects!
+
+Up until this step, reverse replication will be ongoing. It is meant to do this until you feel a rollback is unnecessary. To stop reverse replication, and consider your pgbelt migration **complete**, simply run the following:
+
+    $ belt teardown testdatacenter1 database1
+    $ belt teardown testdatacenter1 database1 --full
+
+The first command will tear down all replication jobs if still running. At this point, you should only have your reverse replication running. It will also tear down all of the pgbelt replication job objects in the database, including the `pglogical` role used by the jobs.
+
+The second command will run through the first command, and finally drop the `pglogical` extension from the database. This is separated out because the extension drop tends to hang if the previous steps are done right beforehand. When run separately, the DROP command likely will run without hanging or run in significantly less time.
 
 # (Optional) Rolling Back
 
