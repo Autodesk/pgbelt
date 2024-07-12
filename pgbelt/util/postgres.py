@@ -54,6 +54,12 @@ async def load_sequences(pool: Pool, seqs: dict[str, int], logger: Logger) -> No
     given a dict of sequence named mapped to values, set each sequence to the
     matching value
     """
+
+    # If seqs is empty, we have nothing to do. Skip the operation.
+    if not seqs:
+        logger.info("No sequences to load. Skipping sequence loading.")
+        return
+
     logger.info(f"Loading sequences {list(seqs.keys())}...")
     sql_template = "SELECT pg_catalog.setval('{}', {}, true);"
     sql = "\n".join([sql_template.format(k, v) for k, v in seqs.items()])
