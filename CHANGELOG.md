@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.6](https://github.com/Autodesk/pgbelt/compare/v0.7.5...v0.7.6) (2024-07-12)
+
+
+### Bug Fixes
+
+* support for dbs with no seqs, fixes [#515](https://github.com/Autodesk/pgbelt/issues/515) ([#516](https://github.com/Autodesk/pgbelt/issues/516)) ([5e9fe4c](https://github.com/Autodesk/pgbelt/commit/5e9fe4c8456c1a71f5440cba6e0d04c673d01f2d))
+
 ## [0.7.5](https://github.com/Autodesk/pgbelt/compare/v0.7.4...v0.7.5) (2024-07-10)
 
 
