@@ -43,11 +43,11 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Run flake8
-        run: docker-compose run flake8
+        run: docker compose run flake8
       - name: Python Black
-        run: docker-compose run black
+        run: docker compose run black
       - name: Pytest
-        run: docker-compose run tests
+        run: docker compose run tests
       # This ugly bit is necessary if you don't want your cache to grow forever
       # until it hits GitHub's limit of 5GB.
       # Temp fix
