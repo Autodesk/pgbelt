@@ -31,7 +31,7 @@ ALTER TABLE public."UsersCapital" OWNER TO owner;
 
 CREATE TABLE public."UsersCapital2" (
     id bigint NOT NULL,
-    hash_firstname text NOT NULL,
+    "hash_firstName" text NOT NULL,
     hash_lastname text NOT NULL,
     gender character varying(6) NOT NULL,
     CONSTRAINT users_gender_check CHECK (((gender)::text = ANY (ARRAY[('male'::character varying)::text, ('female'::character varying)::text])))
@@ -62,7 +62,7 @@ CREATE INDEX users2_idx ON public."UsersCapital" (
 -- Name: userS_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
 --
 
-CREATE SEQUENCE public.userS_id_seq
+CREATE SEQUENCE public."userS_id_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -70,7 +70,7 @@ CREATE SEQUENCE public.userS_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.userS_id_seq OWNER TO owner;
+ALTER TABLE public."userS_id_seq" OWNER TO owner;
 
 --
 -- Name: users2_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
@@ -111,7 +111,7 @@ INSERT INTO public."UsersCapital" (id, hash_firstname, hash_lastname, gender)
 -- Data for Name: Users2; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public."UsersCapital2" (id, hash_firstname, hash_lastname, gender)
+INSERT INTO public."UsersCapital2" (id, "hash_firstName", hash_lastname, gender)
     VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
     (2, 'garbagefirst1', 'garbagelast1', 'female'),
     (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
@@ -123,7 +123,7 @@ INSERT INTO public."UsersCapital2" (id, hash_firstname, hash_lastname, gender)
 -- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
 --
 
-SELECT pg_catalog.setval('public.userS_id_seq', 1, false);
+SELECT pg_catalog.setval('public."userS_id_seq"', 1, false);
 
 
 --

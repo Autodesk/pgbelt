@@ -15,9 +15,9 @@ async def dump_sequences(
     # Get all sequences in the schema
     seqs = await pool.fetch(
         f"""
-        SELECT '{schema}' || '.' || sequence_name
+        SELECT '{schema}' || '.\"' || sequence_name
         FROM information_schema.sequences
-        WHERE sequence_schema = '{schema}';
+        WHERE sequence_schema = '{schema}' || '\"';
         """
     )
 
@@ -28,7 +28,7 @@ async def dump_sequences(
         proper_sequence_names = []
         for seq in targeted_sequences:
             if f"{schema}." not in seq:
-                proper_sequence_names.append(f"{schema}.{seq}")
+                proper_sequence_names.append(f'{schema}."{seq}"')
             else:
                 proper_sequence_names.append(seq)
     targeted_sequences = proper_sequence_names
