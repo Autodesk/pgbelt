@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.7](https://github.com/Autodesk/pgbelt/compare/v0.7.6...v0.7.7) (2024-09-06)
+
+
+### Bug Fixes
+
+* support for capital letters in sequence names ([#548](https://github.com/Autodesk/pgbelt/issues/548)) ([885e234](https://github.com/Autodesk/pgbelt/commit/885e234e01becfac3eba2297d4618935760044b4))
+
 ## [0.7.6](https://github.com/Autodesk/pgbelt/compare/v0.7.5...v0.7.6) (2024-07-12)
 
 
