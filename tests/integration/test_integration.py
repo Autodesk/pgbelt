@@ -237,20 +237,26 @@ async def _compare_sequences(
     }
     src_seq_fetch_processes = await asyncio.gather(
         *[
-            asyncio.create_subprocess_shell(
-                f'psql "{src_root_dsn}" -c \'SELECT last_value FROM {schema_name}."{sequence}";\' -t',
+            asyncio.create_subprocess_exec(
+                "psql",
+                src_root_dsn,
+                "-c",
+                f"'SELECT last_value FROM {schema_name}.\"{sequence}\";'",
+                "-t",
                 **std_kwargs,
-                shell=True,
             )
             for sequence in sequences
         ]
     )
     dst_seq_fetch_processes = await asyncio.gather(
         *[
-            asyncio.create_subprocess_shell(
-                f'psql "{dst_root_dsn}" -c \'SELECT last_value FROM {schema_name}."{sequence}";\' -t',
+            asyncio.create_subprocess_exec(
+                "psql",
+                dst_root_dsn,
+                "-c",
+                f"'SELECT last_value FROM {schema_name}.\"{sequence}\";'",
+                "-t",
                 **std_kwargs,
-                shell=True,
             )
             for sequence in sequences
         ]
@@ -393,10 +399,13 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
             sequences = (
                 subprocess.run(
                     [
-                        f'psql "{configs[setname].src.root_dsn}" -c \'SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = "{configs[setname].schema_name}";\' -t'
+                        "psql",
+                        f'"{configs[setname].src.root_dsn}"',
+                        "-c",
+                        f"'SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = \"{configs[setname].schema_name}\";'",
+                        "-t",
                     ],
                     capture_output=True,
-                    shell=True,
                 )
                 .stdout.decode("utf-8")
                 .strip()
