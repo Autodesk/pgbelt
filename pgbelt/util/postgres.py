@@ -106,17 +106,22 @@ async def compare_data(
         full_table_name = f'{schema}."{table}"'
 
         logger.debug(f"Validating table {full_table_name}...")
-        order_by_pkeys = ",".join(pkeys_dict[table])
 
-        src_rows = await src_pool.fetch(
-            query.format(table=full_table_name, order_by_pkeys=order_by_pkeys)
+        # Have to wrap each pkey in double quotes due to capitalization issues.
+        order_by_pkeys = ""
+        for pkey in pkeys_dict[table]:
+            order_by_pkeys += f'"{pkey}", '
+        order_by_pkeys = order_by_pkeys[:-2]
+
+        filled_query = query.format(
+            table=full_table_name, order_by_pkeys=order_by_pkeys
         )
+
+        src_rows = await src_pool.fetch(filled_query)
 
         # There is a chance tables are empty...
         if len(src_rows) == 0:
-            dst_rows = await dst_pool.fetch(
-                query.format(table=full_table_name, order_by_pkeys=order_by_pkeys)
-            )
+            dst_rows = await dst_pool.fetch(filled_query)
             if len(dst_rows) != 0:
                 raise AssertionError(
                     f"Table {full_table_name} has 0 rows in source but nonzero rows in target... Big problem. Please investigate."
@@ -144,7 +149,7 @@ async def compare_data(
         dst_query = f"SELECT * FROM {full_table_name} WHERE "
 
         for k, v in pkey_vals_dict.items():
-            dst_query = dst_query + f"{k} IN ({v}) AND "
+            dst_query = dst_query + f'"{k}" IN ({v}) AND '
 
         # SELECT * FROM <table> WHERE <pkey1> IN (1,2,3,4,5,6...) AND <pkey2> IN ('a','b','c',...);
         comparison_query = dst_query[:-5] + f" ORDER BY {order_by_pkeys};"
