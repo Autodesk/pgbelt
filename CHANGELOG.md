@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.8](https://github.com/Autodesk/pgbelt/compare/v0.7.7...v0.7.8) (2024-09-09)
+
+
+### Bug Fixes
+
+* support for capital sequences and better sequence testing ([#550](https://github.com/Autodesk/pgbelt/issues/550)) ([48915e8](https://github.com/Autodesk/pgbelt/commit/48915e8efc55e9f48bb16fb25bdd1e7a2803cbd0))
+
 ## [0.7.7](https://github.com/Autodesk/pgbelt/compare/v0.7.6...v0.7.7) (2024-09-06)
 
 
