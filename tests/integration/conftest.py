@@ -55,7 +55,7 @@ async def _create_dbupgradeconfigs() -> dict[str, DbupgradeConfig]:
         )
         db_upgrade_config_kwargs["tables"] = ["UsersCapital"] if "exodus" in s else None
         db_upgrade_config_kwargs["sequences"] = (
-            ["users_id_seq"] if "exodus" in s else None
+            ["userS_id_seq"] if "exodus" in s else None
         )
         config = DbupgradeConfig(**db_upgrade_config_kwargs)
 

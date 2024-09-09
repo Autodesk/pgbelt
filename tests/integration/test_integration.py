@@ -222,6 +222,51 @@ async def _filter_dump(dump: str, keywords_to_exclude: list[str]):
     return "\n".join(commands)
 
 
+async def _compare_sequences(
+    sequences: str, src_root_dsn: str, dst_root_dsn: str, schema_name: str
+):
+    """
+    Compare the sequences in the source and destination databases by asynchronously running
+    PSQL "SELECT last_value FROM sequence_name;" for each sequence in the set.
+    """
+
+    std_kwargs = {
+        "stdin": subprocess.PIPE,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+    }
+    src_seq_fetch_processes = await asyncio.gather(
+        *[
+            asyncio.create_subprocess_shell(
+                f'psql "{src_root_dsn}" -c \'SELECT last_value FROM {schema_name}."{sequence}";\' -t',
+                **std_kwargs,
+                shell=True,
+            )
+            for sequence in sequences
+        ]
+    )
+    dst_seq_fetch_processes = await asyncio.gather(
+        *[
+            asyncio.create_subprocess_shell(
+                f'psql "{dst_root_dsn}" -c \'SELECT last_value FROM {schema_name}."{sequence}";\' -t',
+                **std_kwargs,
+                shell=True,
+            )
+            for sequence in sequences
+        ]
+    )
+
+    await asyncio.gather(*[p.wait() for p in src_seq_fetch_processes])
+    await asyncio.gather(*[p.wait() for p in dst_seq_fetch_processes])
+
+    for i in range(len(sequences)):
+        src_val = (await src_seq_fetch_processes[i].communicate())[0].strip()
+        dst_val = (await dst_seq_fetch_processes[i].communicate())[0].strip()
+
+        print(f"Sequence {sequences[i]} in source: {src_val}, destination: {dst_val}")
+        assert src_val == dst_val
+
+
 async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
     # Dump the databases and ensure they're the same
     # Unfortunately except for the sequence lines because for some reason, the dump in the source is_called is true, yet on the destination is false.
@@ -320,41 +365,50 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
 
                 assert src_table_data[table] == dst_table_data[table]
 
-            # We also need to ensure the sequences are the same
-            # I'm using the same code as in the sync_sequences function to do this because it has
-            # all the logic to handle exodus-style migrations and target the right sequences.
-            src_pool, dst_pool = await asyncio.gather(
-                create_pool(configs[setname].src.pglogical_uri, min_size=1),
-                create_pool(configs[setname].dst.root_uri, min_size=1),
-            )
-            src_seq_vals = await pgbelt.util.postgres.dump_sequences(
-                src_pool,
-                configs[setname].sequences,
-                configs[setname].schema_name,
-                pgbelt.util.logs.get_logger(
-                    configs[setname].db,
-                    configs[setname].dc,
-                    "integration-sequences.src",
-                ),
-            )
-            dst_seq_vals = await pgbelt.util.postgres.dump_sequences(
-                dst_pool,
-                configs[setname].sequences,
-                configs[setname].schema_name,
-                pgbelt.util.logs.get_logger(
-                    configs[setname].db,
-                    configs[setname].dc,
-                    "integration-sequences.dst",
-                ),
-            )
+            # Check that the sequences are the same by literally running PSQL "SELECT last_value FROM sequence_name;"
 
             print(
                 f"Ensuring {setname} source and destination sequences are the same..."
             )
-            assert src_seq_vals == dst_seq_vals
+
+            _compare_sequences(
+                configs[
+                    setname
+                ].sequences,  # In exodus-style migrations, we have our sequences defined in the config
+                configs[setname].src.root_dsn,
+                configs[setname].dst.root_dsn,
+                configs[setname].schema_name,
+            )
+
         else:
             print(f"Ensuring {setname} source and destination dumps are the same...")
             assert src_dumps_filtered[i] == dst_dumps_filtered[i]
+
+            print(
+                f"Ensuring {setname} source and destination sequences are the same..."
+            )
+
+            # First, get a list of all sequences in the source database in the specified schema
+            # Synchronous because we need to run it once before the next commands anyways.
+            sequences = (
+                subprocess.run(
+                    [
+                        f'psql "{configs[setname].src.root_dsn}" -c \'SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = "{configs[setname].schema_name}";\' -t'
+                    ],
+                    capture_output=True,
+                    shell=True,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+                .split("\n")
+            )
+
+            _compare_sequences(
+                sequences,  # In full migrations, we need to get the sequences from the source database
+                configs[setname].src.root_dsn,
+                configs[setname].dst.root_dsn,
+                configs[setname].schema_name,
+            )
 
 
 async def _test_teardown_not_full(configs: dict[str, DbupgradeConfig]):

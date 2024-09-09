@@ -15,23 +15,13 @@ async def dump_sequences(
     # Get all sequences in the schema
     seqs = await pool.fetch(
         f"""
-        SELECT '{schema}' || '.\"' || sequence_name
+        SELECT sequence_name
         FROM information_schema.sequences
-        WHERE sequence_schema = '{schema}' || '\"';
+        WHERE sequence_schema = '{schema}';
         """
     )
 
-    # Note: When in an exodus migration with a non-public schema, the sequence names must be prefixed with the schema name.
-    # This may not be done by the user, so we must do it here.
-    proper_sequence_names = None
-    if targeted_sequences is not None:
-        proper_sequence_names = []
-        for seq in targeted_sequences:
-            if f"{schema}." not in seq:
-                proper_sequence_names.append(f'{schema}."{seq}"')
-            else:
-                proper_sequence_names.append(seq)
-    targeted_sequences = proper_sequence_names
+    # Note, in exodus migrations, we expect the sequence names to not contain the schema name when coming into targeted_sequences.
 
     seq_vals = {}
     final_seqs = []
@@ -42,14 +32,16 @@ async def dump_sequences(
         final_seqs = [r[0] for r in seqs]
 
     for seq in final_seqs:
-        res = await pool.fetchval(f"SELECT last_value FROM {seq};")
+        res = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq}";')
         seq_vals[seq.strip()] = res
 
     logger.debug(f"Dumped sequences: {seq_vals}")
     return seq_vals
 
 
-async def load_sequences(pool: Pool, seqs: dict[str, int], logger: Logger) -> None:
+async def load_sequences(
+    pool: Pool, seqs: dict[str, int], schema: str, logger: Logger
+) -> None:
     """
     given a dict of sequence named mapped to values, set each sequence to the
     matching value
@@ -60,9 +52,9 @@ async def load_sequences(pool: Pool, seqs: dict[str, int], logger: Logger) -> No
         logger.info("No sequences to load. Skipping sequence loading.")
         return
 
-    logger.info(f"Loading sequences {list(seqs.keys())}...")
-    sql_template = "SELECT pg_catalog.setval('{}', {}, true);"
-    sql = "\n".join([sql_template.format(k, v) for k, v in seqs.items()])
+    logger.info(f"Loading sequences {list(seqs.keys())} from schema {schema}...")
+    sql_template = "SELECT pg_catalog.setval('{}.\"{}\"', {}, true);"
+    sql = "\n".join([sql_template.format(schema, k, v) for k, v in seqs.items()])
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(sql)
