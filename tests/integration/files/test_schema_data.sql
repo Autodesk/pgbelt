@@ -123,14 +123,14 @@ INSERT INTO public."UsersCapital2" (id, "hash_firstName", hash_lastname, gender)
 -- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
 --
 
-SELECT pg_catalog.setval('public."userS_id_seq"', 1, false);
+SELECT pg_catalog.setval('public."userS_id_seq"', 16, false);
 
 
 --
 -- Name: users2_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
 --
 
-SELECT pg_catalog.setval('public.users2_id_seq', 1, false);
+SELECT pg_catalog.setval('public.users2_id_seq', 15, false);
 
 
 --

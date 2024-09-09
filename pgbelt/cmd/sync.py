@@ -30,7 +30,7 @@ async def _sync_sequences(
 ) -> None:
 
     seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
-    await load_sequences(dst_pool, seq_vals, dst_logger)
+    await load_sequences(dst_pool, seq_vals, schema, dst_logger)
 
 
 @run_with_configs
