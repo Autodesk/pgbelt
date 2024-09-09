@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.9](https://github.com/Autodesk/pgbelt/compare/v0.7.8...v0.7.9) (2024-09-09)
+
+
+### Bug Fixes
+
+* support for capitals in column names ([#552](https://github.com/Autodesk/pgbelt/issues/552)) ([d0bea7b](https://github.com/Autodesk/pgbelt/commit/d0bea7b7c9e79664885cd2463d26e599b97472f9))
+
 ## [0.7.8](https://github.com/Autodesk/pgbelt/compare/v0.7.7...v0.7.8) (2024-09-09)
 
 
