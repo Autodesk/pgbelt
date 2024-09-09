@@ -40,6 +40,13 @@ CREATE TABLE public."UsersCapital2" (
 
 ALTER TABLE public."UsersCapital2" OWNER TO owner;
 
+CREATE TABLE public.another_test_table (
+    "someThingIDontKnow" uuid NOT NULL,
+    "anotherThing" uuid NOT NULL
+);
+
+ALTER TABLE public.another_test_table OWNER TO owner;
+
 --
 -- Name: users_idx; Type: INDEX; Schema: public; Owner: owner
 --
@@ -119,6 +126,9 @@ INSERT INTO public."UsersCapital2" (id, "hash_firstName", hash_lastname, gender)
     (5, 'dsdssdgarbagefirt', 'dgsagggdjjjsrbagelast', 'female');
 
 
+INSERT INTO public.another_test_table ("someThingIDontKnow", "anotherThing")
+    VALUES ('0e095b60-ab7d-4892-9a92-6175497fe0f9', '0e095b60-ab7d-4892-9a92-6175497fe0f9');
+
 --
 -- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
 --
@@ -147,3 +157,6 @@ ALTER TABLE ONLY public."UsersCapital"
 
 ALTER TABLE ONLY public."UsersCapital2"
     ADD CONSTRAINT users2_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.another_test_table
+    ADD CONSTRAINT another_test_table_pkey PRIMARY KEY ("someThingIDontKnow", "anotherThing");
