@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.10](https://github.com/Autodesk/pgbelt/compare/v0.7.9...v0.7.10) (2024-09-24)
+
+
+### Bug Fixes
+
+* add timestamps to logs DBAAS-92 ([#568](https://github.com/Autodesk/pgbelt/issues/568)) ([9c19378](https://github.com/Autodesk/pgbelt/commit/9c1937882343272e0e64887d2f57e9e5afa5eb6c))
+
 ## [0.7.9](https://github.com/Autodesk/pgbelt/compare/v0.7.8...v0.7.9) (2024-09-09)
 
 
