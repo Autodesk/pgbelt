@@ -119,11 +119,9 @@ Both your source and target database must satisfy the following requirements:
 ## Step 1: Setup and Start Replication
 
 This command will set up the target database's schema, pglogical and start replication from the
-source to the destination. We will also set up reverse replication (destination to source), in
-case rollback is needed later.
+source to the destination.
 
     $ belt setup testdatacenter1 database1
-    $ belt setup-back-replication testdatacenter1 database1
 
 You can check the status of the migration, database hosts, replication delay, etc using the following command:
 
@@ -144,19 +142,27 @@ once the application cuts over to the target database.
 
     $ belt analyze testdatacenter1 database1
 
-## Step 4: Stop write traffic to your source database
+## Step 4: Set up Reverse Replication
+
+We will set up reverse replication (destination to source), in case rollback is needed later.
+
+This can be done at any time before the next step, but for clarity, we will do it now. It also is a very quick operation. Doing this later also eliminates any possibility of bad writes on the destination database being replicated back to the source.
+
+    $ belt setup-back-replication testdatacenter1 database1
+
+## Step 5: Stop write traffic to your source database
 
 This would be the beginning of your application downtime. We revoke all login permissions on the source host using `belt` to ensure writes can no longer occur. You may want to do this, then restart Postgres connections on your application to ensure connections can no longer write.
 
     $ belt revoke-logins testdatacenter1 database1
 
-## Step 5: Stop forward replication
+## Step 6: Stop forward replication
 
 Once write traffic has stopped on the source database, we need to stop replication in the forward direction.
 
     $ belt teardown-forward-replication testdatacenter1 database1
 
-## Step 6: Sync all the missing bits from source to destination (that could not be done by replication)
+## Step 7: Sync all the missing bits from source to destination (that could not be done by replication)
 
 PgLogical (used for the actual replication) can't handle the following:
 
@@ -179,11 +185,11 @@ Therefore the next command will do the following:
 $ belt sync testdatacenter1 database1
 ```
 
-## Step 7: Enable write traffic to the destination host
+## Step 8: Enable write traffic to the destination host
 
 Enabling write traffic to the destination host is done outside of PgBelt, with your application.
 
-## Step 8: Teardown pgbelt replication and leftover objects!
+## Step 9: Teardown pgbelt replication and leftover objects!
 
 Up until this step, reverse replication will be ongoing. It is meant to do this until you feel a rollback is unnecessary. To stop reverse replication, and consider your pgbelt migration **complete**, simply run the following:
 
