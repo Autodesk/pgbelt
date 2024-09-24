@@ -3,12 +3,13 @@ from os import getenv
 from os import makedirs
 
 
-FORMATTER = "{name}:{levelname} {message}"
+FORMATTER = "{asctime} {name}:{levelname} {message}"
 
 # if this module is ever imported we set up the root logger to log to stderr
 root_level = int(getenv("LOG_LEVEL", logging.DEBUG))
 root_handler = logging.StreamHandler()
-root_handler.setFormatter(logging.Formatter(FORMATTER, style="{"))
+formatter = logging.Formatter(fmt=FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style='{')
+root_handler.setFormatter(formatter)
 root_handler.setLevel(root_level)
 root_logger = logging.getLogger("dbup")
 root_logger.setLevel(root_level)
@@ -41,7 +42,7 @@ def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
 
         if not skip_file_handler:
             handler = logging.FileHandler(log_file_path(db, dc), mode="w")
-            handler.setFormatter(logging.Formatter(FORMATTER, style="{"))
+            handler.setFormatter(logging.Formatter(FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style="{"))
             # always log everything to the file
             logger.setLevel(logging.DEBUG)
             logger.addHandler(handler)
