@@ -8,7 +8,7 @@ FORMATTER = "{asctime} {name}:{levelname} {message}"
 # if this module is ever imported we set up the root logger to log to stderr
 root_level = int(getenv("LOG_LEVEL", logging.DEBUG))
 root_handler = logging.StreamHandler()
-formatter = logging.Formatter(fmt=FORMATTER, style='{', datefmt='%Y-%m-%d %H:%M:%S')
+formatter = logging.Formatter(fmt=FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style='{')
 root_handler.setFormatter(formatter)
 root_handler.setLevel(root_level)
 root_logger = logging.getLogger("dbup")
@@ -42,7 +42,7 @@ def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
 
         if not skip_file_handler:
             handler = logging.FileHandler(log_file_path(db, dc), mode="w")
-            handler.setFormatter(logging.Formatter(FORMATTER, style="{"), datefmt='%Y-%m-%d %H:%M:%S')
+            handler.setFormatter(logging.Formatter(FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style="{"))
             # always log everything to the file
             logger.setLevel(logging.DEBUG)
             logger.addHandler(handler)
