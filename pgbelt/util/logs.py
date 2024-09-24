@@ -1,5 +1,4 @@
 import logging
-import sys
 from os import getenv
 from os import makedirs
 
