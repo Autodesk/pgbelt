@@ -19,6 +19,7 @@ CREATE TABLE public."UsersCapital" (
     hash_firstname text NOT NULL,
     hash_lastname text NOT NULL,
     gender character varying(6) NOT NULL,
+    numericnan numeric(19,4), -- Testing for #571 Numeric NaN
     CONSTRAINT users_gender_check CHECK (((gender)::text = ANY (ARRAY[('male'::character varying)::text, ('female'::character varying)::text])))
 );
 
@@ -106,12 +107,12 @@ INSERT INTO public.fruits (id, name)
 -- Data for Name: UsersCapital; Type: TABLE DATA; Schema: public; Owner: owner
 --
 
-INSERT INTO public."UsersCapital" (id, hash_firstname, hash_lastname, gender)
-    VALUES (1, 'garbagefirst', 'garbagelast', 'male'),
-    (2, 'garbagefirst1', 'garbagelast1', 'female'),
-    (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male'),
-    (4, 'dsdssdgarbagefirst', 'dgsaggggdjjjsrbagelast', 'female'),
-    (5, 'dsdssdgarbagefirt', 'dgsagggdjjjsrbagelast', 'female');
+INSERT INTO public."UsersCapital" (id, hash_firstname, hash_lastname, gender, numericnan)
+    VALUES (1, 'garbagefirst', 'garbagelast', 'male', 1),
+    (2, 'garbagefirst1', 'garbagelast1', 'female', 0),
+    (3, 'sdgarbagefirst', 'dgsadsrbagelast', 'male', 'NaN'),
+    (4, 'dsdssdgarbagefirst', 'dgsaggggdjjjsrbagelast', 'female', 1),
+    (5, 'dsdssdgarbagefirt', 'dgsagggdjjjsrbagelast', 'female', 0);
 
 
 --
