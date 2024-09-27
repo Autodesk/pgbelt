@@ -1,5 +1,6 @@
 from logging import Logger
 
+from decimal import Decimal
 from asyncpg import Pool
 from asyncpg import Record
 from asyncpg.exceptions import UndefinedObjectError
@@ -171,12 +172,33 @@ async def compare_data(
         # Check each row for exact match
         for src_row, dst_row in zip(src_rows, dst_rows):
             if src_row != dst_row:
-                raise AssertionError(
-                    "Row match failure between source and destination.\n"
-                    f"Table: {full_table_name}\n"
-                    f"Source Row: {src_row}\n"
-                    f"Dest Row: {dst_row}"
-                )
+
+                # Addresses #571, AsyncPG is decoding numeric NaN as Python Decimal('NaN').
+                # Decimal('NaN') != Decimal('NaN'), breaks comparison. Convert those NaNs to None.
+                src_row_d = {
+                    key: (
+                        value
+                        if not (isinstance(value, Decimal) and value.is_nan())
+                        else None
+                    )
+                    for key, value in row.items()
+                }
+                dst_row_d = {
+                    key: (
+                        value
+                        if not (isinstance(value, Decimal) and value.is_nan())
+                        else None
+                    )
+                    for key, value in row.items()
+                }
+
+                if src_row_d != dst_row_d:
+                    raise AssertionError(
+                        "Row match failure between source and destination.\n"
+                        f"Table: {full_table_name}\n"
+                        f"Source Row: {src_row}\n"
+                        f"Dest Row: {dst_row}"
+                    )
 
     # Just a paranoia check. If this throws, then it's possible pgbelt didn't migrate any data.
     # This was found in issue #420, and previous commands threw errors before this issue could arise.
