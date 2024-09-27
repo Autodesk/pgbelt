@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.11](https://github.com/Autodesk/pgbelt/compare/v0.7.10...v0.7.11) (2024-09-27)
+
+
+### Bug Fixes
+
+* accommodate Decimal NaN != Decimal NaN ([#573](https://github.com/Autodesk/pgbelt/issues/573)) ([3602266](https://github.com/Autodesk/pgbelt/commit/3602266ed1421dfe4efb5dabe8c9303e653f05d1))
+
 ## [0.7.10](https://github.com/Autodesk/pgbelt/compare/v0.7.9...v0.7.10) (2024-09-24)
 
 
