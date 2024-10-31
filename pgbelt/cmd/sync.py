@@ -150,7 +150,13 @@ async def analyze(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync.dst")
-    async with create_pool(conf.dst.root_uri, min_size=1) as dst_pool:
+    async with create_pool(
+        conf.dst.root_uri,
+        min_size=1,
+        server_settings={
+            "statement_timeout": "0",
+        },
+    ) as dst_pool:
         await run_analyze(dst_pool, logger)
 
 
