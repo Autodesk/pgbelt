@@ -133,9 +133,11 @@ To ensure the bulk COPY phase of the migration runs faster, indexes are not made
 They need to be built and this process should be done before the cutover to not prolong your cutover window. You should run
 this command during a period of low traffic.
 
+Note that this command will create all the indexes in the target database, **and will run ANALYZE after** to ensure optimal performance.
+
     $ belt create-indexes testdatacenter1 database1
 
-## Step 3: Run ANALYZE on the target database before your application cutover
+## Step 3: (Optional) Run ANALYZE on the target database before your application cutover
 
 This is typically run some time before your application cutover, so the target database performs better with the dataset
 once the application cuts over to the target database.
