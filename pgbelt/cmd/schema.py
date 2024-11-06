@@ -1,4 +1,5 @@
 from collections.abc import Awaitable
+from asyncpg import create_pool
 
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
@@ -11,6 +12,7 @@ from pgbelt.util.dump import dump_dst_create_index
 from pgbelt.util.dump import remove_dst_not_valid_constraints
 from pgbelt.util.dump import remove_dst_indexes
 from pgbelt.util.logs import get_logger
+from pgbelt.util.postgres import run_analyze
 
 
 @run_with_configs
@@ -109,10 +111,23 @@ async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     as the owner user. This must only be done after most data is synchronized
     (at minimum after the initializing phase) from the source to the destination
     database.
+
+    After creating indexes, the destination database should be analyzed to ensure
+    the query planner has the most up-to-date statistics for the indexes.
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
     await create_target_indexes(conf, logger, during_sync=False)
+
+    # Run ANALYZE after creating indexes (without statement timeout)
+    async with create_pool(
+        conf.dst.root_uri,
+        min_size=1,
+        server_settings={
+            "statement_timeout": "0",
+        },
+    ) as dst_pool:
+        await run_analyze(dst_pool, logger)
 
 
 COMMANDS = [
