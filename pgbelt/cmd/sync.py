@@ -150,7 +150,13 @@ async def analyze(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync.dst")
-    async with create_pool(conf.dst.root_uri, min_size=1) as dst_pool:
+    async with create_pool(
+        conf.dst.root_uri,
+        min_size=1,
+        server_settings={
+            "statement_timeout": "0",
+        },
+    ) as dst_pool:
         await run_analyze(dst_pool, logger)
 
 
@@ -208,8 +214,15 @@ async def sync(
         create_pool(conf.src.pglogical_uri, min_size=1),
         create_pool(conf.dst.root_uri, min_size=1),
         create_pool(conf.dst.owner_uri, min_size=1),
+        create_pool(
+            conf.dst.root_uri,
+            min_size=1,
+            server_settings={
+                "statement_timeout": "0",
+            },
+        ),
     )
-    src_pool, dst_root_pool, dst_owner_pool = pools
+    src_pool, dst_root_pool, dst_owner_pool, dst_root_no_timeout_pool = pools
 
     try:
         src_logger = get_logger(conf.db, conf.dc, "sync.src")
@@ -253,7 +266,7 @@ async def sync(
                 conf.schema_name,
                 validation_logger,
             ),
-            run_analyze(dst_owner_pool, dst_logger),
+            run_analyze(dst_root_no_timeout_pool, dst_logger),
         )
     finally:
         await gather(*[p.close() for p in pools])
