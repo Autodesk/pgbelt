@@ -116,10 +116,20 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
 
         result[0].update(result[1])
         result[0]["db"] = conf.db
-        if result[0]["pg1_pg2"] == "replicating":
+
+        # We should hide the progress in the following cases:
+        # 1. When src -> dst is replicating and dst -> src is any state (replicating, unconfigured, down)
+        #    a. We do this because the size when done still will be a tad smaller than SRC, showing <100%
+        # 2. When src -> dst is unconfigured and dst -> src is replicating (not down or unconfigured)
+        #    a. We do this because reverse-only occurs at the start of cutover and onwards, and seeing the progress at that stage is not useful.
+        if (result[0]["pg1_pg2"] == "replicating") or (  # 1
+            result[0]["pg1_pg2"] == "unconfigured"
+            and result[0]["pg2_pg1"] == "replicating"
+        ):  # 2
             result[2]["src_dataset_size"] = "n/a"
             result[2]["dst_dataset_size"] = "n/a"
             result[2]["progress"] = "n/a"
+
         result[0].update(result[2])
         return result[0]
     finally:
