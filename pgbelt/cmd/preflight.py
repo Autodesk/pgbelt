@@ -7,12 +7,13 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import precheck_info
-from tabulate import tabulate
-from typer import echo
-from typer import style
+from rich.console import Console
+from rich.table import Table
 
 
-def _summary_table(results: dict, compared_extensions: list[str] = None) -> list[list]:
+def _summary_table(
+    results: dict, title_str: str, compared_extensions: list[str] = None
+) -> list[list]:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
 
@@ -52,21 +53,24 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
     ]
     """
 
-    summary_table = [
-        [
-            style("database", "yellow"),
-            style("server_version", "yellow"),
-            style("max_replication_slots", "yellow"),
-            style("max_worker_processes", "yellow"),
-            style("max_wal_senders", "yellow"),
-            style("shared_preload_libraries", "yellow"),
-            style("rds.logical_replication", "yellow"),
-            style("root user ok", "yellow"),
-            style("owner user ok", "yellow"),
-            style("targeted schema", "yellow"),
-            style("extensions ok", "yellow"),
-        ]
-    ]
+    table = Table(title=title_str)
+
+    table.add_column("Database")
+    table.add_column("Server Version")
+    table.add_column("max_replication_slots")
+    table.add_column("max_worker_processes")
+    table.add_column("max_wal_senders")
+    table.add_column("shared_preload_libraries")
+    table.add_column("rds.logical_replication")
+    table.add_column("Root User OK")
+    table.add_column("Owner User OK")
+    table.add_column("Targeted Schema")
+
+    # Interestingly enough, we can tell if this is being run for a destination database if the compared_extensions is not None.
+    # This is because it is only set when we are ensuring all source extensions are in the destination.
+    is_dest_db = compared_extensions is not None
+    if is_dest_db:
+        table.add_column("Extensions OK")
 
     results.sort(key=lambda d: d["db"])
 
@@ -102,61 +106,58 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
         if missing:
             shared_preload_libraries = ", ".join(missing) + " are missing!"
 
-        summary_table.append(
-            [
-                style(r["db"], "green"),
-                style(
-                    r["server_version"],
-                    (
-                        "green"
-                        if float(
-                            r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0]
-                        )
-                        >= 9.6
-                        else "red"
-                    ),
-                ),
-                style(
-                    r["max_replication_slots"],
-                    "green" if int(r["max_replication_slots"]) >= 2 else "red",
-                ),
-                style(
-                    r["max_worker_processes"],
-                    "green" if int(r["max_worker_processes"]) >= 2 else "red",
-                ),
-                style(
-                    r["max_wal_senders"],
-                    "green" if int(r["max_wal_senders"]) >= 10 else "red",
-                ),
-                style(
-                    shared_preload_libraries,
-                    "green" if shared_preload_libraries == "ok" else "red",
-                ),
-                style(
-                    r["rds.logical_replication"],
-                    (
-                        "green"
-                        if r["rds.logical_replication"] in ["on", "Not Applicable"]
-                        else "red"
-                    ),
-                ),
-                style(root_ok, "green" if root_ok else "red"),
-                style(owner_ok, "green" if owner_ok else "red"),
-                style(r["schema"], "green"),
-            ]
-        )
-
-        # If this is a destinatino DB, we are ensuring all source extensions are in the destination.
+        # If this is a destination DB, we are ensuring all source extensions are in the destination.
         # If not, we don't want this column in the table.
+        extensions_ok = None
         if is_dest_db:
             extensions_ok = all(
                 [e in r["extensions"] for e in compared_extensions]
             ) and all([e in compared_extensions for e in r["extensions"]])
-            summary_table[-1].append(
-                style(extensions_ok, "green" if extensions_ok else "red")
+            extensions_ok = (
+                "[green]" + str(extensions_ok)
+                if extensions_ok
+                else "[red]" + str(extensions_ok)
             )
 
-    return summary_table
+        table.add_row(
+            r["db"],
+            (
+                "[green]" + r["server_version"]
+                if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0]) >= 9.6
+                else "[red]" + r["server_version"]
+            ),
+            (
+                "[green]" + r["max_replication_slots"]
+                if int(r["max_replication_slots"]) >= 2
+                else "[red]" + r["max_replication_slots"]
+            ),
+            (
+                "[green]" + r["max_worker_processes"]
+                if int(r["max_worker_processes"]) >= 2
+                else "[red]" + r["max_worker_processes"]
+            ),
+            (
+                "[green]" + r["max_wal_senders"]
+                if int(r["max_wal_senders"]) >= 10
+                else "[red]" + r["max_wal_senders"]
+            ),
+            (
+                "[green]" + shared_preload_libraries
+                if shared_preload_libraries == "ok"
+                else "[red]" + shared_preload_libraries
+            ),
+            (
+                "[green]" + r["rds.logical_replication"]
+                if r["rds.logical_replication"] in ["on", "Not Applicable"]
+                else "[red]" + r["rds.logical_replication"]
+            ),
+            "[green]" + str(root_ok) if root_ok else "[red]" + str(root_ok),
+            "[green]" + str(owner_ok) if owner_ok else "[red]" + str(owner_ok),
+            "[green]" + r["schema"],
+            extensions_ok,
+        )
+
+    return table
 
 
 def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
@@ -188,65 +189,64 @@ def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
     See pgbelt.util.postgres.precheck_info results["users"] for more info..
     """
 
-    users_table = [
-        [
-            style("user", "yellow"),
-            style("name", "yellow"),
-            style("can log in", "yellow"),
-            style("can make roles", "yellow"),
-            style("is superuser", "yellow"),
-        ]
-    ]
+    table = Table(title="Required Users Summary")
+
+    table.add_column("User")
+    table.add_column("Name")
+    table.add_column("Can Log In")
+    table.add_column("Can Make Roles")
+    table.add_column("Is Superuser")
 
     if is_dest_db:
-        users_table[0].insert(
-            5, style("can create objects in targeted schema", "yellow")
-        )
+        table.add_column("Can Create Objects")
 
     root_in_superusers = (
         "rds_superuser" in users["root"]["memberof"] and users["root"]["rolinherit"]
     ) or (users["root"]["rolsuper"])
 
-    users_table.append(
-        [
-            style("root", "green"),
-            style(users["root"]["rolname"], "green"),
-            style(
-                users["root"]["rolcanlogin"],
-                "green" if users["root"]["rolcanlogin"] else "red",
-            ),
-            style(
-                users["root"]["rolcreaterole"],
-                "green" if users["root"]["rolcreaterole"] else "red",
-            ),
-            style(root_in_superusers, "green" if root_in_superusers else "red"),
-            style("not required", "green"),
-        ]
+    table.add_row(
+        "root",
+        users["root"]["rolname"],
+        (
+            "[green]" + str(users["root"]["rolcanlogin"])
+            if users["root"]["rolcanlogin"]
+            else "[red]" + str(users["root"]["rolcanlogin"])
+        ),
+        (
+            "[green]" + str(users["root"]["rolcreaterole"])
+            if users["root"]["rolcreaterole"]
+            else "[red]" + str(users["root"]["rolcreaterole"])
+        ),
+        (
+            "[green]" + str(root_in_superusers)
+            if root_in_superusers
+            else "[red]" + str(root_in_superusers)
+        ),
+        "not required",
+    )
+    table.add_row(
+        "owner",
+        users["owner"]["rolname"],
+        (
+            "[green]" + str(users["owner"]["rolcanlogin"])
+            if users["owner"]["rolcanlogin"]
+            else "[red]" + str(users["owner"]["rolcanlogin"])
+        ),
+        "not required",
+        "not required",
+        (
+            "[green]" + str(users["owner"]["can_create"])
+            if users["owner"]["can_create"]
+            else "[red]" + str(users["owner"]["can_create"])
+        ),
     )
 
-    users_table.append(
-        [
-            style("owner", "green"),
-            style(users["owner"]["rolname"], "green"),
-            style(
-                users["owner"]["rolcanlogin"],
-                "green" if users["owner"]["rolcanlogin"] else "red",
-            ),
-            style("not required", "green"),
-            style("not required", "green"),
-            style(
-                users["owner"]["can_create"],
-                "green" if users["owner"]["can_create"] else "red",
-            ),
-        ]
-    )
-
-    return users_table
+    return table
 
 
 def _tables_table(
     tables: list[dict], pkeys: list[dict], owner_name: str, schema_name: str
-) -> list[list]:
+) -> Table:
     """
     Takes a list of table dicts and returns a table of the tables for echo.
 
@@ -261,15 +261,13 @@ def _tables_table(
     ]
     """
 
-    tables_table = [
-        [
-            style("table name", "yellow"),
-            style("can replicate", "yellow"),
-            style("replication type", "yellow"),
-            style("schema", "yellow"),
-            style("owner", "yellow"),
-        ]
-    ]
+    table = Table(title="Table Compatibility Summary")
+
+    table.add_column("Table Name")
+    table.add_column("Can Replicate")
+    table.add_column("Replication Type")
+    table.add_column("Schema")
+    table.add_column("Owner")
 
     for t in tables:
         can_replicate = t["Schema"] == schema_name and t["Owner"] == owner_name
@@ -278,17 +276,28 @@ def _tables_table(
             if can_replicate
             else "unavailable"
         )
-        tables_table.append(
-            [
-                style(t["Name"], "green"),
-                style(can_replicate, "green" if can_replicate else "red"),
-                style(replication, "green" if can_replicate else "red"),
-                style(t["Schema"], "green" if t["Schema"] == schema_name else "red"),
-                style(t["Owner"], "green" if t["Owner"] == owner_name else "red"),
-            ]
+
+        table.add_row(
+            t["Name"],
+            (
+                "[green]" + str(can_replicate)
+                if can_replicate
+                else "[red]" + str(can_replicate)
+            ),
+            "[green]" + replication if can_replicate else "[red]" + replication,
+            (
+                "[green]" + t["Schema"]
+                if t["Schema"] == schema_name
+                else "[red]" + t["Schema"]
+            ),
+            (
+                "[green]" + t["Owner"]
+                if t["Owner"] == owner_name
+                else "[red]" + t["Owner"]
+            ),
         )
 
-    return tables_table
+    return table
 
 
 def _sequences_table(
@@ -308,27 +317,36 @@ def _sequences_table(
     ]
     """
 
-    sequences_table = [
-        [
-            style("sequence name", "yellow"),
-            style("can replicate", "yellow"),
-            style("schema", "yellow"),
-            style("owner", "yellow"),
-        ]
-    ]
+    table = Table(title="Sequence Compatibility Summary")
+
+    table.add_column("Sequence Name")
+    table.add_column("Can Replicate")
+    table.add_column("Schema")
+    table.add_column("Owner")
 
     for s in sequences:
         can_replicate = s["Schema"] == schema_name and s["Owner"] == owner_name
-        sequences_table.append(
-            [
-                style(s["Name"], "green"),
-                style(can_replicate, "green" if can_replicate else "red"),
-                style(s["Schema"], "green" if s["Schema"] == schema_name else "red"),
-                style(s["Owner"], "green" if s["Owner"] == owner_name else "red"),
-            ]
+
+        table.add_row(
+            s["Name"],
+            (
+                "[green]" + str(can_replicate)
+                if can_replicate
+                else "[red]" + str(can_replicate)
+            ),
+            (
+                "[green]" + s["Schema"]
+                if s["Schema"] == schema_name
+                else "[red]" + s["Schema"]
+            ),
+            (
+                "[green]" + s["Owner"]
+                if s["Owner"] == owner_name
+                else "[red]" + s["Owner"]
+            ),
         )
 
-    return sequences_table
+    return table
 
 
 def _extensions_table(
@@ -347,25 +365,18 @@ def _extensions_table(
 
     """
 
-    extensions_table = [
-        [
-            style("extension in source DB", "yellow"),
-            style("is in destination", "yellow"),
-        ]
-    ]
+    table = Table(title="Extension Compatibility Summary")
+
+    table.add_column("Extension Name in Source DB")
+    table.add_column("Is in Destination")
 
     for e in source_extensions:
-        extensions_table.append(
-            [
-                style(e["extname"], "green"),
-                style(
-                    e in destination_extensions,
-                    "green" if e in destination_extensions else "red",
-                ),
-            ]
+        table.add_row(
+            e["extname"],
+            "[green]" + "True" if e in destination_extensions else "[red]" + "False",
         )
 
-    return extensions_table
+    return table
 
 
 async def _print_prechecks(results: list[dict]) -> list[list]:
@@ -447,29 +458,21 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         src_summaries.append(r["src"])
         dst_summaries.append(r["dst"])
 
-    src_summary_table = _summary_table(src_summaries)
+    src_summary_table = _summary_table(src_summaries, "Source DB Configuration Summary")
     dst_summary_table = _summary_table(
-        dst_summaries, compared_extensions=r["src"]["extensions"]
+        dst_summaries,
+        "Destination DB Configuration Summary",
+        compared_extensions=r["src"]["extensions"],
     )
 
     if len(results) != 1:
-
+        console = Console()
         # For mulitple databases, we only print the summary table.
 
-        src_multi_display_string = (
-            style("\nSource DB Configuration Summary", "blue")
-            + "\n"
-            + tabulate(src_summary_table, headers="firstrow")
-        )
-        echo(src_multi_display_string)
-        dst_multi_display_string = (
-            style("\nDestination DB Configuration Summary", "blue")
-            + "\n"
-            + tabulate(dst_summary_table, headers="firstrow")
-        )
-        echo(dst_multi_display_string)
+        console.print(src_summary_table)
+        console.print(dst_summary_table)
 
-        return src_multi_display_string, dst_multi_display_string
+        return src_summary_table, dst_summary_table
 
     # If we ran only on one db print more detailed info
     r = results[0]
@@ -489,53 +492,23 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["src"]["schema"]
     )
 
-    if len(src_tables_table) == 1:
-        src_tables_table = [
-            [
-                style(
-                    "ALERT: Not able to find tables to replicate, check your config's 'schema_name'",
-                    "red",
-                )
-            ]
-        ]
+    if len(r["src"]["tables"]) < 1:
+        src_tables_table = "[red]ALERT: Not able to find tables to replicate, check your config's 'schema_name'"
 
-    if len(src_sequences_table) == 1:
-        src_sequences_table = [
-            [
-                style(
-                    "ALERT: Not able to find sequences to replicate, check your config's 'schema_name'",
-                    "red",
-                )
-            ]
-        ]
+    if len(r["src"]["sequences"]) < 1:
+        src_sequences_table = "[red]ALERT: Not able to find sequences to replicate, check your config's 'schema_name'"
 
-    source_display_string = (
-        style("\nSource DB Configuration Summary", "blue")
-        + "\n"
-        + "\n"
-        + tabulate(src_summary_table, headers="firstrow")
-        + "\n"
-        + style("\nRequired Users Summary", "yellow")
-        + "\n"
-        + tabulate(src_users_table, headers="firstrow")
-        + "\n"
-        + style("\nTable Compatibility Summary", "yellow")
-        + "\n"
-        + tabulate(
-            src_tables_table, headers="firstrow" if len(src_tables_table) > 1 else ""
-        )
-        + "\n"
-        + style("\nSequence Compatibility Summary", "yellow")
-        + "\n"
-        + tabulate(
-            src_sequences_table,
-            headers="firstrow" if len(src_sequences_table) > 1 else "",
-        )
-    )
+    console = Console()
+    console.print("\n\n")
+    console.print(src_summary_table)
+    console.print("\n")
+    console.print(src_users_table)
+    console.print("\n")
+    console.print(src_tables_table)
+    console.print("\n")
+    console.print(src_sequences_table)
 
-    echo(source_display_string)
-
-    echo("\n" + "=" * 80)
+    console.print("\n" + "=" * 80)
 
     # Destination DB Tables
 
@@ -544,22 +517,12 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         r["src"]["extensions"], r["dst"]["extensions"]
     )
 
-    destination_display_string = (
-        style("\nDestination DB Configuration Summary", "blue")
-        + "\n"
-        + "\n"
-        + tabulate(dst_summary_table, headers="firstrow")
-        + "\n"
-        + style("\nExtension Matchup Summary", "yellow")
-        + "\n"
-        + tabulate(extenstions_table, headers="firstrow")
-        + "\n"
-        + style("\nRequired Users Summary", "yellow")
-        + "\n"
-        + tabulate(dst_users_table, headers="firstrow")
-    )
-
-    echo(destination_display_string)
+    console.print("\n\n")
+    console.print(dst_summary_table)
+    console.print("\n")
+    console.print(extenstions_table)
+    console.print("\n")
+    console.print(dst_users_table)
 
     return src_summary_table, dst_summary_table
 

@@ -9,50 +9,67 @@ from pgbelt.util.pglogical import dst_status
 from pgbelt.util.pglogical import src_status
 from pgbelt.util.postgres import initialization_progress
 from pgbelt.util.postgres import analyze_table_pkeys
-from tabulate import tabulate
-from typer import echo
-from typer import style
+from rich.console import Console
+from rich.table import Table
 
 
 async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:
-    table = [
-        [
-            style("database", "yellow"),
-            style("src -> dst", "yellow"),
-            style("src <- dst", "yellow"),
-            style("sent_lag", "yellow"),
-            style("flush_lag", "yellow"),
-            style("write_lag", "yellow"),
-            style("replay_lag", "yellow"),
-            style("src_dataset_size", "yellow"),
-            style("dst_dataset_size", "yellow"),
-            style("progress", "yellow"),
-        ]
-    ]
+
+    table = Table(title="Replication Status")
+    table.add_column("Database")
+    table.add_column("SRC -> DST")
+    table.add_column("SRC <- DST")
+    table.add_column("sent_lag")
+    table.add_column("flush_lag")
+    table.add_column("write_lag")
+    table.add_column("replay_lag")
+    table.add_column("SRC Dataset Size")
+    table.add_column("DST Dataset Size")
+    table.add_column("Progress")
 
     results.sort(key=lambda d: d["db"])
 
     for r in results:
-        table.append(
-            [
-                style(r["db"], "green"),
-                style(
-                    r["pg1_pg2"], "green" if r["pg1_pg2"] == "replicating" else "red"
-                ),
-                style(
-                    r["pg2_pg1"], "green" if r["pg2_pg1"] == "replicating" else "red"
-                ),
-                style(r["sent_lag"], "green" if r["sent_lag"] == "0" else "red"),
-                style(r["flush_lag"], "green" if r["flush_lag"] == "0" else "red"),
-                style(r["write_lag"], "green" if r["write_lag"] == "0" else "red"),
-                style(r["replay_lag"], "green" if r["replay_lag"] == "0" else "red"),
-                style(r["src_dataset_size"], "green"),
-                style(r["dst_dataset_size"], "green"),
-                style(r["progress"], "green"),
-            ]
+
+        table.add_row(
+            r["db"],
+            (
+                "[green]" + r["pg1_pg2"]
+                if r["pg1_pg2"] == "replicating"
+                else "[red]" + r["pg1_pg2"]
+            ),
+            (
+                "[green]" + r["pg2_pg1"]
+                if r["pg2_pg1"] == "replicating"
+                else "[red]" + r["pg2_pg1"]
+            ),
+            (
+                "[green]" + r["sent_lag"]
+                if r["sent_lag"] == "0"
+                else "[red]" + r["sent_lag"]
+            ),
+            (
+                "[green]" + r["flush_lag"]
+                if r["flush_lag"] == "0"
+                else "[red]" + r["flush_lag"]
+            ),
+            (
+                "[green]" + r["write_lag"]
+                if r["write_lag"] == "0"
+                else "[red]" + r["write_lag"]
+            ),
+            (
+                "[green]" + r["replay_lag"]
+                if r["replay_lag"] == "0"
+                else "[red]" + r["replay_lag"]
+            ),
+            "[green]" + r["src_dataset_size"],
+            "[green]" + r["dst_dataset_size"],
+            "[green]" + r["progress"],
         )
 
-    echo(tabulate(table, headers="firstrow"))
+    console = Console()
+    console.print(table)
 
     return table
 

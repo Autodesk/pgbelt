@@ -1,13 +1,13 @@
 import re
 import subprocess
 from time import sleep
-from unittest.mock import AsyncMock
+import io
+from rich.console import Console
 from unittest.mock import Mock
 from pgbelt.util.dump import _parse_dump_commands
 from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
-from asyncpg import create_pool
 
 import pgbelt
 import pytest
@@ -49,12 +49,21 @@ async def _check_status(
 
 async def _test_check_connectivity(configs: dict[str, DbupgradeConfig]):
     # Run check_connectivity and make sure all green, no rec
-    pgbelt.cmd.convenience.echo = Mock()
+    pgbelt.cmd.convenience.Console.print = Mock()
     await pgbelt.cmd.convenience.check_connectivity(
         db=None, dc=configs[list(configs.keys())[0]].dc
     )
-    check_connectivity_echo_call_arg = pgbelt.cmd.convenience.echo.call_args[0][0]
-    assert "\x1b[31m" not in check_connectivity_echo_call_arg
+    check_connectivity_print_call_arg = pgbelt.cmd.convenience.Console.print.call_args[
+        0
+    ][0]
+
+    # To test the output of the table, we need to render it here.
+    console = Console(file=io.StringIO(), width=120)
+    console.print(check_connectivity_print_call_arg)
+    table_output = console.file.getvalue()
+    assert (
+        "\x1b[31m" not in table_output
+    )  # No red in the table, indicating all connections are good
 
     await _check_status(configs, "unconfigured", "unconfigured")
 

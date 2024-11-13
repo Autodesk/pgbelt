@@ -12,10 +12,10 @@ from pgbelt.config.config import get_config
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
-from tabulate import tabulate
+from rich.console import Console
+from rich.table import Table
 from typer import echo
 from typer import Option
-from typer import style
 
 
 def src_dsn(
@@ -90,30 +90,28 @@ async def _print_connectivity_results(results: list[dict]):
     Also exit(1) if ANY connections failed.
     """
 
-    table = [
-        [
-            style("database", "yellow"),
-            style("src connect ok", "yellow"),
-            style("dst connect ok", "yellow"),
-        ]
-    ]
+    table = Table(title="Database Connection Testing (from pgbelt)")
+
+    table.add_column("Database")
+    table.add_column("SRC Connection OK")
+    table.add_column("DST Connection OK")
 
     results.sort(key=lambda d: d["db"])
 
     failed_connection_exists = False
     for r in results:
-        table.append(
-            [
-                style(r["db"], "green"),
-                style(r["src"], "green" if r["src"] else "red"),
-                style(r["dst"], "green" if r["dst"] else "red"),
-            ]
+
+        table.add_row(
+            r["db"],
+            "[green]" + str(r["src"]) if r["src"] else "[red]" + str(r["src"]),
+            "[green]" + str(r["dst"]) if r["dst"] else "[red]" + str(r["dst"]),
         )
         # If any of the connections have failed in this DB, and the flag hasn't been set, set it.
         if not failed_connection_exists and (r["src"] is False or r["dst"] is False):
             failed_connection_exists = True
 
-    echo(tabulate(table, headers="firstrow"))
+    console = Console()
+    console.print(table)
 
     if failed_connection_exists:
         exit(1)
