@@ -10,68 +10,76 @@ from pgbelt.util.pglogical import src_status
 from pgbelt.util.postgres import initialization_progress
 from pgbelt.util.postgres import analyze_table_pkeys
 from rich.console import Console
-from rich.table import Table
+from pgbelt.util.rich import RichTableArgs
+from pgbelt.util.rich import build_rich_table
 
 
-async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:
+async def _print_status_table(results: list[dict[str, str]]) -> RichTableArgs:
 
-    table = Table(title="Replication Status")
-    table.add_column("Database")
-    table.add_column("SRC -> DST")
-    table.add_column("SRC <- DST")
-    table.add_column("sent_lag")
-    table.add_column("flush_lag")
-    table.add_column("write_lag")
-    table.add_column("replay_lag")
-    table.add_column("SRC Dataset Size")
-    table.add_column("DST Dataset Size")
-    table.add_column("Progress")
+    rich_table_args = RichTableArgs(
+        title="Replication Status",
+        columns=[
+            "Database",
+            "SRC -> DST",
+            "SRC <- DST",
+            "sent_lag",
+            "flush_lag",
+            "write_lag",
+            "replay_lag",
+            "SRC Dataset Size",
+            "DST Dataset Size",
+            "Progress",
+        ],
+    )
 
     results.sort(key=lambda d: d["db"])
 
+    rich_table_args.rows = []
     for r in results:
-
-        table.add_row(
-            r["db"],
-            (
-                "[green]" + r["pg1_pg2"]
-                if r["pg1_pg2"] == "replicating"
-                else "[red]" + r["pg1_pg2"]
-            ),
-            (
-                "[green]" + r["pg2_pg1"]
-                if r["pg2_pg1"] == "replicating"
-                else "[red]" + r["pg2_pg1"]
-            ),
-            (
-                "[green]" + r["sent_lag"]
-                if r["sent_lag"] == "0"
-                else "[red]" + r["sent_lag"]
-            ),
-            (
-                "[green]" + r["flush_lag"]
-                if r["flush_lag"] == "0"
-                else "[red]" + r["flush_lag"]
-            ),
-            (
-                "[green]" + r["write_lag"]
-                if r["write_lag"] == "0"
-                else "[red]" + r["write_lag"]
-            ),
-            (
-                "[green]" + r["replay_lag"]
-                if r["replay_lag"] == "0"
-                else "[red]" + r["replay_lag"]
-            ),
-            "[green]" + r["src_dataset_size"],
-            "[green]" + r["dst_dataset_size"],
-            "[green]" + r["progress"],
+        rich_table_args.rows.append(
+            [
+                r["db"],
+                (
+                    "[green]" + r["pg1_pg2"]
+                    if r["pg1_pg2"] == "replicating"
+                    else "[red]" + r["pg1_pg2"]
+                ),
+                (
+                    "[green]" + r["pg2_pg1"]
+                    if r["pg2_pg1"] == "replicating"
+                    else "[red]" + r["pg2_pg1"]
+                ),
+                (
+                    "[green]" + r["sent_lag"]
+                    if r["sent_lag"] == "0"
+                    else "[red]" + r["sent_lag"]
+                ),
+                (
+                    "[green]" + r["flush_lag"]
+                    if r["flush_lag"] == "0"
+                    else "[red]" + r["flush_lag"]
+                ),
+                (
+                    "[green]" + r["write_lag"]
+                    if r["write_lag"] == "0"
+                    else "[red]" + r["write_lag"]
+                ),
+                (
+                    "[green]" + r["replay_lag"]
+                    if r["replay_lag"] == "0"
+                    else "[red]" + r["replay_lag"]
+                ),
+                "[green]" + r["src_dataset_size"],
+                "[green]" + r["dst_dataset_size"],
+                "[green]" + r["progress"],
+            ]
         )
 
+    table = build_rich_table(rich_table_args)
     console = Console()
     console.print(table)
 
-    return table
+    return rich_table_args
 
 
 @run_with_configs(results_callback=_print_status_table)

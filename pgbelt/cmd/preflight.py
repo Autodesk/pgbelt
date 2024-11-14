@@ -1,3 +1,4 @@
+import copy
 from asyncio import gather
 from collections.abc import Awaitable
 
@@ -8,12 +9,12 @@ from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import precheck_info
 from rich.console import Console
-from rich.table import Table
+from pgbelt.util.rich import RichTableArgs, build_rich_table
 
 
 def _summary_table(
     results: dict, title_str: str, compared_extensions: list[str] = None
-) -> list[list]:
+) -> RichTableArgs:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
 
@@ -53,24 +54,30 @@ def _summary_table(
     ]
     """
 
-    table = Table(title=title_str)
-
-    table.add_column("Database")
-    table.add_column("Server Version")
-    table.add_column("max_replication_slots")
-    table.add_column("max_worker_processes")
-    table.add_column("max_wal_senders")
-    table.add_column("shared_preload_libraries")
-    table.add_column("rds.logical_replication")
-    table.add_column("Root User OK")
-    table.add_column("Owner User OK")
-    table.add_column("Targeted Schema")
+    rich_table_args = RichTableArgs(
+        title=title_str,
+        columns=[
+            "Database",
+            "Server Version",
+            "max_replication_slots",
+            "max_worker_processes",
+            "max_wal_senders",
+            "shared_preload_libraries",
+            "rds.logical_replication",
+            "Root User OK",
+            "Owner User OK",
+            "Targeted Schema",
+        ],
+        rows=[],
+    )
 
     # Interestingly enough, we can tell if this is being run for a destination database if the compared_extensions is not None.
     # This is because it is only set when we are ensuring all source extensions are in the destination.
     is_dest_db = compared_extensions is not None
     if is_dest_db:
-        table.add_column("Extensions OK")
+        existing_columns = copy.deepcopy(rich_table_args.columns)
+        existing_columns.append("Extensions OK")
+        rich_table_args.columns = existing_columns
 
     results.sort(key=lambda d: d["db"])
 
@@ -119,48 +126,51 @@ def _summary_table(
                 else "[red]" + str(extensions_ok)
             )
 
-        table.add_row(
-            r["db"],
-            (
-                "[green]" + r["server_version"]
-                if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0]) >= 9.6
-                else "[red]" + r["server_version"]
-            ),
-            (
-                "[green]" + r["max_replication_slots"]
-                if int(r["max_replication_slots"]) >= 2
-                else "[red]" + r["max_replication_slots"]
-            ),
-            (
-                "[green]" + r["max_worker_processes"]
-                if int(r["max_worker_processes"]) >= 2
-                else "[red]" + r["max_worker_processes"]
-            ),
-            (
-                "[green]" + r["max_wal_senders"]
-                if int(r["max_wal_senders"]) >= 10
-                else "[red]" + r["max_wal_senders"]
-            ),
-            (
-                "[green]" + shared_preload_libraries
-                if shared_preload_libraries == "ok"
-                else "[red]" + shared_preload_libraries
-            ),
-            (
-                "[green]" + r["rds.logical_replication"]
-                if r["rds.logical_replication"] in ["on", "Not Applicable"]
-                else "[red]" + r["rds.logical_replication"]
-            ),
-            "[green]" + str(root_ok) if root_ok else "[red]" + str(root_ok),
-            "[green]" + str(owner_ok) if owner_ok else "[red]" + str(owner_ok),
-            "[green]" + r["schema"],
-            extensions_ok,
+        rich_table_args.rows.append(
+            [
+                r["db"],
+                (
+                    "[green]" + r["server_version"]
+                    if float(r["server_version"].rsplit(" ", 1)[0].rsplit(".", 1)[0])
+                    >= 9.6
+                    else "[red]" + r["server_version"]
+                ),
+                (
+                    "[green]" + r["max_replication_slots"]
+                    if int(r["max_replication_slots"]) >= 2
+                    else "[red]" + r["max_replication_slots"]
+                ),
+                (
+                    "[green]" + r["max_worker_processes"]
+                    if int(r["max_worker_processes"]) >= 2
+                    else "[red]" + r["max_worker_processes"]
+                ),
+                (
+                    "[green]" + r["max_wal_senders"]
+                    if int(r["max_wal_senders"]) >= 10
+                    else "[red]" + r["max_wal_senders"]
+                ),
+                (
+                    "[green]" + shared_preload_libraries
+                    if shared_preload_libraries == "ok"
+                    else "[red]" + shared_preload_libraries
+                ),
+                (
+                    "[green]" + r["rds.logical_replication"]
+                    if r["rds.logical_replication"] in ["on", "Not Applicable"]
+                    else "[red]" + r["rds.logical_replication"]
+                ),
+                "[green]" + str(root_ok) if root_ok else "[red]" + str(root_ok),
+                "[green]" + str(owner_ok) if owner_ok else "[red]" + str(owner_ok),
+                "[green]" + r["schema"],
+                extensions_ok,
+            ]
         )
 
-    return table
+    return rich_table_args
 
 
-def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
+def _users_table(users: dict, is_dest_db: bool = False) -> RichTableArgs:
     """
     Takes a dict of user info and returns a table of the users for echo.
 
@@ -189,64 +199,69 @@ def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
     See pgbelt.util.postgres.precheck_info results["users"] for more info..
     """
 
-    table = Table(title="Required Users Summary")
-
-    table.add_column("User")
-    table.add_column("Name")
-    table.add_column("Can Log In")
-    table.add_column("Can Make Roles")
-    table.add_column("Is Superuser")
+    rich_table_args = RichTableArgs(
+        title="Required Users Summary",
+        columns=["User", "Name", "Can Log In", "Can Make Roles", "Is Superuser"],
+        rows=[],
+    )
 
     if is_dest_db:
-        table.add_column("Can Create Objects")
+        existing_columns = copy.deepcopy(rich_table_args.columns)
+        existing_columns.append("Can Create Objects")
+        rich_table_args.columns = existing_columns
 
     root_in_superusers = (
         "rds_superuser" in users["root"]["memberof"] and users["root"]["rolinherit"]
     ) or (users["root"]["rolsuper"])
 
-    table.add_row(
-        "root",
-        users["root"]["rolname"],
-        (
-            "[green]" + str(users["root"]["rolcanlogin"])
-            if users["root"]["rolcanlogin"]
-            else "[red]" + str(users["root"]["rolcanlogin"])
-        ),
-        (
-            "[green]" + str(users["root"]["rolcreaterole"])
-            if users["root"]["rolcreaterole"]
-            else "[red]" + str(users["root"]["rolcreaterole"])
-        ),
-        (
-            "[green]" + str(root_in_superusers)
-            if root_in_superusers
-            else "[red]" + str(root_in_superusers)
-        ),
-        "not required",
-    )
-    table.add_row(
-        "owner",
-        users["owner"]["rolname"],
-        (
-            "[green]" + str(users["owner"]["rolcanlogin"])
-            if users["owner"]["rolcanlogin"]
-            else "[red]" + str(users["owner"]["rolcanlogin"])
-        ),
-        "not required",
-        "not required",
-        (
-            "[green]" + str(users["owner"]["can_create"])
-            if users["owner"]["can_create"]
-            else "[red]" + str(users["owner"]["can_create"])
-        ),
+    rich_table_args.rows.append(
+        [
+            "root",
+            users["root"]["rolname"],
+            (
+                "[green]" + str(users["root"]["rolcanlogin"])
+                if users["root"]["rolcanlogin"]
+                else "[red]" + str(users["root"]["rolcanlogin"])
+            ),
+            (
+                "[green]" + str(users["root"]["rolcreaterole"])
+                if users["root"]["rolcreaterole"]
+                else "[red]" + str(users["root"]["rolcreaterole"])
+            ),
+            (
+                "[green]" + str(root_in_superusers)
+                if root_in_superusers
+                else "[red]" + str(root_in_superusers)
+            ),
+            "not required",
+        ]
     )
 
-    return table
+    rich_table_args.rows.append(
+        [
+            "owner",
+            users["owner"]["rolname"],
+            (
+                "[green]" + str(users["owner"]["rolcanlogin"])
+                if users["owner"]["rolcanlogin"]
+                else "[red]" + str(users["owner"]["rolcanlogin"])
+            ),
+            "not required",
+            "not required",
+            (
+                "[green]" + str(users["owner"]["can_create"])
+                if users["owner"]["can_create"]
+                else "[red]" + str(users["owner"]["can_create"])
+            ),
+        ]
+    )
+
+    return rich_table_args
 
 
 def _tables_table(
     tables: list[dict], pkeys: list[dict], owner_name: str, schema_name: str
-) -> Table:
+) -> RichTableArgs:
     """
     Takes a list of table dicts and returns a table of the tables for echo.
 
@@ -261,13 +276,11 @@ def _tables_table(
     ]
     """
 
-    table = Table(title="Table Compatibility Summary")
-
-    table.add_column("Table Name")
-    table.add_column("Can Replicate")
-    table.add_column("Replication Type")
-    table.add_column("Schema")
-    table.add_column("Owner")
+    rich_table_args = RichTableArgs(
+        title="Table Compatibility Summary",
+        columns=["Table Name", "Can Replicate", "Replication Type", "Schema", "Owner"],
+        rows=[],
+    )
 
     for t in tables:
         can_replicate = t["Schema"] == schema_name and t["Owner"] == owner_name
@@ -277,32 +290,34 @@ def _tables_table(
             else "unavailable"
         )
 
-        table.add_row(
-            t["Name"],
-            (
-                "[green]" + str(can_replicate)
-                if can_replicate
-                else "[red]" + str(can_replicate)
-            ),
-            "[green]" + replication if can_replicate else "[red]" + replication,
-            (
-                "[green]" + t["Schema"]
-                if t["Schema"] == schema_name
-                else "[red]" + t["Schema"]
-            ),
-            (
-                "[green]" + t["Owner"]
-                if t["Owner"] == owner_name
-                else "[red]" + t["Owner"]
-            ),
+        rich_table_args.rows.append(
+            [
+                t["Name"],
+                (
+                    "[green]" + str(can_replicate)
+                    if can_replicate
+                    else "[red]" + str(can_replicate)
+                ),
+                "[green]" + replication if can_replicate else "[red]" + replication,
+                (
+                    "[green]" + t["Schema"]
+                    if t["Schema"] == schema_name
+                    else "[red]" + t["Schema"]
+                ),
+                (
+                    "[green]" + t["Owner"]
+                    if t["Owner"] == owner_name
+                    else "[red]" + t["Owner"]
+                ),
+            ]
         )
 
-    return table
+    return rich_table_args
 
 
 def _sequences_table(
     sequences: list[dict], owner_name: str, schema_name: str
-) -> list[list]:
+) -> RichTableArgs:
     """
     Takes a list of sequence dicts and returns a table of the sequences for echo.
 
@@ -317,41 +332,42 @@ def _sequences_table(
     ]
     """
 
-    table = Table(title="Sequence Compatibility Summary")
-
-    table.add_column("Sequence Name")
-    table.add_column("Can Replicate")
-    table.add_column("Schema")
-    table.add_column("Owner")
+    rich_table_args = RichTableArgs(
+        title="Sequence Compatibility Summary",
+        columns=["Sequence Name", "Can Replicate", "Schema", "Owner"],
+        rows=[],
+    )
 
     for s in sequences:
         can_replicate = s["Schema"] == schema_name and s["Owner"] == owner_name
 
-        table.add_row(
-            s["Name"],
-            (
-                "[green]" + str(can_replicate)
-                if can_replicate
-                else "[red]" + str(can_replicate)
-            ),
-            (
-                "[green]" + s["Schema"]
-                if s["Schema"] == schema_name
-                else "[red]" + s["Schema"]
-            ),
-            (
-                "[green]" + s["Owner"]
-                if s["Owner"] == owner_name
-                else "[red]" + s["Owner"]
-            ),
+        rich_table_args.rows.append(
+            [
+                s["Name"],
+                (
+                    "[green]" + str(can_replicate)
+                    if can_replicate
+                    else "[red]" + str(can_replicate)
+                ),
+                (
+                    "[green]" + s["Schema"]
+                    if s["Schema"] == schema_name
+                    else "[red]" + s["Schema"]
+                ),
+                (
+                    "[green]" + s["Owner"]
+                    if s["Owner"] == owner_name
+                    else "[red]" + s["Owner"]
+                ),
+            ]
         )
 
-    return table
+    return rich_table_args
 
 
 def _extensions_table(
     source_extensions: list[str], destination_extensions: list[str]
-) -> list[list]:
+) -> RichTableArgs:
     """
 
     Takes a list of source and destination extensions and returns a table of the extensions for echo.
@@ -365,18 +381,24 @@ def _extensions_table(
 
     """
 
-    table = Table(title="Extension Compatibility Summary")
-
-    table.add_column("Extension Name in Source DB")
-    table.add_column("Is in Destination")
+    rich_table_args = RichTableArgs(
+        title="Extension Compatibility Summary",
+        columns=["Extension Name in Source DB", "Is in Destination"],
+    )
 
     for e in source_extensions:
-        table.add_row(
-            e["extname"],
-            "[green]" + "True" if e in destination_extensions else "[red]" + "False",
+        rich_table_args.rows.append(
+            [
+                e["extname"],
+                (
+                    "[green]" + "True"
+                    if e in destination_extensions
+                    else "[red]" + "False"
+                ),
+            ]
         )
 
-    return table
+    return rich_table_args
 
 
 async def _print_prechecks(results: list[dict]) -> list[list]:
@@ -467,10 +489,13 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
 
     if len(results) != 1:
         console = Console()
+        src_summary_rich_table = build_rich_table(src_summary_table)
+        dst_summary_rich_table = build_rich_table(dst_summary_table)
+
         # For mulitple databases, we only print the summary table.
 
-        console.print(src_summary_table)
-        console.print(dst_summary_table)
+        console.print(src_summary_rich_table)
+        console.print(dst_summary_rich_table)
 
         return src_summary_table, dst_summary_table
 
@@ -482,49 +507,65 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     # Source DB Tables
 
     src_users_table = _users_table(r["src"]["users"])
+    src_users_rich_table = build_rich_table(src_users_table)
+
     src_tables_table = _tables_table(
         r["src"]["tables"],
         r["src"]["pkeys"],
         r["src"]["users"]["owner"]["rolname"],
         r["src"]["schema"],
     )
+    src_tables_rich_table = build_rich_table(src_tables_table)
+
     src_sequences_table = _sequences_table(
         r["src"]["sequences"], r["src"]["users"]["owner"]["rolname"], r["src"]["schema"]
     )
+    src_sequences_rich_table = build_rich_table(src_sequences_table)
 
     if len(r["src"]["tables"]) < 1:
-        src_tables_table = "[red]ALERT: Not able to find tables to replicate, check your config's 'schema_name'"
+        src_tables_rich_table = "[red]ALERT: Not able to find tables to replicate, check your config's 'schema_name'"
 
     if len(r["src"]["sequences"]) < 1:
-        src_sequences_table = "[red]ALERT: Not able to find sequences to replicate, check your config's 'schema_name'"
+        src_sequences_rich_table = "[red]ALERT: Not able to find sequences to replicate, check your config's 'schema_name'"
 
     console = Console()
     console.print("\n\n")
-    console.print(src_summary_table)
+    console.print(src_summary_rich_table)
     console.print("\n")
-    console.print(src_users_table)
+    console.print(src_users_rich_table)
     console.print("\n")
-    console.print(src_tables_table)
+    console.print(src_tables_rich_table)
     console.print("\n")
-    console.print(src_sequences_table)
+    console.print(src_sequences_rich_table)
 
     console.print("\n" + "=" * 80)
 
     # Destination DB Tables
 
     dst_users_table = _users_table(r["dst"]["users"], is_dest_db=True)
+    dst_users_rich_table = build_rich_table(dst_users_table)
+
     extenstions_table = _extensions_table(
         r["src"]["extensions"], r["dst"]["extensions"]
     )
+    extenstions_rich_table = build_rich_table(extenstions_table)
 
     console.print("\n\n")
-    console.print(dst_summary_table)
+    console.print(dst_summary_rich_table)
     console.print("\n")
-    console.print(extenstions_table)
+    console.print(extenstions_rich_table)
     console.print("\n")
-    console.print(dst_users_table)
+    console.print(dst_users_rich_table)
 
-    return src_summary_table, dst_summary_table
+    return (
+        src_summary_table,
+        src_users_table,
+        src_tables_table,
+        src_sequences_table,
+        dst_summary_table,
+        extenstions_table,
+        dst_users_table,
+    )
 
 
 @run_with_configs(skip_dst=True, results_callback=_print_prechecks)

@@ -23,27 +23,24 @@ async def _check_status(
     num_configs = len(configs.keys())
 
     # Sleep 1, repeat until target status is seen.
-    pgbelt.cmd.status.echo = Mock()
     status_reached = False
     i = 4
     while not status_reached and i > 0:
         sleep(1)
-        await pgbelt.cmd.status.status(db=None, dc=dc)
 
-        status_echo_call_arg = pgbelt.cmd.status.echo.call_args[0][0]
+        # Returns RichTableArgs object
+        res = await pgbelt.cmd.status.status(db=None, dc=dc)
 
-        # Regex for the two columns to be in the correct state
-        matches = re.findall(
-            rf"^\S+\s+\S+{src_dst_status}\S+\s+\S+{dst_src_status}.*",
-            status_echo_call_arg.split("\n")[2],
-        )
-        if len(matches) == num_configs:
+        # 0-based index columns 1 and 2 are SRC -> DST and DST -> SRC
+        if all(r[1] == src_dst_status for r in res.rows) and all(
+            r[2] == dst_src_status for r in res.rows
+        ):
             status_reached = True
         elif i > 0:
             i = i - 1
         else:
             raise AssertionError(
-                f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_configs} configs. Ended with: {status_echo_call_arg}"
+                f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_configs} configs. Ended with: {res}"
             )
 
 
@@ -53,6 +50,8 @@ async def _test_check_connectivity(configs: dict[str, DbupgradeConfig]):
     await pgbelt.cmd.convenience.check_connectivity(
         db=None, dc=configs[list(configs.keys())[0]].dc
     )
+
+    # This returns the table the rich module console printed
     check_connectivity_print_call_arg = pgbelt.cmd.convenience.Console.print.call_args[
         0
     ][0]
@@ -70,10 +69,20 @@ async def _test_check_connectivity(configs: dict[str, DbupgradeConfig]):
 
 async def _test_precheck(configs: dict[str, DbupgradeConfig]):
     # Run precheck and make sure all green, no red
-    pgbelt.cmd.preflight.echo = Mock()
-    await pgbelt.cmd.preflight.precheck(db=None, dc=configs[list(configs.keys())[0]].dc)
-    preflight_echo_call_arg = pgbelt.cmd.preflight.echo.call_args[0][0]
-    assert "\x1b[31m" not in preflight_echo_call_arg
+    res_src, res_dst = await pgbelt.cmd.preflight.precheck(
+        db=None, dc=configs[list(configs.keys())[0]].dc
+    )
+
+    # We need to check each RichTableArgs object 'rows' attribute and find any strings containing '[red]'.
+    # If any are found, the test fails.
+    for res in [res_src, res_dst]:
+        for row in res.rows:
+            for cell in row:
+                try:
+                    if cell:
+                        assert "[red]" not in cell
+                except AssertionError:
+                    print(f"Precheck failed. found a 'red' cell:\n{res_src}\n{res_dst}")
 
     await _check_status(configs, "unconfigured", "unconfigured")
 
