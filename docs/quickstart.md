@@ -191,7 +191,7 @@ If the above command fails, you can diagnose and run the individual steps with t
 
 - `sync-sequences` - reads and sets sequences values from SRC to DST at the time of command execution
 - `dump-tables` - dumps only tables without Primary Keys
-- `load_tables` - load into DST DB the tables from the `dump-tables` command (found on disk)
+- `load-tables` - load into DST DB the tables from the `dump-tables` command (found on disk)
 - `dump-contraints` - dumps NOT VALID constraints from your SRC DB schema onto disk
 - `load-constraints` - load NOT VALID constraints from disk to your DST DB schema
 - `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
