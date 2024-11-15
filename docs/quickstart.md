@@ -231,8 +231,8 @@ command, some users might be missed here.
 
 Things that will need manual resolution:
 
-- Sequence values on the source database. You will need to copy these over from the target database.
-- Tables without Primary Keys will need to be updated. You will need to copy these over from the target database to the source.
+- Sequence values on the source database. You will need to copy these over from the target database, no `belt` commands cover this yet.
+- Tables without Primary Keys will need to be updated. You will need to copy these over from the target database to the source, no `belt` commands cover this yet.
 
 After you are sure that sequences and tables without primary keys have been synchronized from the target
 into the old source, point your application to the old source and your rollback is complete.
