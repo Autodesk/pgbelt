@@ -187,6 +187,16 @@ Therefore the next command will do the following:
 $ belt sync testdatacenter1 database1
 ```
 
+If the above command fails, you can diagnose and run the individual steps with the following commands:
+
+- `sync-sequences` - reads and sets sequences values from SRC to DST at the time of command execution
+- `dump-tables` - dumps only tables without Primary Keys
+- `load-tables` - load into DST DB the tables from the `dump-tables` command (found on disk)
+- `dump-contraints` - dumps NOT VALID constraints from your SRC DB schema onto disk
+- `load-constraints` - load NOT VALID constraints from disk to your DST DB schema
+- `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
+- `analyze` - Run ANALYZE on the database
+
 ## Step 8: Enable write traffic to the destination host
 
 Enabling write traffic to the destination host is done outside of PgBelt, with your application.
@@ -202,27 +212,6 @@ The first command will tear down all replication jobs if still running. At this 
 
 The second command will run through the first command, and finally drop the `pglogical` extension from the database. This is separated out because the extension drop tends to hang if the previous steps are done right beforehand. When run separately, the DROP command likely will run without hanging or run in significantly less time.
 
-# (Optional) Rolling Back
+# Final Notes
 
-**NOTE: The rollback process is not fully implemented in pgbelt. You should make every effort to solve
-issues that surface only after writes have succeeded in the target database at the application level first!**
-
-If you discover an application issue that requires a rollback to the old database, you can do so without data loss even after
-writes have succeeded in the target database.
-
-To perform a rollback you will need to begin another period of application downtime where neither
-database receives any writes. Once you are sure downtime has begun, run the following:
-
-    $ belt teardown-back-replication testdatacenter1 database1
-    $ belt restore-logins testdatacenter1 database1
-
-If you've lost the pgbelt config file where these users' names were stored when you ran the revoke logins
-command, some users might be missed here.
-
-Things that will need manual resolution:
-
-- Sequence values on the source database
-- Tables without Primary Keys will need to be updated
-
-After you are sure that sequences and tables without primary keys have been synchronized from the target
-into the old source, point your application to the old source and your rollback is complete.
+Please note that instructions for rolling back and restarting a migration are now in the playbook in this directory. Please refer to those for more information.
