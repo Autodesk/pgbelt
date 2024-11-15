@@ -1,4 +1,3 @@
-import re
 import subprocess
 from time import sleep
 import io

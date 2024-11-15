@@ -17,6 +17,12 @@ from pgbelt.util.pglogical import configure_subscription
 from pgbelt.util.pglogical import grant_pgl
 from pgbelt.util.postgres import analyze_table_pkeys
 from typer import Option
+from rich.console import Console
+from rich.table import Table
+from rich.live import Live
+from rich.spinner import Spinner
+
+console = Console()
 
 
 async def _dump_and_load_schema(
@@ -70,6 +76,22 @@ async def setup(
     If you want to set up the schema in the destination db manually you can use
     the --no-schema option to stop this from happening.
     """
+    # steps = [
+    #     "SRC Initialize Pglogical",
+    #     "SRC Grant Pglogical Access to Data",
+    #     "Dump Schema from SRC and Load into DST",
+    #     "SRC Configure Pglogical Node",
+    #     "DST Initialize Pglogical",
+    #     "DST Grant Pglogical Access to Data",
+    #     "DST Configure Pglogical Node",
+    #     "Create Subscription from SRC to DST",
+    # ]
+    # statuses = {step: Spinner("dots") for step in steps}
+
+    # table = Table()
+    # table.add_column("Step", justify="left", style="cyan")
+    # table.add_column("Status", justify="left", style="orange")
+
     conf = await config_future
     pools = await gather(
         create_pool(conf.src.root_uri, min_size=1),

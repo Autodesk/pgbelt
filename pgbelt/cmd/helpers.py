@@ -14,6 +14,7 @@ from pgbelt.config import get_all_configs_async
 from pgbelt.config import get_config_async
 from typer import Argument
 from typer import Typer
+from rich.console import Console
 
 
 T = TypeVar("T")
@@ -53,28 +54,32 @@ def run_with_configs(
         @wraps(func)
         async def wrapper(dc: str, db: Optional[str], **kwargs):
             # If db is specified we only want to run on one of them
-            if db is not None:
-                results = [
-                    await func(
-                        get_config_async(db, dc, skip_src=skip_src, skip_dst=skip_dst),
-                        **kwargs
-                    )
-                ]
-            else:
-                # if the db is not provided run on all the dbs in the dc
-                results = await gather(
-                    *[
-                        func(fut, **kwargs)
-                        async for fut in get_all_configs_async(
-                            dc, skip_src=skip_src, skip_dst=skip_dst
+            console = Console()
+            with console.status(f"Gathering configs for {dc}..."):
+                if db is not None:
+                    results = [
+                        await func(
+                            get_config_async(
+                                db, dc, skip_src=skip_src, skip_dst=skip_dst
+                            ),
+                            **kwargs,
                         )
                     ]
-                )
+                else:
+                    # if the db is not provided run on all the dbs in the dc
+                    results = await gather(
+                        *[
+                            func(fut, **kwargs)
+                            async for fut in get_all_configs_async(
+                                dc, skip_src=skip_src, skip_dst=skip_dst
+                            )
+                        ]
+                    )
 
-            # Call the callback if provided.
-            if results_callback is None:
-                return results
-            return await results_callback(results)
+                # Call the callback if provided.
+                if results_callback is None:
+                    return results
+                return await results_callback(results)
 
         return wrapper
 
