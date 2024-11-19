@@ -59,17 +59,6 @@ async def load_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
 
 
 @run_with_configs(skip_src=True)
-async def dump_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
-    """
-    Dumps the NOT VALID constraints from the target database onto disk, in
-    the schemas directory.
-    """
-    conf = await config_future
-    logger = get_logger(conf.db, conf.dc, "schema.dst")
-    await dump_dst_not_valid_constraints(conf, logger)
-
-
-@run_with_configs(skip_src=True)
 async def remove_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Removes NOT VALID constraints from the target database. This must be done
