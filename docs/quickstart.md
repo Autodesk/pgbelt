@@ -179,7 +179,7 @@ Therefore the next command will do the following:
 - Sync sequence values
 - Dump and load tables without Primary Keys
 - Add NOT VALID constraints to the target schema (they were removed in Step 1 in the target database)
-- Create Indexes (as long as this was run in Step 2, this will be glossed over. If step 2 was missed, indexes will build now amnd this will take longer than expected).
+- Create Indexes (as long as this was run in Step 2, this will be glossed over. If step 2 was missed, indexes will build now amd this will take longer than expected).
 - Validate data (take 100 random rows and 100 last rows of each table, and compare data)
 - Run ANALYZE to ensure optimal performance
 
@@ -187,15 +187,7 @@ Therefore the next command will do the following:
 $ belt sync testdatacenter1 database1
 ```
 
-If the above command fails, you can diagnose and run the individual steps with the following commands:
-
-- `sync-sequences` - reads and sets sequences values from SRC to DST at the time of command execution
-- `dump-tables` - dumps only tables without Primary Keys
-- `load-tables` - load into DST DB the tables from the `dump-tables` command (found on disk)
-- `dump-contraints` - dumps NOT VALID constraints from your SRC DB schema onto disk
-- `load-constraints` - load NOT VALID constraints from disk to your DST DB schema
-- `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
-- `analyze` - Run ANALYZE on the database
+If the above command fails, please see the `playbook.md` document in this repository for more information on how to resolve the issue.
 
 ## Step 8: Enable write traffic to the destination host
 
