@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/Autodesk/pgbelt/compare/v0.7.11...v0.8.0) (2024-11-19)
+
+
+### Features
+
+* run ANALYZE as part of create-indexes ([#612](https://github.com/Autodesk/pgbelt/issues/612)) ([29294ed](https://github.com/Autodesk/pgbelt/commit/29294ed9c4325ea0b5c699eda2398d4b46735e06))
+* run ANALYZE as part of create-indexes [#611](https://github.com/Autodesk/pgbelt/issues/611) ([29294ed](https://github.com/Autodesk/pgbelt/commit/29294ed9c4325ea0b5c699eda2398d4b46735e06))
+
+
+### Bug Fixes
+
+* hide progress when reverse replication is running [#608](https://github.com/Autodesk/pgbelt/issues/608) ([#610](https://github.com/Autodesk/pgbelt/issues/610)) ([8f143a8](https://github.com/Autodesk/pgbelt/commit/8f143a868126ee613b0607659747f14f95b5fd17))
+* run analyze without statement timeout ([#606](https://github.com/Autodesk/pgbelt/issues/606)) ([3bac10c](https://github.com/Autodesk/pgbelt/commit/3bac10c92f662b5c66145cde8245a1ac967130d7))
+* sync command breakdown update and remove useless commands ([#622](https://github.com/Autodesk/pgbelt/issues/622)) ([558a28d](https://github.com/Autodesk/pgbelt/commit/558a28d0af3d577e0c6ecf5b06d431883b38fc2f))
+
 ## [0.7.11](https://github.com/Autodesk/pgbelt/compare/v0.7.10...v0.7.11) (2024-09-27)
 
 
