@@ -108,40 +108,6 @@ async def load_tables(
     await load_dumped_tables(conf, tables, logger)
 
 
-@run_with_configs
-async def sync_tables(
-    config_future: Awaitable[DbupgradeConfig],
-    tables: list[str] = Option([], help="Specific tables to sync"),
-):
-    """
-    Dump and load all tables from the source database to the destination database.
-    Equivalent to running dump-tables followed by load-tables. Table data will be
-    saved locally in files.
-
-    You may also provide a list of tables to sync with the
-    --tables option and only these tables will be synced.
-    """
-    conf = await config_future
-    src_logger = get_logger(conf.db, conf.dc, "sync.src")
-    dst_logger = get_logger(conf.db, conf.dc, "sync.dst")
-
-    if tables:
-        dump_tables = tables.split(",")
-    else:
-        async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
-            _, dump_tables, _ = await analyze_table_pkeys(
-                src_pool, conf.schema_name, src_logger
-            )
-
-        if conf.tables:
-            dump_tables = [t for t in dump_tables if t in conf.tables]
-
-    await dump_source_tables(conf, dump_tables)
-    await load_dumped_tables(
-        conf, [] if not tables and not conf.tables else dump_tables, dst_logger
-    )
-
-
 @run_with_configs(skip_src=True)
 async def analyze(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
@@ -276,7 +242,6 @@ COMMANDS = [
     sync_sequences,
     dump_tables,
     load_tables,
-    sync_tables,
     analyze,
     validate_data,
     sync,

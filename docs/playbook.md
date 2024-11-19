@@ -55,3 +55,38 @@ Run the following commands:
 Note that the first four commands will remove all replication job setup from the databases. `remove-constraints` removes NOT VALID constraints from the target schema so when you restart replication, they don't cause failed inserts (these must not exist during the initial setup). `remove-indexes` removes all indexes from the target schema to help speed up the initial bulk load. `remove-indexes` is not necessary to run, you may skip this if needed.
 
 After running these commands, you can `TRUNCATE` the tables in the destination database and start the migration from the beginning. **Please take as much precaution as possible when running TRUNCATE, as it will delete all data in the tables. Especially please ensure you are running this on the correct database!**
+
+## My `sync` command has failed or is hanging. What can I do?
+
+The `sync` command from Step 7 of the Quickstart guide does the following:
+
+- Sync sequence values
+- Dump and load tables without Primary Keys
+- Add NOT VALID constraints to the target schema (they were removed in Step 1 in the target database)
+- Create Indexes (as long as this was run in Step 2, this will be glossed over. If step 2 was missed, indexes will build now amd this will take longer than expected).
+- Validate data (take 100 random rows and 100 last rows of each table, and compare data)
+- Run ANALYZE to ensure optimal performance
+
+If the `sync` command fails, you can try to run the individual commands that make up the `sync` command to see where the failure is. The individual commands are:
+
+1. Syncing Sequences:
+
+- `sync-sequences` - reads and sets sequences values from SRC to DST at the time of command execution
+
+2. Syncing Tables without Primary Keys:
+
+- `dump-tables` - dumps only tables without Primary Keys (to ensure only tables without Primary Keys are dumped, DO NOT specify the `--tables` flag for this command)
+- `load-tables` - load into DST DB the tables from the `dump-tables` command (found on disk)
+
+3. Syncing NOT VALID Constraints:
+
+- `dump-schema` - dumps schema from your SRC DB schema onto disk (the files may already be on disk, but run this command just to ensure they exist anyways)
+- `load-constraints` - load NOT VALID constraints from disk (obtained by the `dump-schema` command) to your DST DB schema
+
+4. Creating Indexes & Running ANALYZE:
+
+- `create-indexes` - Create indexes on the target database, and then runs ANALYZE as well.
+
+5. Validating Data:
+
+- `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
