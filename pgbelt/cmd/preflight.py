@@ -384,6 +384,7 @@ def _extensions_table(
     rich_table_args = RichTableArgs(
         title="Extension Compatibility Summary",
         columns=["Extension Name in Source DB", "Is in Destination"],
+        rows=[],
     )
 
     for e in source_extensions:
@@ -487,13 +488,12 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         compared_extensions=r["src"]["extensions"],
     )
 
+    console = Console()
+    src_summary_rich_table = build_rich_table(src_summary_table)
+    dst_summary_rich_table = build_rich_table(dst_summary_table)
+
     if len(results) != 1:
-        console = Console()
-        src_summary_rich_table = build_rich_table(src_summary_table)
-        dst_summary_rich_table = build_rich_table(dst_summary_table)
-
         # For mulitple databases, we only print the summary table.
-
         console.print(src_summary_rich_table)
         console.print(dst_summary_rich_table)
 
