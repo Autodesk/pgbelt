@@ -310,11 +310,14 @@ async def remove_dst_not_valid_constraints(
         if (config.tables and table in config.tables) or not config.tables:
             queries = queries + f"ALTER TABLE {table} DROP CONSTRAINT {constraint};"
 
-    command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
+    if queries != "":
+        command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
 
-    await _execute_subprocess(
-        command, "Finished removing NOT VALID constraints from the target.", logger
-    )
+        await _execute_subprocess(
+            command, "Finished removing NOT VALID constraints from the target.", logger
+        )
+    else:
+        logger.info("No NOT VALID detected for removal.")
 
 
 async def apply_target_constraints(config: DbupgradeConfig, logger: Logger) -> None:
