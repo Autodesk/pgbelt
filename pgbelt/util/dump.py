@@ -360,14 +360,20 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
         if not regex_matches:
             continue
         index = regex_matches.groupdict()["index"]
+        if config.schema_name:
+            index = f"{config.schema_name}.{index}"
 
-        queries = queries + f"DROP INDEX {index};"
+        # DROP the index
+        # Note that the host DSN must have a statement timeout of 0.
+        # Example DSN: `host=server-hostname user=user dbname=db_name options='-c statement_timeout=3600000'`
+        host_dsn = config.dst.owner_dsn + " options='-c statement_timeout=0'"
 
-    command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
-
-    await _execute_subprocess(
-        command, "Finished removing indexes from the target.", logger
-    )
+        # DROP INDEX IF EXISTS so no need to catch exceptions
+        command = ["psql", host_dsn, "-c", f"DROP INDEX IF EXISTS {index};"]
+        logger.info(f"Dropping index {index} on the target...")
+        await _execute_subprocess(
+            command, f"Finished dropping index {index} on the target.", logger
+        )
 
 
 async def create_target_indexes(
