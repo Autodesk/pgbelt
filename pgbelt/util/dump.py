@@ -339,53 +339,6 @@ async def apply_target_constraints(config: DbupgradeConfig, logger: Logger) -> N
     )
 
 
-async def dump_dst_create_index(config: DbupgradeConfig, logger: Logger) -> None:
-    """
-    Dump CREATE INDEX statements from the target database.
-    Used when schema is loaded in outside of pgbelt.
-    """
-
-    logger.info("Dumping target CREATE INDEX statements...")
-
-    command = [
-        "pg_dump",
-        "--schema-only",
-        "--no-owner",
-        "-n",
-        config.schema_name,
-        config.dst.pglogical_dsn,
-    ]
-
-    out = await _execute_subprocess(command, "Retrieved target schema", logger)
-
-    # No username replacement needs to be done, so replace dst user with the same.
-    commands_raw = _parse_dump_commands(
-        out.decode("utf-8"), config.dst.owner_user.name, config.dst.owner_user.name
-    )
-
-    commands = []
-    for c in commands_raw:
-        if "CREATE" in command and "INDEX" in command:
-            regex_matches = search(
-                r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
-                c,
-            )
-            if not regex_matches:
-                continue
-            commands.append(c)
-
-    try:
-        await makedirs(schema_dir(config.db, config.dc))
-    except FileExistsError:
-        pass
-
-    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
-        for command in commands:
-            await out.write(command)
-
-    logger.debug("Finished dumping CREATE INDEX statements from the target.")
-
-
 async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
     """
     Remove the INDEXes from the schema of the target database.
@@ -451,7 +404,10 @@ async def create_target_indexes(
         index = regex_matches.groupdict()["index"]
 
         # Create the index
-        command = ["psql", config.dst.owner_dsn, "-c", f"{c};"]
+        # Note that the host DSN must have a statement timeout of 0.
+        # Example DSN: `host=server-hostname user=user dbname=db_name options='-c statement_timeout=3600000'`
+        host_dsn = config.dst.owner_dsn + " options='-c statement_timeout=0'"
+        command = ["psql", host_dsn, "-c", f"{c};"]
         logger.info(f"Creating index {index} on the target...")
         try:
             await _execute_subprocess(
