@@ -6,7 +6,6 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import apply_target_schema
 from pgbelt.util.dump import create_target_indexes
-from pgbelt.util.dump import dump_dst_not_valid_constraints
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.dump import dump_dst_create_index
 from pgbelt.util.dump import remove_dst_not_valid_constraints
@@ -56,17 +55,6 @@ async def load_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
     await apply_target_constraints(conf, logger)
-
-
-@run_with_configs(skip_src=True)
-async def dump_constraints(config_future: Awaitable[DbupgradeConfig]) -> None:
-    """
-    Dumps the NOT VALID constraints from the target database onto disk, in
-    the schemas directory.
-    """
-    conf = await config_future
-    logger = get_logger(conf.db, conf.dc, "schema.dst")
-    await dump_dst_not_valid_constraints(conf, logger)
 
 
 @run_with_configs(skip_src=True)
@@ -134,7 +122,6 @@ COMMANDS = [
     dump_schema,
     load_schema,
     load_constraints,
-    dump_constraints,
     remove_constraints,
     dump_indexes,
     remove_indexes,
