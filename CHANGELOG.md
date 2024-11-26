@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.1](https://github.com/Autodesk/pgbelt/compare/v0.8.0...v0.8.1) (2024-11-26)
+
+
+### Bug Fixes
+
+* remove dump-dst-indexes, useless and add 0 statement timeout to creating indexes ([#629](https://github.com/Autodesk/pgbelt/issues/629)) ([06285e9](https://github.com/Autodesk/pgbelt/commit/06285e9da801ac184ab54dee4ae3c49d61e49801))
+* remove useless command (dump_constraints for dst dump...) ([#625](https://github.com/Autodesk/pgbelt/issues/625)) ([8a1f372](https://github.com/Autodesk/pgbelt/commit/8a1f3720d80f28742e9b628172551e5f297b24fb))
+* remove-constraints errors if no NOT VALIDS involved ([#626](https://github.com/Autodesk/pgbelt/issues/626)) ([e3fc113](https://github.com/Autodesk/pgbelt/commit/e3fc11367fac8d4c0c15310a970cf35fe67e2cde))
+* remove-indexes syntax error fix ([#630](https://github.com/Autodesk/pgbelt/issues/630)) ([4f779f9](https://github.com/Autodesk/pgbelt/commit/4f779f93d6fe4c39ce81bfb6f82e6767a174c963))
+
 ## [0.8.0](https://github.com/Autodesk/pgbelt/compare/v0.7.11...v0.8.0) (2024-11-19)
 
 
