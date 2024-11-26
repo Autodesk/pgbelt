@@ -122,7 +122,6 @@ COMMANDS = [
     dump_schema,
     load_schema,
     load_constraints,
-    dump_constraints,
     remove_constraints,
     dump_indexes,
     remove_indexes,
