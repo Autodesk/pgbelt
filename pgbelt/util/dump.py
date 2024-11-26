@@ -404,7 +404,10 @@ async def create_target_indexes(
         index = regex_matches.groupdict()["index"]
 
         # Create the index
-        command = ["psql", config.dst.owner_dsn, "-c", f"{c};"]
+        # Note that the host DSN must have a statement timeout of 0.
+        # Example DSN: `host=server-hostname user=user dbname=db_name options='-c statement_timeout=3600000'`
+        host_dsn = config.dst.owner_dsn + " options='-c statement_timeout=0'"
+        command = ["psql", host_dsn, "-c", f"{c};"]
         logger.info(f"Creating index {index} on the target...")
         try:
             await _execute_subprocess(
