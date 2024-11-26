@@ -351,7 +351,6 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
 
     logger.info("Removing Indexes from the target...")
 
-    queries = ""
     for c in create_index_statements.split(";"):
         regex_matches = search(
             r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
