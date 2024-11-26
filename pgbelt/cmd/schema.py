@@ -6,7 +6,6 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import apply_target_schema
 from pgbelt.util.dump import create_target_indexes
-from pgbelt.util.dump import dump_dst_not_valid_constraints
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.dump import dump_dst_create_index
 from pgbelt.util.dump import remove_dst_not_valid_constraints
