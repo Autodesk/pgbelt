@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/Autodesk/pgbelt/compare/v0.8.1...v0.8.2) (2025-01-06)
+
+
+### Bug Fixes
+
+* support for indexes with quotes in the name [#652](https://github.com/Autodesk/pgbelt/issues/652) ([#653](https://github.com/Autodesk/pgbelt/issues/653)) ([1b7d90c](https://github.com/Autodesk/pgbelt/commit/1b7d90cd13ca2e03d46a8f3c5b95599b35a8cac9))
+
 ## [0.8.1](https://github.com/Autodesk/pgbelt/compare/v0.8.0...v0.8.1) (2024-11-26)
 
 
