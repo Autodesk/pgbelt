@@ -68,6 +68,7 @@ CREATE INDEX users2_idx ON public."UsersCapital" (
 
 -- Addressing the following index statement style: CREATE INDEX "existingEmailIds_email_id_idx" ON public."existingEmailIds" USING btree ("projectId", "emailId");
 -- Issue #652
+-- Did not add a primary key, helped iron out related quoting issues in the dump and load code.
 
 CREATE TABLE public."existingSomethingIds" (
     "thingId" integer NOT NULL,
