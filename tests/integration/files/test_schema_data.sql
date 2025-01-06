@@ -66,6 +66,16 @@ CREATE INDEX users2_idx ON public."UsersCapital" (
     hash_lastname
 );
 
+-- Addressing the following index statement style: CREATE INDEX "existingEmailIds_email_id_idx" ON public."existingEmailIds" USING btree ("projectId", "emailId");
+-- Issue #652
+
+CREATE TABLE public."existingSomethingIds" (
+    "thingId" integer NOT NULL,
+    "somethingId" character varying(255) NOT NULL
+);
+
+CREATE INDEX "existingSomethingIds_something_id_idx" ON public."existingSomethingIds" USING btree ("thingId", "somethingId");
+
 --
 -- Name: userS_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
 --
@@ -129,6 +139,17 @@ INSERT INTO public."UsersCapital2" (id, "hash_firstName", hash_lastname, gender)
 
 INSERT INTO public.another_test_table ("someThingIDontKnow", "anotherThing")
     VALUES ('0e095b60-ab7d-4892-9a92-6175497fe0f9', '0e095b60-ab7d-4892-9a92-6175497fe0f9');
+
+--
+-- Data for Name: existingSomethingIds; Type: TABLE DATA; Schema: public; Owner: owner
+--
+
+INSERT INTO public."existingSomethingIds" ("thingId", "somethingId")
+    VALUES (1, 'something1'),
+    (2, 'something2'),
+    (3, 'something3'),
+    (4, 'something4');
+
 
 --
 -- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner

@@ -93,7 +93,7 @@ async def dump_source_tables(
                 [
                     "pg_dump",
                     "--data-only",
-                    f"--table={config.schema_name}.{table}",
+                    f'--table={config.schema_name}."{table}"',
                     "-Fc",
                     "-f",
                     table_file(config.db, config.dc, table),
@@ -401,12 +401,15 @@ async def create_target_indexes(
     for c in create_index_statements.split(";"):
         # Get the Index Name
         regex_matches = search(
-            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._]+)+.*",
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._\"]+)+.*",
             c,
         )
         if not regex_matches:
             continue
         index = regex_matches.groupdict()["index"]
+
+        # Sometimes the index name is quoted, so remove the quotes
+        index = index.replace('"', "")
 
         # Create the index
         # Note that the host DSN must have a statement timeout of 0.

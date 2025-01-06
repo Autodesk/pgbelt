@@ -264,7 +264,7 @@ async def table_empty(pool: Pool, table: str, schema: str, logger: Logger) -> bo
     return true if the table is empty
     """
     logger.info(f"Checking if table {table} is empty...")
-    result = await pool.fetch(f"SELECT * FROM {schema}.{table} LIMIT 1;")
+    result = await pool.fetch(f'SELECT * FROM {schema}."{table}" LIMIT 1;')
     return len(result) == 0
 
 
