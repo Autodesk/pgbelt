@@ -1,4 +1,4 @@
 pip==24.3.1
 poetry==2.0.1
-virtualenv==20.28.1
+virtualenv==20.29.0
 poetry-dynamic-versioning==1.6.0
