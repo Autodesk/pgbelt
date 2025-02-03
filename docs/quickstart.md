@@ -156,6 +156,8 @@ This can be done at any time before the next step, but for clarity, we will do i
 
 This would be the beginning of your application downtime. We revoke all login permissions on the source host using `belt` to ensure writes can no longer occur. You may want to do this, then restart Postgres connections on your application to ensure connections can no longer write.
 
+**NOTE: Do not run this command if the schema owner of your database is the same as your root user.**
+
     $ belt revoke-logins testdatacenter1 database1
 
 ## Step 6: Stop forward replication

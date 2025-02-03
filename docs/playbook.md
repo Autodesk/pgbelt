@@ -90,3 +90,97 @@ If the `sync` command fails, you can try to run the individual commands that mak
 ### 5. Validating Data:
 
 - `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
+
+## belt hangs when running `teardown --full`. What can I do?
+
+If `belt` hangs when running `teardown --full`, it is likely having trouble dropping the `pglogical` extension. This normally happens due to any _idle in transaction_ connections to the database. To resolve this, you can run the following when it hangs:
+
+- CTRL+C to stop the `teardown --full` command
+- Identify which database is getting traffic (SRC or DST)
+- List out the active connections and find which are _idle in transaction_:
+  - `SELECT * FROM pg_stat_activity;`
+- For each _idle in transaction_ connection, run the following:
+  - `SELECT pg_terminate_backend(<pid>);`
+- Once all _idle in transaction_ connections are terminated, you can run the `teardown --full` command again.
+
+## I need to start the replication process again from the beginning. How can I do this?
+
+- Run `belt teardown` to remove the replication jobs from the databases.
+- Run `belt status` to ensure the replication jobs are `unconfigured` for both directions.
+- TRUNCATE the data in your destination database. **Please take as much precaution as possible when running TRUNCATE, as it will delete all data in the tables. Especially please ensure you are running this on the correct database!**
+- Now you can start the replication process again from the beginning (eg run `belt setup`).
+
+The following is a transaction that will TRUNCATE all tables in a database:
+
+```sql
+SET lock_timeout = '2s';
+DO
+$$
+DECLARE
+	_rec RECORD;
+BEGIN
+	FOR _rec IN
+		SELECT
+			pg_namespace.nspname,
+			pg_class.relname
+		FROM
+			pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON (
+				pg_namespace.oid = pg_class.relnamespace AND
+				pg_namespace.nspname = 'public'
+			)
+		WHERE
+			pg_class.relkind = 'r'
+	LOOP
+		-- RAISE WARNING 'TRUNCATE TABLE %.%;';
+
+		EXECUTE FORMAT(
+			'TRUNCATE TABLE %I.%I CASCADE',
+			_rec.nspname,
+			_rec.relname
+		);
+	END LOOP;
+END;
+$$;
+```
+
+## I accidentally ran `revoke-logins` on my database when the schema owner was the same as my root user. How can I undo this?
+
+When this happens you accidently revoke LOGIN permissions from your root user. You will need to re-grant this with another superuser.
+
+If you are using AWS RDS, you can reset the root password via the AWS Console or API, and that will restore all revoked privileges to the root user (as well as reset the password).
+
+## I revoked logins on my database but I want to restore them. How can I do this? (NOT when the schema owner is the same as the root user)
+
+If you revoked logins on your database and want to restore them, you can run the following command:
+
+    $ belt restore-logins testdatacenter1 database1
+
+## The status of my replication job is `down`. What can I do?
+
+There are a few reasons why a replication job can be `down`. The most common reasons are:
+
+### 1. If you were in the `initializing` phase (eg. last state was `initializing`, and the status is now `down`):
+
+A. Your DST database may not have been empty when starting your replication job.
+
+    - Check your DST database's log files. This database should be getting no traffic other that `pglogical`.
+    - If you see logs like `ERROR: duplicate key value violates unique constraint`, your DST database was not empty when you started the replication job. You will need to start your replication job again from the beginning.
+        - See the `I need to start the replication process again from the beginning. How can I do this?` question in this document.
+
+B. Your network may have been interrupted between the SRC and DST databases.
+
+    - Check your DST database's log files. You should see logs like `background worker "pglogical apply XXXXX:YYYYYYYYYY" (PID ZZZZZ) exited with exit code 1`.
+    - Connect to your DST database and run the following:
+        - `SELECT * FROM pg_replication_origin;`
+            - If you see 0 rows, **your replication job was disrupted, and can be restored**. You can restore by doing the following:
+                - Connect to your DST database and run the following: `SELECT pglogical.alter_subscription_disable('<subscription_name>',true);`
+                    - If this is forward replicaton, the subscription name will be `pg1_pg2` and if this is back replication, the subscription name will be `pg2_pg1`.
+                - Get the publisher node identifier from the DST database by running the following: `SELECT * FROM pg_replication_origin;`
+                - Use the `roname` from the previous query to run the following: `SELECT pg_replication_origin_create('<roname from previous step>');`
+                - Run the following to re-enable the subscription: `SELECT pglogical.alter_subscription_enable('<subscription_name>',true);`
+                - Check on the status of replication now by running `belt status`.
+            - If you see 1 row, your replication job was not disrupted, and you will need to diagnose further as to why the `pglogical` plugin failed to apply changes.
+                - As of now, there is no recovery process for this. You will need to start your replication job again from the beginning.
+
+Source: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.pglogical.recover-replication-after-upgrade.html
