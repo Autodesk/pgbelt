@@ -162,7 +162,11 @@ There are a few reasons why a replication job can be `down`. The most common rea
 
 ### 1. If you were in the `initializing` phase (eg. last state was `initializing`, and the status is now `down`):
 
-A. Your DST database may not have been empty when starting your replication job. - Check your DST database's log files. This database should be getting no traffic other that `pglogical`. - If you see logs like `ERROR: duplicate key value violates unique constraint`, your DST database was not empty when you started the replication job. You will need to start your replication job again from the beginning. - See the `I need to start the replication process again from the beginning. How can I do this?` question in this document.
+A. Your DST database may not have been empty when starting your replication job.
+
+    - Check your DST database's log files. This database should be getting no traffic other that `pglogical`.
+    - If you see logs like `ERROR: duplicate key value violates unique constraint`, your DST database was not empty when you started the replication job. You will need to start your replication job again from the beginning.
+        - See the `I need to start the replication process again from the beginning. How can I do this?` question in this document.
 
 B. Your network may have been interrupted between the SRC and DST databases.
 
