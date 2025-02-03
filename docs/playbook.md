@@ -155,3 +155,28 @@ If you are using AWS RDS, you can reset the root password via the AWS Console or
 If you revoked logins on your database and want to restore them, you can run the following command:
 
     $ belt restore-logins testdatacenter1 database1
+
+## The status of my replication job is `down`. What can I do?
+
+There are a few reasons why a replication job can be `down`. The most common reasons are:
+
+### 1. If you were in the `initializing` phase (eg. last state was `initializing`, and the status is now `down`):
+
+A. Your DST database may not have been empty when starting your replication job. - Check your DST database's log files. This database should be getting no traffic other that `pglogical`. - If you see logs like `ERROR: duplicate key value violates unique constraint`, your DST database was not empty when you started the replication job. You will need to start your replication job again from the beginning. - See the `I need to start the replication process again from the beginning. How can I do this?` question in this document.
+
+B. Your network may have been interrupted between the SRC and DST databases.
+
+    - Check your DST database's log files. You should see logs like `background worker "pglogical apply XXXXX:YYYYYYYYYY" (PID ZZZZZ) exited with exit code 1`.
+    - Connect to your DST database and run the following:
+        - `SELECT * FROM pg_replication_origin;`
+            - If you see 0 rows, **your replication job was disrupted, and can be restored**. You can restore by doing the following:
+                - Connect to your DST database and run the following: `SELECT pglogical.alter_subscription_disable('<subscription_name>',true);`
+                    - If this is forward replicaton, the subscription name will be `pg1_pg2` and if this is back replication, the subscription name will be `pg2_pg1`.
+                - Get the publisher node identifier from the DST database by running the following: `SELECT * FROM pg_replication_origin;`
+                - Use the `roname` from the previous query to run the following: `SELECT pg_replication_origin_create('<roname from previous step>');`
+                - Run the following to re-enable the subscription: `SELECT pglogical.alter_subscription_enable('<subscription_name>',true);`
+                - Check on the status of replication now by running `belt status`.
+            - If you see 1 row, your replication job was not disrupted, and you will need to diagnose further as to why the `pglogical` plugin failed to apply changes.
+                - As of now, there is no recovery process for this. You will need to start your replication job again from the beginning.
+
+Source: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.pglogical.recover-replication-after-upgrade.html
