@@ -112,7 +112,7 @@ If `belt` hangs when running `teardown --full`, it is likely having trouble drop
 
 The following is a transaction that will TRUNCATE all tables in a database:
 
-````
+```sql
 SET lock_timeout = '2s';
 DO
 $$
@@ -143,4 +143,15 @@ BEGIN
 END;
 $$;
 ```
-````
+
+## I accidentally ran `revoke-logins` on my database when the schema owner was the same as my root user. How can I undo this?
+
+When this happens you accidently revoke LOGIN permissions from your root user. You will need to re-grant this with another superuser.
+
+If you are using AWS RDS, you can reset the root password via the AWS Console or API, and that will restore all revoked privileges to the root user (as well as reset the password).
+
+## I revoked logins on my database but I want to restore them. How can I do this? (NOT when the schema owner is the same as the root user)
+
+If you revoked logins on your database and want to restore them, you can run the following command:
+
+    $ belt restore-logins testdatacenter1 database1
