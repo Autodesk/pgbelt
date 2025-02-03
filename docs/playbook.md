@@ -102,3 +102,45 @@ If `belt` hangs when running `teardown --full`, it is likely having trouble drop
 - For each _idle in transaction_ connection, run the following:
   - `SELECT pg_terminate_backend(<pid>);`
 - Once all _idle in transaction_ connections are terminated, you can run the `teardown --full` command again.
+
+## I need to start the replication process again from the beginning. How can I do this?
+
+- Run `belt teardown` to remove the replication jobs from the databases.
+- Run `belt status` to ensure the replication jobs are `unconfigured` for both directions.
+- TRUNCATE the data in your destination database. **Please take as much precaution as possible when running TRUNCATE, as it will delete all data in the tables. Especially please ensure you are running this on the correct database!**
+- Now you can start the replication process again from the beginning (eg run `belt setup`).
+
+The following is a transaction that will TRUNCATE all tables in a database:
+
+````
+SET lock_timeout = '2s';
+DO
+$$
+DECLARE
+	_rec RECORD;
+BEGIN
+	FOR _rec IN
+		SELECT
+			pg_namespace.nspname,
+			pg_class.relname
+		FROM
+			pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON (
+				pg_namespace.oid = pg_class.relnamespace AND
+				pg_namespace.nspname = 'public'
+			)
+		WHERE
+			pg_class.relkind = 'r'
+	LOOP
+		-- RAISE WARNING 'TRUNCATE TABLE %.%;';
+
+		EXECUTE FORMAT(
+			'TRUNCATE TABLE %I.%I CASCADE',
+			_rec.nspname,
+			_rec.relname
+		);
+	END LOOP;
+END;
+$$;
+```
+````
