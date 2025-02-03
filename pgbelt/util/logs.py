@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from os import getenv
 from os import makedirs
 
@@ -8,7 +9,7 @@ FORMATTER = "{asctime} {name}:{levelname} {message}"
 # if this module is ever imported we set up the root logger to log to stderr
 root_level = int(getenv("LOG_LEVEL", logging.DEBUG))
 root_handler = logging.StreamHandler()
-formatter = logging.Formatter(fmt=FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style='{')
+formatter = logging.Formatter(fmt=FORMATTER, datefmt="%Y-%m-%d %H:%M:%S", style="{")
 root_handler.setFormatter(formatter)
 root_handler.setLevel(root_level)
 root_logger = logging.getLogger("dbup")
@@ -20,13 +21,21 @@ def log_file_dir(db: str, dc: str) -> str:
     return f"logs/{db}/{dc}"
 
 
-def log_file_path(db: str, dc: str) -> str:
-    return f"logs/{db}/{dc}/logs.txt"
+def log_file_path(db: str, dc: str, kind: str) -> str:
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    if kind:
+        return f"logs/{db}/{dc}/{timestamp}-{kind}.txt"
+    else:
+        return f"logs/{db}/{dc}/{timestamp}.txt"
 
 
 def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
     # When we set up a logger for that db that emits to a file
-    logger = logging.getLogger(f"dbup.{db}.{dc}")
+    logger = (
+        logging.getLogger(f"dbup.{db}.{dc}.{kind}")
+        if kind
+        else logging.getLogger(f"dbup.{db}.{dc}")
+    )
     if not logger.handlers:
         skip_file_handler = False
 
@@ -41,8 +50,10 @@ def get_logger(db: str, dc: str, kind: str = "") -> logging.Logger:
             pass
 
         if not skip_file_handler:
-            handler = logging.FileHandler(log_file_path(db, dc), mode="w")
-            handler.setFormatter(logging.Formatter(FORMATTER, datefmt='%Y-%m-%d %H:%M:%S', style="{"))
+            handler = logging.FileHandler(log_file_path(db, dc, kind), mode="w")
+            handler.setFormatter(
+                logging.Formatter(FORMATTER, datefmt="%Y-%m-%d %H:%M:%S", style="{")
+            )
             # always log everything to the file
             logger.setLevel(logging.DEBUG)
             logger.addHandler(handler)
