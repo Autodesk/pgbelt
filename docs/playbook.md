@@ -90,3 +90,15 @@ If the `sync` command fails, you can try to run the individual commands that mak
 ### 5. Validating Data:
 
 - `validate-data` - Check random 100 rows and last 100 rows of every table involved in the replication job, and ensure all match exactly.
+
+## belt hangs when running `teardown --full`. What can I do?
+
+If `belt` hangs when running `teardown --full`, it is likely having trouble dropping the `pglogical` extension. This normally happens due to any _idle in transaction_ connections to the database. To resolve this, you can run the following when it hangs:
+
+- CTRL+C to stop the `teardown --full` command
+- Identify which database is getting traffic (SRC or DST)
+- List out the active connections and find which are _idle in transaction_:
+  - `SELECT * FROM pg_stat_activity;`
+- For each _idle in transaction_ connection, run the following:
+  - `SELECT pg_terminate_backend(<pid>);`
+- Once all _idle in transaction_ connections are terminated, you can run the `teardown --full` command again.
