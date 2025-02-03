@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.3](https://github.com/Autodesk/pgbelt/compare/v0.8.2...v0.8.3) (2025-02-03)
+
+
+### Bug Fixes
+
+* loggers were overwriting themselves on disk. Separated now [#673](https://github.com/Autodesk/pgbelt/issues/673) ([#674](https://github.com/Autodesk/pgbelt/issues/674)) ([f39c73d](https://github.com/Autodesk/pgbelt/commit/f39c73d5932604300d6859cdcc94562b86a4fc66))
+
+
+### Documentation
+
+* various updates ([#676](https://github.com/Autodesk/pgbelt/issues/676)) ([64f62dd](https://github.com/Autodesk/pgbelt/commit/64f62dd0d33cdb248e1d57d3e4f66cb307962fa2))
+
 ## [0.8.2](https://github.com/Autodesk/pgbelt/compare/v0.8.1...v0.8.2) (2025-01-06)
 
 
