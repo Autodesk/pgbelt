@@ -6,8 +6,6 @@ RUN apt-get update && apt-get install -y wget gnupg
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ bullseye-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
   && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
        apt-key add - \
-  && echo "deb [arch=amd64] https://dl.2ndquadrant.com/default/release/apt bullseye-2ndquadrant main" > /etc/apt/sources.list.d/2ndquadrant.list \
-  && wget --quiet -O - https://dl.2ndquadrant.com/gpg-key.asc | apt-key add - \
   && apt-get update \
   && apt-get install -y postgresql-13-pglogical
 
