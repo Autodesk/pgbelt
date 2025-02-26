@@ -124,6 +124,7 @@ class FilterConfig(BaseModel):
     @classmethod
     async def apply(self, list_of_items: list[str]) -> list[str]:
         filtered = []
+        # Filter based on the include list if provided
         if self.include is not None:
             filtered = [item for item in list_of_items if item in self.include]
         

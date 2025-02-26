@@ -53,12 +53,12 @@ async def _create_dbupgradeconfigs() -> dict[str, DbupgradeConfig]:
         db_upgrade_config_kwargs["schema_name"] = (
             "non_public_schema" if "nonpublic" in s else "public"
         )
-        db_upgrade_config_kwargs["tables"] = (
-            ["UsersCapital", "existingSomethingIds"] if "exodus" in s else None
-        )
-        db_upgrade_config_kwargs["sequences"] = (
-            ["userS_id_seq"] if "exodus" in s else None
-        )
+        db_upgrade_config_kwargs["tables"] = {
+          "include":  ["UsersCapital", "existingSomethingIds"] if "exodus" in s else None
+        }
+        db_upgrade_config_kwargs["sequences"] = {
+         "include":   ["userS_id_seq"] if "exodus" in s else None
+        }
         config = DbupgradeConfig(**db_upgrade_config_kwargs)
 
         # The IP addresses are set in the docker-compose file, so we can pull them out of the environment. They follow the following pattern:

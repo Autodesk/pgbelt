@@ -39,6 +39,12 @@
     },
     "other_users": null
   },
-  "tables": null,
-  "sequences": null
+  "tables": {
+    "include": [],
+    "exclude": []
+  },
+  "sequences": {
+    "include": [],
+    "exclude": []
+  }
 }
