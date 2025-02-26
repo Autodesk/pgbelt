@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from logging import Logger
 from os.path import join
-from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
-
+from typing import Any, Callable, Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
+from asyncpg import Pool
+from asyncpg import create_pool
 from aiofiles import open as aopen
 from aiofiles.os import remove
 from pgbelt.util import get_logger
 from pgbelt.util.asyncfuncs import makedirs
+from pgbelt.util.postgres import analyze_table_pkeys
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import field_validator
@@ -107,6 +110,29 @@ class DbConfig(BaseModel):
         return f"postgresql://{self.pglogical_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
 
+class FilterConfig(BaseModel):
+    """
+    Represents a object that includes the include and the exclude lists.
+
+    include: list of string.
+    exclude: list of string.
+    """
+    
+    include: Optional[list[str]] = None
+    exclude: Optional[list[str]] = None
+    
+    @classmethod
+    async def apply(self, list_of_items: list[str]) -> list[str]:
+        filtered = []
+        if self.include is not None:
+            filtered = [item for item in list_of_items if item in self.include]
+        
+        # Filter based on the exclude list if provided
+        if self.exclude is not None:
+            filtered = [item for item in list_of_items if item not in self.exclude]
+
+        return filtered
+
 class DbupgradeConfig(BaseModel):
     """
     Represents a migration to be performed.
@@ -115,8 +141,8 @@ class DbupgradeConfig(BaseModel):
     dc: str A name used to identify the environment this database pair is in. Used in cli commands.
     src: DbConfig The database we are moving data out of.
     dst: DbConfig The database we are moving data into.
-    tables: Optional[list[str]] A list of tables to replicate. If not provided all tables in the named schema will be replicated.
-    sequences: Optional[list[str]] A list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
+    tables: Optional[FilterConfig] A object for filters to filter out tables ending up with a list of tables to replicate. If not provided all tables in the named schema will be replicated.
+    sequences: Optional[FilterConfig] A object for filters to filter out sequences ending up with a list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
     schema_name: Optional[str] The schema to operate on. Defaults to "public".
     """
 
@@ -124,8 +150,8 @@ class DbupgradeConfig(BaseModel):
     dc: str
     src: Optional[DbConfig] = None
     dst: Optional[DbConfig] = None
-    tables: Optional[list[str]] = None
-    sequences: Optional[list[str]] = None
+    tables: Optional[FilterConfig] = None
+    sequences: Optional[FilterConfig] = None
     schema_name: Optional[str] = "public"
 
     _not_empty = field_validator("db", "dc")(not_empty)

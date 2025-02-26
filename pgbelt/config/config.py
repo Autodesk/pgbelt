@@ -3,13 +3,14 @@ from collections.abc import AsyncGenerator
 from collections.abc import Awaitable
 from os.path import join
 from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
-
+from asyncpg import create_pool
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.config.remote import resolve_remote_config
 from pgbelt.util import get_logger
 from pgbelt.util.asyncfuncs import isdir
 from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir
+from pgbelt.util.postgres import analyze_table_pkeys
 
 
 def get_config(
@@ -63,6 +64,17 @@ async def get_config_async(
     else:
         await config.save()
 
+    async with create_pool(config.src.owner_uri, min_size=1) as src_pool:
+        _, list_of_tables, _ = await analyze_table_pkeys(src_pool, config.schema_name, logger)
+        config.tables = config.tables.apply(list_of_tables)
+        seqs = await src_pool.fetch(
+        f"""
+        SELECT sequence_name
+        FROM information_schema.sequences
+        WHERE sequence_schema = '{config.schema_name}';
+        """)
+        config.sequences = config.sequences.apply(seqs)
+    
     return config
 
 
