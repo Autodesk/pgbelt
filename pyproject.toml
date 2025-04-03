@@ -23,7 +23,7 @@ pre-commit = "~4.2.0"
 flake8 = "^7.2.0"
 pytest-cov = "~6.1.0"
 pytest = "^8.3.5"
-coverage = {extras = ["toml"], version = "^7.7"}
+coverage = {extras = ["toml"], version = "^7.8"}
 safety = "^3.3.0"
 mypy = "^1.15"
 xdoctest = {extras = ["colors"], version = "^1.2.0"}
