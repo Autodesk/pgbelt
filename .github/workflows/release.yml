@@ -26,6 +26,22 @@ jobs:
         run: |
           pip install --constraint=.github/workflows/constraints.txt poetry poetry-dynamic-versioning
           poetry --version
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Install dependencies
+        run: |
+          go mod tidy
+
+      - name: Build the project for all platforms
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o pg-compare-cli-linux ./pg-compare-linux
+          GOOS=darwin GOARCH=amd64 go build -o pg-compare-cli-macos ./pg-compare-macos
+          GOOS=windows GOARCH=amd64 go build -o pg-compare-cli-windows.exe ./pg-compare-windows.exe
+
       - name: Build package
         run: |
           poetry build --ansi
