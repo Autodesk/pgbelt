@@ -8,6 +8,11 @@ readme = "README.md"
 packages = [
     { include = "pgbelt", from = "./" },
 ]
+include = [
+    "pg-compare/pg-compare-linux",
+    "pg-compare/pg-compare-macos",
+    "pg-compare/pg-compare-windows.exe",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
