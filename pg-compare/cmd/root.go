@@ -41,11 +41,19 @@ func ConfigureLogger() {
 	Logger = logger
 }
 func init() {
+	// fmt.Println(os.Args)
+	// if len(os.Args) > 1 {
+	// 	os.Args = os.Args[1:]
+	// }
+	// fmt.Println(os.Args)
 	Logger = log.Logger.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
 	cobra.OnInitialize(ConfigureLogger)
 }
-func Execute() {
+func Execute(filePath string) {
+	if filePath != "" {
+		rootCmd.SetArgs([]string{"compare", "--config=" + filePath})
+	}
 	if err := rootCmd.Execute(); err != nil {
 		_, err := fmt.Fprintln(os.Stderr, err)
 		if err != nil {

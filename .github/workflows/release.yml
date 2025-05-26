@@ -34,14 +34,20 @@ jobs:
 
       - name: Install dependencies
         run: |
-          go mod tidy
+          cd pg-compare && go mod tidy
 
       - name: Build the project for all platforms
         run: |
-          GOOS=linux GOARCH=amd64 go build -o pg-compare-cli-linux ./pg-compare-linux
-          GOOS=darwin GOARCH=amd64 go build -o pg-compare-cli-macos ./pg-compare-macos
-          GOOS=windows GOARCH=amd64 go build -o pg-compare-cli-windows.exe ./pg-compare-windows.exe
-
+          cd pg-compare && set -e \
+          && go mod download \
+          && for GOOS in linux darwin windows; do \
+              for GOARCH in amd64 arm64; do \
+                  EXT="so"; \
+                  [ "$GOOS" = "windows" ] && EXT="dll"; \
+                  go build -o "pgcompare_${GOOS}_${GOARCH}.${EXT}" -buildmode=c-shared main.go; \
+                  cp "pgcompare_${GOOS}_${GOARCH}.${EXT}" ./../pgbelt/
+              done; \
+          done;
       - name: Build package
         run: |
           poetry build --ansi

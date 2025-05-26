@@ -160,6 +160,12 @@ async def _test_sync(configs: dict[str, DbupgradeConfig]):
     await _check_status(configs, "unconfigured", "replicating")
 
 
+async def _test_compare(configs: dict[str, DbupgradeConfig]):
+    pgbelt.cmd.compare.echo = Mock()
+    compare_echo_call_arg = pgbelt.cmd.compare.echo.call_args
+    print(compare_echo_call_arg)
+
+
 async def _get_dumps(
     configs: dict[str, DbupgradeConfig], src: bool = False
 ) -> dict[str, str]:
@@ -463,7 +469,7 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
     await _test_revoke_logins(configs)
     await _test_teardown_forward_replication(configs)
     await _test_sync(configs)
-
+    await _test_compare(configs)
     # Check if the data is the same before testing teardown
     await _ensure_same_data(configs)
 

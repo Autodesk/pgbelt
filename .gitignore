@@ -18,3 +18,9 @@ tables/*
 .python-version
 .mypy_cache
 __pycache__/
+pg-compare/*.so
+pg-compare/*.h
+pg-compare/*.dll
+pgbelt/*.so
+pgbelt/*.h
+pgbelt/*.dll

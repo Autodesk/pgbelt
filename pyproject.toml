@@ -9,9 +9,9 @@ packages = [
     { include = "pgbelt", from = "./" },
 ]
 include = [
-    "pg-compare/pg-compare-linux",
-    "pg-compare/pg-compare-macos",
-    "pg-compare/pg-compare-windows.exe",
+    "pgbelt/*.so",
+    "pgbelt/*.h",
+    "pgbelt/*.dll"
 ]
 
 [tool.poetry.dependencies]

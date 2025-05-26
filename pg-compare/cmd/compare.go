@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,32 +22,32 @@ func init() {
 	rootCmd.AddCommand(compareCmd)
 }
 
-func createConnection(conf DBConfig, suffix string) *PgConnection {
+func createConnection(conf DBConfig, suffix string) (*PgConnection, error) {
 	pgConn := PgConnection{config: conf}
 	password := url.QueryEscape(conf.RootUser.PW)
 	connUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", conf.RootUser.Name, password, conf.Host, conf.Port, conf.DB)
 	err := pgConn.Connect(context.Background(), connUrl)
 	if err != nil {
 		Logger.Error().Err(err).Msgf("failed to connect: %s", connUrl)
-		return nil
+		return nil, err
 	}
 	Logger.Info().Msgf("connected to %s", conf.Host)
 	pgConn.SetSubLogger(suffix)
-	return &pgConn
+	return &pgConn, nil
 }
 
-func createOwnerConnection(conf DBConfig, suffix string) *PgConnection {
+func createOwnerConnection(conf DBConfig, suffix string) (*PgConnection, error) {
 	pgConn := PgConnection{config: conf}
 	password := url.QueryEscape(conf.OwnerUser.PW)
 	connUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", conf.OwnerUser.Name, password, conf.Host, conf.Port, conf.DB)
 	err := pgConn.Connect(context.Background(), connUrl)
 	if err != nil {
 		Logger.Error().Err(err).Msgf("failed to connect: %s", connUrl)
-		return nil
+		return nil, err
 	}
 	Logger.Info().Msgf("connected to %s", conf.Host)
 	pgConn.SetSubLogger(suffix)
-	return &pgConn
+	return &pgConn, nil
 }
 
 func itemExists(array []Table, item string) bool {
@@ -83,6 +82,7 @@ func renderConnections(connections []Connection) {
 		connTable.AppendRow([]interface{}{connection.Pid, connection.Username, connection.DBname, connection.ClientAdders, connection.Status, connection.Query})
 		connTable.AppendSeparator()
 	}
+	printHeader("Connections Comparison")
 	connTable.Render()
 }
 func sequenceExists(array []Sequence, item string) bool {
@@ -92,6 +92,32 @@ func sequenceExists(array []Sequence, item string) bool {
 		}
 	}
 	return false
+}
+func printSummary(resource string, srcCount, dstCount int, equals bool, missing int) {
+	green := "\033[32m"
+	red := "\033[31m"
+	yellow := "\033[33m"
+	reset := "\033[0m"
+
+	fmt.Printf("Source Count: %s%d%s\n", green, srcCount, reset)
+	fmt.Printf("%s Count: %s%d%s\n", resource, green, dstCount, reset)
+	if equals {
+		fmt.Printf("%s Count Equals: %s%v%s\n", resource, green, equals, reset)
+	} else {
+		fmt.Printf("%s Count Equals: %s%v%s\n", resource, red, equals, reset)
+	}
+	if missing > 0 {
+		fmt.Printf("Missing %s Count: %s%d%s\n", resource, yellow, missing, reset)
+	} else {
+		fmt.Printf("Missing %s Count: %s%d%s\n", resource, green, missing, reset)
+	}
+}
+func printHeader(text string) {
+	line := strings.Repeat("=", 79)
+	padding := (79 - len(text)) / 2
+	fmt.Println(line)
+	fmt.Printf("%s%s\n", strings.Repeat(" ", padding), text)
+	fmt.Println(line)
 }
 
 var compareCmd = &cobra.Command{
@@ -119,15 +145,40 @@ var compareCmd = &cobra.Command{
 			return
 		}
 		Logger.Info().Msg("config loaded")
-		srcConn := createConnection(Config.Src, "SOURCE")
-		dstConn := createConnection(Config.Dst, "DESTINATION")
-		dstOwnerConn := createOwnerConnection(Config.Dst, "DESTINATION")
+
+		// Create connections to source and destination databases
+		srcConn, connErr := createConnection(Config.Src, "SOURCE")
+		if connErr != nil {
+			Logger.Error().Err(connErr).Msg("failed to create source connection")
+			return
+		}
+		dstConn, connErr := createConnection(Config.Dst, "DESTINATION")
+		if connErr != nil {
+			Logger.Error().Err(connErr).Msg("failed to create destination connection")
+			return
+		}
+
+		// Uncomment the following lines if you want to create owner connections
+		// Note: This is commented out to avoid unnecessary owner connections in the comparison.
+
+		// dstOwnerConn, connErr := createOwnerConnection(Config.Dst, "DESTINATION")
+		// if connErr != nil {
+		// 	Logger.Error().Err(connErr).Msg("failed to create destination owner connection")
+		// 	return
+		// }
+
+		// Set up table headers
 		t.AppendHeader(table.Row{"Table Name", fmt.Sprintf("Source: %s", srcConn.config.Host[:4]), fmt.Sprintf("Destination: %s", dstConn.config.Host[:4]), "Equal"})
 		s.AppendHeader(table.Row{"Extra Comparison Items", fmt.Sprintf("Source: %s", srcConn.config.Host[:4]), fmt.Sprintf("Destination: %s", dstConn.config.Host[:4]), "Equal"})
 		i.AppendHeader(table.Row{"Index Count", fmt.Sprintf("Source: %s", srcConn.config.Host[:4]), fmt.Sprintf("Destination: %s", dstConn.config.Host[:4]), "Equal"})
 		seq.AppendHeader(table.Row{"Sequence Count", fmt.Sprintf("Source: %s", srcConn.config.Host[:4]), fmt.Sprintf("Destination: %s", dstConn.config.Host[:4]), "Equal"})
 
+		// Defer closing connections
 		defer func() { srcConn.CloseConn(context.Background()); dstConn.CloseConn(context.Background()) }()
+
+		// Fetch and compare tables, indexes, sequences, and other items
+
+		// Fetch tables and compare row counts
 		srcTables, err := srcConn.GetTables(context.Background())
 		if err != nil {
 			Logger.Error().Err(err).Msg("failed to get indexes")
@@ -153,14 +204,14 @@ var compareCmd = &cobra.Command{
 			srcCount, err := srcConn.GetTableRowCount(context.Background(), table)
 			if err != nil {
 				tablesEquals = false
-				Logger.Error().Err(err).Msg("failed to get row count")
+				// Logger.Error().Err(err).Msg("failed to get row count")
 				t.AppendRow([]interface{}{table, "FAILED", "SRC FAIL", tablesEquals})
 				t.AppendSeparator()
 				continue
 			}
 			dstCount, err := dstConn.GetTableRowCount(context.Background(), table)
 			if err != nil {
-				Logger.Error().Err(err).Msg("failed to get row count")
+				// Logger.Error().Err(err).Msg("failed to get row count")
 				tablesEquals = false
 				t.AppendRow([]interface{}{table, srcCount, "FAILED", tablesEquals})
 				t.AppendSeparator()
@@ -176,9 +227,11 @@ var compareCmd = &cobra.Command{
 			t.AppendRow([]interface{}{table, srcCount, dstCount, tablesEquals})
 		}
 		t.AppendSeparator()
-		Logger.Info().Msgf("tables not found in dst: %d", notFoundTables)
+		printHeader("Tables Comparison")
+		printSummary("Tables", len(srcTables), len(dstTables), len(srcTables) == len(dstTables), notFoundTables)
 		t.Render()
 
+		// Fetch and compare indexes
 		srcIndexes, err := srcConn.GetIndexes(context.Background())
 		if err != nil {
 			Logger.Error().Err(err).Msg("failed to get indexes")
@@ -190,7 +243,6 @@ var compareCmd = &cobra.Command{
 			return
 		}
 		indexesEquals := srcIndexes == dstIndexes
-		i.AppendRow([]interface{}{"", srcIndexes, dstIndexes, indexesEquals})
 		srcIndexesList, err := srcConn.GetIndexesList(context.Background())
 		if err != nil {
 			Logger.Error().Err(err).Msg("failed to get indexes list")
@@ -213,7 +265,7 @@ var compareCmd = &cobra.Command{
 				Logger.Debug().Msgf("index %s does not exist in dst", index.Index)
 				generatedStr, genStrErr := srcConn.GetString(context.Background(), fmt.Sprintf("SELECT pg_get_indexdef('%s'::regclass);", index.Index), "index")
 				if genStrErr != nil {
-					Logger.Error().Err(genStrErr).Msg("failed to get index definition")
+					// Logger.Error().Err(genStrErr).Msg("failed to get index definition")
 				} else {
 					Logger.Debug().Msgf("index definition: %s", generatedStr)
 				}
@@ -224,8 +276,11 @@ var compareCmd = &cobra.Command{
 			}
 			i.AppendRow([]interface{}{index, "FOUND", "FOUND", indexesEquals})
 		}
+		printHeader("Index Comparison")
+		printSummary("Indexes", len(srcIndexesList), len(dstIndexesList), indexesEquals, notFoundIndexes)
 		i.Render()
 
+		// Fetch and compare sequences
 		srcSequences, srcSeqErr := srcConn.GetSequences(context.Background())
 		if srcSeqErr != nil {
 			Logger.Error().Err(srcSeqErr).Msg("failed to get sequences")
@@ -237,9 +292,7 @@ var compareCmd = &cobra.Command{
 			return
 		}
 		sequencesCountEquals := len(srcSequences) == len(dstSequences)
-
 		Logger.Debug().Msgf("src sequences: %d, dst sequences: %d", len(srcSequences), len(dstSequences))
-		seq.AppendRow([]interface{}{"", len(srcSequences), len(dstSequences), sequencesCountEquals})
 		seq.AppendSeparator()
 		missingSequences := []Sequence{}
 		for _, sequence := range srcSequences {
@@ -258,24 +311,31 @@ var compareCmd = &cobra.Command{
 			seq.AppendRow([]interface{}{sequence, "FOUND", "FOUND", sequenceEquals})
 			seq.AppendSeparator()
 		}
+		printHeader("Sequence Comparison")
+		printSummary("Sequences", len(srcSequences), len(dstSequences), sequencesCountEquals, len(missingSequences))
 		seq.Render()
-		if len(missingSequences) != 0 && strings.Contains(configFile, "schedule") {
-			createBool := true
-			inputMissingSeq := bufio.NewScanner(os.Stdin)
-			Logger.Info().Msg("Do you want to create missing sequences? !RELATED TO SCHEDULER-SERVICE! (yes/no)")
-			inputMissingSeq.Scan()
-			if inputMissingSeq.Text() != "yes" {
-				createBool = false
-				Logger.Info().Msg("skipping creating missing seqeuence")
-			}
-			if createBool {
-				err = dstOwnerConn.CreateDiffSequences(missingSequences, context.Background())
-				if err != nil {
-					Logger.Error().Err(err).Msg("failed to create missing seqeucnes")
-				}
-			}
-		}
 
+		// Uncomment the following block if you want to create missing sequences in the destination database
+		// Note: This is commented out to avoid accidental creation of sequences in production environments.
+
+		// if len(missingSequences) != 0 && strings.Contains(configFile, "schedule") {
+		// 	createBool := true
+		// 	inputMissingSeq := bufio.NewScanner(os.Stdin)
+		// 	Logger.Info().Msg("Do you want to create missing sequences? !RELATED TO SCHEDULER-SERVICE! (yes/no)")
+		// 	inputMissingSeq.Scan()
+		// 	if inputMissingSeq.Text() != "yes" {
+		// 		createBool = false
+		// 		Logger.Info().Msg("skipping creating missing seqeuence")
+		// 	}
+		// 	if createBool {
+		// 		err = dstOwnerConn.CreateDiffSequences(missingSequences, context.Background())
+		// 		if err != nil {
+		// 			Logger.Error().Err(err).Msg("failed to create missing seqeucnes")
+		// 		}
+		// 	}
+		// }
+
+		// Fetch and compare other items like tables, indexes, and functions
 		queries := []map[string]string{
 			{"query": "select count(*) from pg_stat_user_tables where schemaname='public' and relname NOT LIKE '%dms%';", "name": "pg_stat_user_tables"},
 			{"query": "select count(*) from pg_stat_user_indexes where schemaname='public' and relname NOT LIKE '%dms%';", "name": "pg_stat_user_indexes"},
@@ -298,8 +358,10 @@ var compareCmd = &cobra.Command{
 			}
 			s.AppendRow([]interface{}{query["name"], srcCount, dstCount, srcCount == dstCount})
 		}
+		printHeader("PG Tables Comparison")
 		s.Render()
 
+		// Fetch and compare current connections
 		srcConns, srcConnsErr := srcConn.GetCurrentConnections(context.Background())
 		if srcConnsErr != nil {
 			Logger.Error().Err(srcConnsErr).Msg("failed to get connections")

@@ -90,7 +90,6 @@ type Connection struct {
 }
 
 func (pc *PgConnection) GetTables(ctx context.Context) ([]Table, error) {
-	pc.log.Info().Msg("getting tables")
 	var tables []Table
 	result, err := pc.conn.Query(ctx, "SELECT schemaname, tablename, tableowner FROM pg_tables where schemaname not in ('information_schema', 'pg_catalog', 'pglogical') AND tablename != 'spatial_ref_sys';")
 	if err != nil {
@@ -114,7 +113,6 @@ func (pc *PgConnection) GetTables(ctx context.Context) ([]Table, error) {
 	return tables, nil
 }
 func (pc *PgConnection) GetSequences(ctx context.Context) ([]Sequence, error) {
-	pc.log.Info().Msg("getting sequences")
 	var sequences []Sequence
 	result, err := pc.conn.Query(ctx, "SELECT n.nspname AS schema_name, c.relname AS sequence_name ,r.rolname AS owner FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_roles r ON r.oid = c.relowner WHERE c.relkind = 'S' ORDER BY schema_name, sequence_name;")
 	if err != nil {
@@ -138,7 +136,6 @@ func (pc *PgConnection) GetSequences(ctx context.Context) ([]Sequence, error) {
 }
 
 func (pc *PgConnection) GetViews(ctx context.Context) ([]Sequence, error) {
-	pc.log.Info().Msg("getting views")
 	var sequences []Sequence
 	result, err := pc.conn.Query(ctx, "SELECT schemaname, viewname, viewowner FROM pg_catalog.pg_views where schemaname NOT IN ('pg_catalog', 'repack', 'information_schema');")
 	if err != nil {
@@ -161,10 +158,9 @@ func (pc *PgConnection) GetViews(ctx context.Context) ([]Sequence, error) {
 	return sequences, nil
 }
 func (pc *PgConnection) GetFunctions(ctx context.Context) ([]Function, error) {
-	pc.log.Info().Msg("getting functions")
 	var functions []Function
 	result, err := pc.conn.Query(ctx, `
-SELECT 
+SELECT
     n.nspname AS schema_name,
     p.proname AS function_name,
     pg_catalog.pg_get_function_arguments(p.oid) AS function_arguments,
@@ -196,7 +192,6 @@ ORDER BY schema_name, function_name;`)
 }
 
 func (pc *PgConnection) GetIndexes(ctx context.Context) (int, error) {
-	pc.log.Info().Msg("getting indexes count")
 	var count int
 	err := pc.conn.QueryRow(ctx, "SELECT COUNT(*) FROM pg_indexes;").Scan(&count)
 	if err != nil {
@@ -206,7 +201,6 @@ func (pc *PgConnection) GetIndexes(ctx context.Context) (int, error) {
 	return count, nil
 }
 func (pc *PgConnection) GetIndexesList(ctx context.Context) ([]Index, error) {
-	pc.log.Info().Msg("getting indexes list")
 	var indexes []Index
 	result, err := pc.conn.Query(ctx, "SELECT tablename, indexname FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema');")
 	if err != nil {
@@ -228,7 +222,6 @@ func (pc *PgConnection) GetIndexesList(ctx context.Context) ([]Index, error) {
 	return indexes, nil
 }
 func (pc *PgConnection) GetCurrentConnections(ctx context.Context) ([]Connection, error) {
-	pc.log.Info().Msg("getting connections list")
 	var connections []Connection
 	result, err := pc.conn.Query(ctx, "SELECT pid, usename, datname, client_addr, state, query FROM pg_stat_activity;")
 	if err != nil {
@@ -255,7 +248,6 @@ func (pc *PgConnection) GetCurrentConnections(ctx context.Context) ([]Connection
 }
 
 func (pc *PgConnection) GetTableRowCount(ctx context.Context, table Table) (int, error) {
-	pc.log.Debug().Msg("getting row count for table")
 	var count int
 	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s."%s"`, table.Scheme, table.Name)
 	_, err := pc.conn.Exec(ctx, "SET statement_timeout TO '10min'")

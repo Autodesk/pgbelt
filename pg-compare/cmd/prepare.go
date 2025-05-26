@@ -225,7 +225,11 @@ var prepareCmd = &cobra.Command{
 		}
 		requiredOwner := Config.Src.OwnerUser.Name
 		Logger.Info().Msg("config loaded")
-		srcConn := createConnection(Config.Src, "SOURCE")
+		srcConn, connErr := createConnection(Config.Src, "SOURCE")
+		if connErr != nil {
+			Logger.Error().Err(connErr).Msg("failed to create source connection")
+			return
+		}
 		defer func() { srcConn.CloseConn(context.Background()) }()
 		// Check Required user exists
 		count, err := srcConn.GetCount(context.Background(), fmt.Sprintf("SELECT count(*) FROM pg_roles WHERE rolname = '%s';", requiredOwner), requiredOwner)
@@ -268,7 +272,11 @@ GRANT ALL ON SCHEMA pglogical TO %s;
 			Logger.Info().Msg("skipping ownership changes")
 		}
 		if truncateDestination {
-			dstConn := createConnection(Config.Dst, "DESTINATION")
+			dstConn, connErr := createConnection(Config.Dst, "DESTINATION")
+			if connErr != nil {
+				Logger.Error().Err(connErr).Msg("failed to create destination connection")
+				return
+			}
 			defer func() { dstConn.CloseConn(context.Background()) }()
 			inputTrun := bufio.NewScanner(os.Stdin)
 			Logger.Info().Msgf("Truncate Tables will be applied to destination db: %s", Config.Dst.DB)
@@ -302,7 +310,11 @@ GRANT ALL ON SCHEMA pglogical TO %s;
 				return
 			}
 		}
-		dstConn := createConnection(Config.Dst, "DESTINATION")
+		dstConn, connErr := createConnection(Config.Dst, "DESTINATION")
+		if connErr != nil {
+			Logger.Error().Err(connErr).Msg("failed to create destination connection")
+			return
+		}
 		checkDestinationOwnerShip(context.Background(), dstConn)
 	},
 }
