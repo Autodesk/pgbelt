@@ -24,26 +24,26 @@ typer = ">=0.9,<0.16"
 
 [tool.poetry.dev-dependencies]
 black = "~25.1.0"
-pre-commit = "~4.1.0"
-flake8 = "^7.1.2"
-pytest-cov = "~6.0.0"
-pytest = "^8.3.4"
-coverage = {extras = ["toml"], version = "^7.6"}
+pre-commit = "~4.2.0"
+flake8 = "^7.2.0"
+pytest-cov = "~6.1.1"
+pytest = "^8.3.5"
+coverage = {extras = ["toml"], version = "^7.8"}
 safety = "^3.3.0"
 mypy = "^1.15"
 xdoctest = {extras = ["colors"], version = "^1.2.0"}
 flake8-bandit = "~4.1.1"
 flake8-bugbear = ">=21.9.2"
 flake8-docstrings = "^1.6.0"
-flake8-rst-docstrings = "^0.3.0"
-pep8-naming = "^0.14.1"
+flake8-rst-docstrings = "^0.3.1"
+pep8-naming = "^0.15.1"
 darglint = "^1.8.1"
 reorder-python-imports = "^3.14.0"
 pre-commit-hooks = "^5.0.0"
 Pygments = "^2.19.1"
 pyupgrade = "^3.19.1"
-pylint = "^3.3.4"
-pytest-asyncio = "~0.25.3"
+pylint = "^3.3.7"
+pytest-asyncio = "~0.26.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "setuptools"]
