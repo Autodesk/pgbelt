@@ -25,7 +25,7 @@ pytest-cov = "~6.1.1"
 pytest = "^8.3.5"
 coverage = {extras = ["toml"], version = "^7.8"}
 safety = "^3.3.0"
-mypy = "^1.15"
+mypy = "^1.16"
 xdoctest = {extras = ["colors"], version = "^1.2.0"}
 flake8-bandit = "~4.1.1"
 flake8-bugbear = ">=21.9.2"
