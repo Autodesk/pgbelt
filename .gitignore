@@ -12,7 +12,6 @@ venv
 build/*
 dist/*
 logs/*
-configs/testdc/*
 schemas/*
 tables/*
 .python-version

@@ -228,7 +228,7 @@ async def setup_db_upgrade_configs():
     test_configs = await _create_dbupgradeconfigs()
 
     # Prepare the databases
-    await _prepare_databases(test_configs)
+    # await _prepare_databases(test_configs)
 
     yield test_configs
 
