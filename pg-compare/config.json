@@ -1,0 +1,40 @@
+{
+  "db": "correspondence",
+  "dc": "corresbe",
+  "src": {
+    "host": "localhost",
+    "ip": "localhost",
+    "db": "postgres",
+    "port": "5432",
+    "root_user": {
+      "name": "user1",
+      "pw": "password1"
+    },
+    "pglogical_user": {
+      "name": "pglogical",
+      "pw": "vV0ZxdYwIjGQaSEF"
+    },
+    "other_users": null
+  },
+  "dst": {
+    "host": "localhost",
+    "ip": "localhost",
+    "db": "postgres",
+    "port": "5433",
+    "root_user": {
+      "name": "user2",
+      "pw": "password2"
+    },
+    "owner_user": {
+      "name": "user2",
+      "pw": "password2"
+    },
+    "pglogical_user": {
+      "name": "pglogical",
+      "pw": "A88EakJTDb5eiXOE"
+    },
+    "other_users": null
+  },
+  "tables": [],
+  "sequences": []
+}
