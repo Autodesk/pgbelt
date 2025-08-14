@@ -7,7 +7,7 @@ RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ bullseye-pgdg main" > /et
   && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
        apt-key add - \
   && apt-get update \
-  && apt-get install -y postgresql-13-pglogical
+  && apt-get install -y postgresql-17-pglogical
 
 # Configure with settings pgbelt requires (max_wal_senders, max_replication_slots, max_worker_processes, shared_preloaded_libraries)
 RUN echo "host    replication          postgres                172.18.0.0/16   trust" >> /usr/share/postgresql/13/pg_hba.conf.sample
