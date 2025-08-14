@@ -36,6 +36,8 @@ def run_with_configs(
     """
 
     def decorator(func):
+        if func.__doc__ == None:
+            func.__doc__ = "No docstring provided for this command."
         if skip_src and skip_dst:
             func.__doc__ += (
                 "\n\n    Can be run with both src and dst set null in the config file."

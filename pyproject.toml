@@ -8,6 +8,11 @@ readme = "README.md"
 packages = [
     { include = "pgbelt", from = "./" },
 ]
+include = [
+    "pgbelt/*.so",
+    "pgbelt/*.h",
+    "pgbelt/*.dll"
+]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
