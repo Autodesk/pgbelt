@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/Autodesk/pgbelt/compare/v0.8.3...v0.9.0) (2026-01-05)
+
+
+### Features
+
+* basing on Python 3.13 and fixing Postgres 17 pgdump issue ([#801](https://github.com/Autodesk/pgbelt/issues/801)) ([a184bc4](https://github.com/Autodesk/pgbelt/commit/a184bc4f2621b516e39964ef84daae2aed1a3280))
+
+
+### Bug Fixes
+
+* flake8 fixes ([#803](https://github.com/Autodesk/pgbelt/issues/803)) ([53cc971](https://github.com/Autodesk/pgbelt/commit/53cc9719122641f0d448d12e9b2ffaca2c3c41cd))
+
 ## [0.8.3](https://github.com/Autodesk/pgbelt/compare/v0.8.2...v0.8.3) (2025-02-03)
 
 
