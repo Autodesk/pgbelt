@@ -18,38 +18,39 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
 
     The summary table alters slightly if the results are for a destination database.
 
-    results format:
-    [
-        {
-            "server_version": "9.6.20",
-            "max_replication_slots": "10",
-            "max_worker_processes": "10",
-            "max_wal_senders": "10",
-            "shared_preload_libraries": ["pg_stat_statements", ...],
-            "rds.logical_replication": "on",
-            "schema: "public",
-            "extensions": ["uuid-ossp", ...],
-            "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
-                "root": {
-                    "rolname": "root",
-                    "rolcanlogin": True,
-                    "rolcreaterole": True,
-                    "rolinherit": True,
-                    "rolsuper": True,
-                    "memberof": ["rds_superuser", ...]
-                },
-                "owner": {
-                    "rolname": "owner",
-                    "rolcanlogin": True,
-                    "rolcreaterole": False,
-                    "rolinherit": True,
-                    "rolsuper": False,
-                    "memberof": ["rds_superuser", ...]
+    Example results format::
+
+        [
+            {
+                "server_version": "9.6.20",
+                "max_replication_slots": "10",
+                "max_worker_processes": "10",
+                "max_wal_senders": "10",
+                "shared_preload_libraries": ["pg_stat_statements", ...],
+                "rds.logical_replication": "on",
+                "schema: "public",
+                "extensions": ["uuid-ossp", ...],
+                "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
+                    "root": {
+                        "rolname": "root",
+                        "rolcanlogin": True,
+                        "rolcreaterole": True,
+                        "rolinherit": True,
+                        "rolsuper": True,
+                        "memberof": ["rds_superuser", ...]
+                    },
+                    "owner": {
+                        "rolname": "owner",
+                        "rolcanlogin": True,
+                        "rolcreaterole": False,
+                        "rolinherit": True,
+                        "rolsuper": False,
+                        "memberof": ["rds_superuser", ...]
+                    }
                 }
-            }
-        },
-        ...
-    ]
+            },
+            ...
+        ]
     """
 
     summary_table = [
@@ -165,25 +166,26 @@ def _users_table(users: dict, is_dest_db: bool = False) -> list[list]:
 
     The users table alters slightly if the results are for a destination database.
 
-    users format:
-    {
-        "root": {
-            "rolname": "root",
-            "rolcanlogin": True,
-            "rolcreaterole": True,
-            "rolinherit": True,
-            "rolsuper": True,
-            "memberof": ["rds_superuser", ...]
-        },
-        "owner": {
-            "rolname": "owner",
-            "rolcanlogin": True,
-            "rolcreaterole": False,
-            "rolinherit": True,
-            "rolsuper": False,
-            "memberof": ["rds_superuser", ...]
+    Example users format::
+
+        {
+            "root": {
+                "rolname": "root",
+                "rolcanlogin": True,
+                "rolcreaterole": True,
+                "rolinherit": True,
+                "rolsuper": True,
+                "memberof": ["rds_superuser", ...]
+            },
+            "owner": {
+                "rolname": "owner",
+                "rolcanlogin": True,
+                "rolcreaterole": False,
+                "rolinherit": True,
+                "rolsuper": False,
+                "memberof": ["rds_superuser", ...]
+            }
         }
-    }
 
     See pgbelt.util.postgres.precheck_info results["users"] for more info..
     """
@@ -250,15 +252,16 @@ def _tables_table(
     """
     Takes a list of table dicts and returns a table of the tables for echo.
 
-    tables format:
-    [
-        {
-            "Name": "table_name",
-            "Schema": "schema_name",
-            "Owner": "owner_name"
-        },
-        ...
-    ]
+    Example tables format::
+
+        [
+            {
+                "Name": "table_name",
+                "Schema": "schema_name",
+                "Owner": "owner_name"
+            },
+            ...
+        ]
     """
 
     tables_table = [
@@ -297,15 +300,16 @@ def _sequences_table(
     """
     Takes a list of sequence dicts and returns a table of the sequences for echo.
 
-    sequences format:
-    [
-        {
-            "Name": "sequence_name",
-            "Schema": "schema_name",
-            "Owner": "owner_name"
-        },
-        ...
-    ]
+    Example sequences format::
+
+        [
+            {
+                "Name": "sequence_name",
+                "Schema": "schema_name",
+                "Owner": "owner_name"
+            },
+            ...
+        ]
     """
 
     sequences_table = [
@@ -339,11 +343,12 @@ def _extensions_table(
     Takes a list of source and destination extensions and returns a table of the extensions for echo.
     It will flag any extensions that are not in the destination database but are in the source database.
 
-    <source/destination>_extensions format:
-    [
-        "uuid-ossp",
-        ...
-    ]
+    Example extensions format::
+
+        [
+            "uuid-ossp",
+            ...
+        ]
 
     """
 
@@ -374,71 +379,72 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     If there are multiple databases, only print the summary table.
     If there is only one database, print the summary table and more detailed info.
 
-    results format:
-    [
-        {
-            "db": "db_name",
-            "src": {
-                "server_version": "9.6.20",
-                "max_replication_slots": "10",
-                "max_worker_processes": "10",
-                "max_wal_senders": "10",
-                "pg_stat_statements": "installed",
-                "pglogical": "installed",
-                "rds.logical_replication": "on",
-                "schema: "public",
-                "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
-                    "root": {
-                        "rolname": "root",
-                        "rolcanlogin": True,
-                        "rolcreaterole": True,
-                        "rolinherit": True,
-                        "rolsuper": True,
-                        "memberof": ["rds_superuser", ...]
-                    },
-                    "owner": {
-                        "rolname": "owner",
-                        "rolcanlogin": True,
-                        "rolcreaterole": False,
-                        "rolinherit": True,
-                        "rolsuper": False,
-                        "memberof": ["rds_superuser", ...],
-                        "can_create": True
+    Example results format::
+
+        [
+            {
+                "db": "db_name",
+                "src": {
+                    "server_version": "9.6.20",
+                    "max_replication_slots": "10",
+                    "max_worker_processes": "10",
+                    "max_wal_senders": "10",
+                    "pg_stat_statements": "installed",
+                    "pglogical": "installed",
+                    "rds.logical_replication": "on",
+                    "schema: "public",
+                    "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
+                        "root": {
+                            "rolname": "root",
+                            "rolcanlogin": True,
+                            "rolcreaterole": True,
+                            "rolinherit": True,
+                            "rolsuper": True,
+                            "memberof": ["rds_superuser", ...]
+                        },
+                        "owner": {
+                            "rolname": "owner",
+                            "rolcanlogin": True,
+                            "rolcreaterole": False,
+                            "rolinherit": True,
+                            "rolsuper": False,
+                            "memberof": ["rds_superuser", ...],
+                            "can_create": True
+                        }
+                    }
+                },
+                "dst": {
+                    "server_version": "9.6.20",
+                    "max_replication_slots": "10",
+                    "max_worker_processes": "10",
+                    "max_wal_senders": "10",
+                    "pg_stat_statements": "installed",
+                    "pglogical": "installed",
+                    "rds.logical_replication": "on",
+                    "schema: "public",
+                    "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
+                        "root": {
+                            "rolname": "root",
+                            "rolcanlogin": True,
+                            "rolcreaterole": True,
+                            "rolinherit": True,
+                            "rolsuper": True,
+                            "memberof": ["rds_superuser", ...]
+                        },
+                        "owner": {
+                            "rolname": "owner",
+                            "rolcanlogin": True,
+                            "rolcreaterole": False,
+                            "rolinherit": True,
+                            "rolsuper": False,
+                            "memberof": ["rds_superuser", ...],
+                            "can_create": True
+                        }
                     }
                 }
             },
-            "dst": {
-                "server_version": "9.6.20",
-                "max_replication_slots": "10",
-                "max_worker_processes": "10",
-                "max_wal_senders": "10",
-                "pg_stat_statements": "installed",
-                "pglogical": "installed",
-                "rds.logical_replication": "on",
-                "schema: "public",
-                "users": { // See pgbelt.util.postgres.precheck_info results["users"] for more info.
-                    "root": {
-                        "rolname": "root",
-                        "rolcanlogin": True,
-                        "rolcreaterole": True,
-                        "rolinherit": True,
-                        "rolsuper": True,
-                        "memberof": ["rds_superuser", ...]
-                    },
-                    "owner": {
-                        "rolname": "owner",
-                        "rolcanlogin": True,
-                        "rolcreaterole": False,
-                        "rolinherit": True,
-                        "rolsuper": False,
-                        "memberof": ["rds_superuser", ...],
-                        "can_create": True
-                    }
-                }
-            }
-        },
-        ...
-    ]
+            ...
+        ]
     """
 
     src_summaries = []

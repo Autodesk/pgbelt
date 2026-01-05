@@ -551,7 +551,7 @@ async def initialization_progress(
     if src_dataset_size["db_size"] == 0 and dst_dataset_size["db_size"] == 0:
         progress = "0 %"
     else:
-        progress = f"{str(round(int(dst_dataset_size['db_size'])/int(src_dataset_size['db_size'])*100 ,1))} %"
+        progress = f"{str(round(int(dst_dataset_size['db_size']) / int(src_dataset_size['db_size']) * 100, 1))} %"
 
     status = {
         "src_dataset_size": src_dataset_size["db_size_pretty"] or "0 bytes",
