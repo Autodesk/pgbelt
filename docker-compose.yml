@@ -81,7 +81,7 @@ services:
       PUBLIC_EXODUS_DST_IP: 10.5.0.10
       NONPUBLIC_EXODUS_SRC_IP: 10.5.0.11
       NONPUBLIC_EXODUS_DST_IP: 10.5.0.12
-    command: poetry run pytest --cov=pgbelt tests/
+    command: poetry run pytest -v --cov=pgbelt tests/
     depends_on:
       db-src-set-public-schema-full:
         condition: service_healthy

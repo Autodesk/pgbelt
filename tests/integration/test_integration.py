@@ -293,6 +293,7 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
         "SELECT pg_catalog.set_config('search_path'",
         "ALTER SCHEMA",
         "CREATE SCHEMA",
+        "\\unrestrict",  # Added starting Postgres 17 as a security measure, we don't need this.
     ]
 
     # First, asynchronously filter out the keywords from the source dumps
