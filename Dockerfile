@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY ./ /opt/pgbelt
@@ -6,8 +6,9 @@ WORKDIR /opt/pgbelt
 
 RUN set -e \
     && apt-get -y update \
-    && apt-get -y install postgresql-client \
-    && apt-get -y install gcc
+    && apt-get -y install \
+        postgresql-client \
+        gcc
 
 RUN set -e \
     && python -m venv $VIRTUAL_ENV \
