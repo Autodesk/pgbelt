@@ -12,7 +12,7 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.13,<4.0"
 aiofiles = ">=0.8,<24.2"
-asyncpg = ">=0.27,<0.31"
+asyncpg = ">=0.27,<0.32"
 pydantic = ">=2.0,<3.0"
 tabulate = "^0.9.0"
 typer = ">=0.9,<0.18"
