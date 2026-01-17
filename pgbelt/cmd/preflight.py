@@ -1,18 +1,94 @@
 from asyncio import gather
 from collections.abc import Awaitable
+import re
+from urllib.parse import urlparse
 
 from asyncpg import create_pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
+from pgbelt.util.postgres import fetch_extensions
 from pgbelt.util.postgres import precheck_info
 from tabulate import tabulate
 from typer import echo
 from typer import style
 
+MIGRATED_EXTENSION_RULES = {
+    "pg_repack": {"shift_version": 14, "from": "logical", "to": "root"},
+}
 
-def _summary_table(results: dict, compared_extensions: list[str] = None) -> list[list]:
+
+def _parse_major_version(version: str) -> int:
+    match = re.match(r"(\d+)", version)
+    return int(match.group(1)) if match else 0
+
+
+def _extension_locations(
+    extension: str, logical_extensions: set[str], root_extensions: set[str]
+) -> set[str]:
+    locations = set()
+    if extension in logical_extensions:
+        locations.add("logical")
+    if extension in root_extensions:
+        locations.add("root")
+    return locations
+
+
+def _format_extension_locations(locations: set[str]) -> str:
+    if not locations:
+        return "absent"
+    return "/".join(sorted(locations))
+
+
+def _migrated_extension_entries(src: dict, dst: dict) -> list[dict]:
+    src_major = _parse_major_version(src["server_version"])
+    dst_major = _parse_major_version(dst["server_version"])
+
+    src_logical = set(src["extensions"])
+    src_root = set(src.get("root_extensions", []))
+    dst_logical = set(dst["extensions"])
+    dst_root = set(dst.get("root_extensions", []))
+
+    entries = []
+    for extension, rule in MIGRATED_EXTENSION_RULES.items():
+        shift_version = rule["shift_version"]
+        if not (src_major < shift_version <= dst_major):
+            continue
+
+        if extension not in (src_logical | src_root | dst_logical | dst_root):
+            continue
+
+        src_locations = _extension_locations(extension, src_logical, src_root)
+        dst_locations = _extension_locations(extension, dst_logical, dst_root)
+
+        expected_src = rule["from"]
+        expected_dst = rule["to"]
+
+        entries.append(
+            {
+                "extension": extension,
+                "shift_version": shift_version,
+                "expected_src": expected_src,
+                "expected_dst": expected_dst,
+                "src_locations": src_locations,
+                "dst_locations": dst_locations,
+                "src_ok": expected_src in src_locations,
+                "dst_ok": expected_dst in dst_locations,
+            }
+        )
+
+    return entries
+
+
+def _root_db_uri(uri: str, dbname: str = "postgres") -> str:
+    parsed = urlparse(uri)
+    return parsed._replace(path=f"/{dbname}").geturl()
+
+
+def _summary_table(
+    results: list[dict], compared_results: list[dict] | None = None
+) -> list[list]:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
 
@@ -69,9 +145,16 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
         ]
     ]
 
-    results.sort(key=lambda d: d["db"])
+    if compared_results is None:
+        results.sort(key=lambda d: d["db"])
+    else:
+        paired = sorted(zip(results, compared_results), key=lambda item: item[0]["db"])
+        if paired:
+            results, compared_results = map(list, zip(*paired))
+        else:
+            results, compared_results = [], []
 
-    for r in results:
+    for index, r in enumerate(results):
         root_ok = (
             r["users"]["root"]["rolcanlogin"]
             and r["users"]["root"]["rolcreaterole"]
@@ -81,9 +164,9 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
             or r["users"]["root"]["rolsuper"]
         )
 
-        # Interestingly enough, we can tell if this is being run for a destination database if the compared_extensions is not None.
+        # Interestingly enough, we can tell if this is being run for a destination database if the compared_results is not None.
         # This is because it is only set when we are ensuring all source extensions are in the destination.
-        is_dest_db = compared_extensions is not None
+        is_dest_db = compared_results is not None
 
         # If this is a destination database, we need to check if the owner can create objects.
 
@@ -150,9 +233,30 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
         # If this is a destinatino DB, we are ensuring all source extensions are in the destination.
         # If not, we don't want this column in the table.
         if is_dest_db:
-            extensions_ok = all(
-                [e in r["extensions"] for e in compared_extensions]
-            ) and all([e in compared_extensions for e in r["extensions"]])
+            compare_entry = compared_results[index]
+            migrated_entries = _migrated_extension_entries(compare_entry, r)
+            migrated_extensions = {entry["extension"] for entry in migrated_entries}
+
+            src_logical_extensions = (
+                set(compare_entry["extensions"]) - migrated_extensions
+            )
+            dst_logical_extensions = set(r["extensions"]) - migrated_extensions
+            src_root_extensions = (
+                set(compare_entry.get("root_extensions", [])) - migrated_extensions
+            )
+            dst_root_extensions = (
+                set(r.get("root_extensions", [])) - migrated_extensions
+            )
+
+            logical_extensions_ok = src_logical_extensions == dst_logical_extensions
+            root_extensions_ok = src_root_extensions == dst_root_extensions
+            migrated_extensions_ok = all(
+                entry["src_ok"] and entry["dst_ok"] for entry in migrated_entries
+            )
+
+            extensions_ok = (
+                logical_extensions_ok and root_extensions_ok and migrated_extensions_ok
+            )
             summary_table[-1].append(
                 style(extensions_ok, "green" if extensions_ok else "red")
             )
@@ -359,18 +463,49 @@ def _extensions_table(
         ]
     ]
 
-    for e in source_extensions:
+    destination_set = set(destination_extensions)
+    for e in sorted(source_extensions):
+        in_destination = e in destination_set
         extensions_table.append(
             [
-                style(e["extname"], "green"),
-                style(
-                    e in destination_extensions,
-                    "green" if e in destination_extensions else "red",
-                ),
+                style(e, "green"),
+                style(in_destination, "green" if in_destination else "red"),
             ]
         )
 
     return extensions_table
+
+
+def _migrated_extensions_table(migrated_entries: list[dict]) -> list[list]:
+    migrated_table = [
+        [
+            style("extension", "yellow"),
+            style("shift major", "yellow"),
+            style("src expected", "yellow"),
+            style("src actual", "yellow"),
+            style("dst expected", "yellow"),
+            style("dst actual", "yellow"),
+            style("ok", "yellow"),
+        ]
+    ]
+
+    for entry in migrated_entries:
+        src_locations = _format_extension_locations(entry["src_locations"])
+        dst_locations = _format_extension_locations(entry["dst_locations"])
+        entry_ok = entry["src_ok"] and entry["dst_ok"]
+        migrated_table.append(
+            [
+                style(entry["extension"], "green"),
+                style(str(entry["shift_version"]), "green"),
+                style(entry["expected_src"], "green"),
+                style(src_locations, "green" if entry["src_ok"] else "red"),
+                style(entry["expected_dst"], "green"),
+                style(dst_locations, "green" if entry["dst_ok"] else "red"),
+                style(entry_ok, "green" if entry_ok else "red"),
+            ]
+        )
+
+    return migrated_table
 
 
 async def _print_prechecks(results: list[dict]) -> list[list]:
@@ -454,12 +589,9 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         dst_summaries.append(r["dst"])
 
     src_summary_table = _summary_table(src_summaries)
-    dst_summary_table = _summary_table(
-        dst_summaries, compared_extensions=r["src"]["extensions"]
-    )
+    dst_summary_table = _summary_table(dst_summaries, compared_results=src_summaries)
 
     if len(results) != 1:
-
         # For mulitple databases, we only print the summary table.
 
         src_multi_display_string = (
@@ -546,8 +678,36 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     # Destination DB Tables
 
     dst_users_table = _users_table(r["dst"]["users"], is_dest_db=True)
-    extenstions_table = _extensions_table(
-        r["src"]["extensions"], r["dst"]["extensions"]
+    migrated_entries = _migrated_extension_entries(r["src"], r["dst"])
+    migrated_extensions = {entry["extension"] for entry in migrated_entries}
+
+    src_logical_extensions = [
+        extension
+        for extension in r["src"]["extensions"]
+        if extension not in migrated_extensions
+    ]
+    dst_logical_extensions = [
+        extension
+        for extension in r["dst"]["extensions"]
+        if extension not in migrated_extensions
+    ]
+    src_root_extensions = [
+        extension
+        for extension in r["src"]["root_extensions"]
+        if extension not in migrated_extensions
+    ]
+    dst_root_extensions = [
+        extension
+        for extension in r["dst"]["root_extensions"]
+        if extension not in migrated_extensions
+    ]
+
+    logical_extensions_table = _extensions_table(
+        src_logical_extensions, dst_logical_extensions
+    )
+    root_extensions_table = _extensions_table(src_root_extensions, dst_root_extensions)
+    migrated_extensions_table = (
+        _migrated_extensions_table(migrated_entries) if migrated_entries else None
     )
 
     destination_display_string = (
@@ -556,9 +716,21 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         + "\n"
         + tabulate(dst_summary_table, headers="firstrow")
         + "\n"
-        + style("\nExtension Matchup Summary", "yellow")
+        + style("\nLogical DB Extension Matchup Summary", "yellow")
         + "\n"
-        + tabulate(extenstions_table, headers="firstrow")
+        + tabulate(logical_extensions_table, headers="firstrow")
+        + "\n"
+        + style("\nRoot DB Extension Matchup Summary", "yellow")
+        + "\n"
+        + tabulate(root_extensions_table, headers="firstrow")
+        + (
+            "\n"
+            + style("\nMigrated Extension Summary", "yellow")
+            + "\n"
+            + tabulate(migrated_extensions_table, headers="firstrow")
+            if migrated_extensions_table
+            else ""
+        )
         + "\n"
         + style("\nRequired Users Summary", "yellow")
         + "\n"
@@ -588,8 +760,16 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
         create_pool(conf.src.root_uri, min_size=1),
         create_pool(conf.src.owner_uri, min_size=1),
         create_pool(conf.dst.root_uri, min_size=1),
+        create_pool(_root_db_uri(conf.src.root_uri), min_size=1),
+        create_pool(_root_db_uri(conf.dst.root_uri), min_size=1),
     )
-    src_root_pool, src_owner_pool, dst_root_pool = pools
+    (
+        src_root_pool,
+        src_owner_pool,
+        dst_root_pool,
+        src_root_db_pool,
+        dst_root_db_pool,
+    ) = pools
 
     try:
         src_logger = get_logger(conf.db, conf.dc, "preflight.src")
@@ -611,6 +791,7 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
             src_owner_pool, conf.schema_name, src_logger
         )
         result["src"]["schema"] = conf.schema_name
+        result["src"]["root_extensions"] = await fetch_extensions(src_root_db_pool)
 
         # Destination DB Data
         result["dst"] = await precheck_info(
@@ -624,6 +805,7 @@ async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
         )
         # No need to analyze pkeys for the destination database (we use this to determine replication method in only the forward case).
         result["dst"]["schema"] = conf.schema_name
+        result["dst"]["root_extensions"] = await fetch_extensions(dst_root_db_pool)
 
         # The precheck view code treats "db" as the name of the database pair, not the logical dbname of the database.
         result["src"]["db"] = conf.db

@@ -172,7 +172,6 @@ async def compare_data(
         # Check each row for exact match
         for src_row, dst_row in zip(src_rows, dst_rows):
             if src_row != dst_row:
-
                 # Addresses #571, AsyncPG is decoding numeric NaN as Python Decimal('NaN').
                 # Decimal('NaN') != Decimal('NaN'), breaks comparison. Convert those NaNs to None.
                 src_row_d = {
@@ -411,7 +410,6 @@ async def precheck_info(
 
     # We filter the table list if the user has specified a list of tables to target.
     if target_tables:
-
         result["tables"] = [t for t in result["tables"] if t["Name"] in target_tables]
 
         # We will not recapitalize the table names in the result["tables"] list,
@@ -437,7 +435,6 @@ async def precheck_info(
 
     # We filter the table list if the user has specified a list of tables to target.
     if target_sequences:
-
         result["sequences"] = [
             t for t in result["sequences"] if t["Name"] in target_sequences
         ]
@@ -471,15 +468,23 @@ async def precheck_info(
         if u[0] == owner_name:
             result["users"]["owner"] = u
 
-    result["extensions"] = await pool.fetch(
+    result["extensions"] = await fetch_extensions(pool)
+
+    return result
+
+
+async def fetch_extensions(pool: Pool) -> list[str]:
+    """
+    Return a sorted list of installed extension names for the current database.
+    """
+    rows = await pool.fetch(
         """
         SELECT extname
         FROM pg_extension
         ORDER BY extname;
         """
     )
-
-    return result
+    return [row["extname"] for row in rows]
 
 
 # TODO: Need to add schema here when working on non-public schema support.
