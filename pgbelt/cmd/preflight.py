@@ -12,7 +12,9 @@ from typer import echo
 from typer import style
 
 
-def _summary_table(results: dict, compared_extensions: list[str] = None) -> list[list]:
+def _summary_table(
+    results: list[dict], compared_results: list[dict] | None = None
+) -> list[list]:
     """
     Takes a dict of precheck results for all databases and returns a summary table for echo.
 
@@ -70,6 +72,11 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
     ]
 
     results.sort(key=lambda d: d["db"])
+    compared_by_db = (
+        {entry["db"]: entry for entry in compared_results}
+        if compared_results is not None
+        else {}
+    )
 
     for r in results:
         root_ok = (
@@ -81,9 +88,9 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
             or r["users"]["root"]["rolsuper"]
         )
 
-        # Interestingly enough, we can tell if this is being run for a destination database if the compared_extensions is not None.
+        # Interestingly enough, we can tell if this is being run for a destination database if the compared_results is not None.
         # This is because it is only set when we are ensuring all source extensions are in the destination.
-        is_dest_db = compared_extensions is not None
+        is_dest_db = compared_results is not None
 
         # If this is a destination database, we need to check if the owner can create objects.
 
@@ -150,9 +157,13 @@ def _summary_table(results: dict, compared_extensions: list[str] = None) -> list
         # If this is a destinatino DB, we are ensuring all source extensions are in the destination.
         # If not, we don't want this column in the table.
         if is_dest_db:
+            compare_entry = compared_by_db.get(r["db"])
+            if compare_entry is None:
+                summary_table[-1].append(style(False, "red"))
+                continue
             extensions_ok = all(
-                [e in r["extensions"] for e in compared_extensions]
-            ) and all([e in compared_extensions for e in r["extensions"]])
+                [e in r["extensions"] for e in compare_entry["extensions"]]
+            ) and all([e in compare_entry["extensions"] for e in r["extensions"]])
             summary_table[-1].append(
                 style(extensions_ok, "green" if extensions_ok else "red")
             )
@@ -454,12 +465,9 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         dst_summaries.append(r["dst"])
 
     src_summary_table = _summary_table(src_summaries)
-    dst_summary_table = _summary_table(
-        dst_summaries, compared_extensions=r["src"]["extensions"]
-    )
+    dst_summary_table = _summary_table(dst_summaries, compared_results=src_summaries)
 
     if len(results) != 1:
-
         # For mulitple databases, we only print the summary table.
 
         src_multi_display_string = (
