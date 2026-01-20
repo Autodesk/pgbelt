@@ -347,7 +347,7 @@ def _sequences_table(
 
 
 def _extensions_table(
-    source_extensions: list[str], destination_extensions: list[str]
+    source_extensions: list[dict], destination_extensions: list[dict]
 ) -> list[list]:
     """
 
@@ -366,17 +366,31 @@ def _extensions_table(
     extensions_table = [
         [
             style("extension in source DB", "yellow"),
+            style("src version", "yellow"),
+            style("dst version", "yellow"),
             style("is in destination", "yellow"),
         ]
     ]
 
+    dst_versions = {e["extname"]: e["extversion"] for e in destination_extensions}
+
     for e in source_extensions:
+        extname = e["extname"]
+        src_version = e["extversion"]
+        dst_version = dst_versions.get(extname)
+        in_destination = dst_version is not None
+        version_match = in_destination and src_version == dst_version
         extensions_table.append(
             [
-                style(e["extname"], "green"),
+                style(extname, "green"),
+                style(src_version, "green"),
                 style(
-                    e in destination_extensions,
-                    "green" if e in destination_extensions else "red",
+                    dst_version or "missing",
+                    "green" if version_match else "red",
+                ),
+                style(
+                    in_destination,
+                    "green" if in_destination else "red",
                 ),
             ]
         )

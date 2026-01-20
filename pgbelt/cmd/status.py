@@ -6,6 +6,7 @@ from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util import get_logger
 from pgbelt.util.pglogical import dst_status
+from pgbelt.util.pglogical import replication_activity
 from pgbelt.util.pglogical import src_status
 from pgbelt.util.postgres import initialization_progress
 from pgbelt.util.postgres import analyze_table_pkeys
@@ -116,6 +117,16 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
 
         result[0].update(result[1])
         result[0]["db"] = conf.db
+
+        if result[0]["pg2_pg1"] == "down":
+            activity = await replication_activity(dst_pool, dst_logger, "pg2_pg1")
+            if activity:
+                dst_logger.error(f"pglogical activity (provider pg2_pg1): {activity}")
+
+        if result[0]["pg1_pg2"] == "down":
+            activity = await replication_activity(src_pool, src_logger, "pg1_pg2")
+            if activity:
+                src_logger.error(f"pglogical activity (provider pg1_pg2): {activity}")
 
         # We should hide the progress in the following cases:
         # 1. When src -> dst is replicating and dst -> src is any state (replicating, unconfigured, down)

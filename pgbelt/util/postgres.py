@@ -473,7 +473,7 @@ async def precheck_info(
 
     result["extensions"] = await pool.fetch(
         """
-        SELECT extname
+        SELECT extname, extversion
         FROM pg_extension
         ORDER BY extname;
         """

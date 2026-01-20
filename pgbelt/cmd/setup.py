@@ -150,7 +150,7 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
         pkeys, _, _ = await analyze_table_pkeys(
             src_pglogical_pool, conf.schema_name, src_logger
         )
-        dst_logger = get_logger(conf.db, conf.dc, "setup.src")
+        dst_logger = get_logger(conf.db, conf.dc, "setup.dst")
 
         pglogical_tables = pkeys
         if conf.tables:

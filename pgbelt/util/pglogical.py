@@ -9,6 +9,7 @@ from asyncpg.exceptions import ObjectNotInPrerequisiteStateError
 from asyncpg.exceptions import UndefinedFunctionError
 from asyncpg.exceptions import UndefinedObjectError
 from asyncpg.exceptions import UniqueViolationError
+from asyncpg.exceptions import UndefinedTableError
 
 
 async def configure_pgl(
@@ -22,8 +23,11 @@ async def configure_pgl(
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
+                pw_literal = await conn.fetchval(
+                    "SELECT quote_literal($1::text);", pgl_pw
+                )
                 await conn.execute(
-                    f"CREATE ROLE pglogical LOGIN ENCRYPTED PASSWORD '{pgl_pw}';"
+                    f"CREATE ROLE pglogical LOGIN ENCRYPTED PASSWORD {pw_literal};"
                 )
                 logger.debug("pglogical user created")
             except DuplicateObjectError:
@@ -60,7 +64,10 @@ async def configure_pgl(
     #     We need to make the DBs have a separate schema owner role to test this.
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute(f"GRANT USAGE ON SCHEMA pglogical TO {owner_user};")
+            owner_ident = await conn.fetchval(
+                "SELECT quote_ident($1::text);", owner_user
+            )
+            await conn.execute(f"GRANT USAGE ON SCHEMA pglogical TO {owner_ident};")
             logger.debug(
                 f"GRANTed USAGE ON pglogical schema to Schema Owner {owner_user}"
             )
@@ -114,7 +121,9 @@ async def configure_replication_set(
             async with conn.transaction():
                 try:
                     await conn.execute(
-                        f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{schema}\".\"{table}\"');"
+                        "SELECT pglogical.replication_set_add_table('pgbelt', format('%I.%I', $1::text, $2::text)::regclass);",
+                        schema,
+                        table,
                     )
                     logger.debug(
                         f"Table '{table}' added to 'pgbelt' replication set from schema {schema}"
@@ -134,10 +143,9 @@ async def configure_node(pool: Pool, name: str, dsn: str, logger: Logger) -> Non
         async with conn.transaction():
             try:
                 await conn.execute(
-                    f"""SELECT pglogical.create_node(
-                        node_name:='{name}',
-                        dsn:='{dsn}'
-                    );"""
+                    "SELECT pglogical.create_node(node_name := $1, dsn := $2);",
+                    name,
+                    dsn,
                 )
                 logger.debug(f"Node {name} created")
             except InternalServerError as e:
@@ -158,16 +166,42 @@ async def configure_subscription(
         async with conn.transaction():
             try:
                 await conn.execute(
-                    f"""SELECT pglogical.create_subscription(
-                        subscription_name:='{name}',
-                        replication_sets:='{{pgbelt}}',
-                        provider_dsn:='{provider_dsn}',
-                        synchronize_structure:=false,
-                        synchronize_data:={'true' if name.startswith('pg1') else 'false'},
-                        forward_origins:='{{}}'
-                    );"""
+                    """
+                    SELECT pglogical.create_subscription(
+                        subscription_name := $1,
+                        replication_sets := ARRAY['pgbelt']::text[],
+                        provider_dsn := $2,
+                        synchronize_structure := $3,
+                        synchronize_data := $4,
+                        forward_origins := ARRAY[]::text[],
+                        force_text_transfer := $5
+                    );
+                    """,
+                    name,
+                    provider_dsn,
+                    False,
+                    name.startswith("pg1"),
+                    name.startswith("pg2"),
                 )
                 logger.debug(f"Subscription {name} created")
+            except UndefinedFunctionError:
+                await conn.execute(
+                    """
+                    SELECT pglogical.create_subscription(
+                        subscription_name := $1,
+                        replication_sets := ARRAY['pgbelt']::text[],
+                        provider_dsn := $2,
+                        synchronize_structure := $3,
+                        synchronize_data := $4,
+                        forward_origins := ARRAY[]::text[]
+                    );
+                    """,
+                    name,
+                    provider_dsn,
+                    False,
+                    name.startswith("pg1"),
+                )
+                logger.debug(f"Subscription {name} created (no force_text_transfer)")
             except InvalidParameterValueError as e:
                 if f'existing subscription "{name}"' in str(e):
                     logger.debug(f"Subscription {name} already exists")
@@ -289,12 +323,130 @@ async def subscription_status(pool: Pool, logger: Logger) -> str:
         return "unconfigured"
 
 
+def _sanitize_pglogical_record(record: object) -> dict:
+    data = dict(record)
+    for key in list(data.keys()):
+        if "dsn" in key.lower() or "password" in key.lower():
+            data.pop(key, None)
+    return data
+
+
+def _sanitize_activity_record(record: object) -> dict:
+    data = dict(record)
+    query = data.get("query")
+    if isinstance(query, str) and "password" in query.lower():
+        data["query"] = "[redacted]"
+    return data
+
+
+async def subscription_diagnostics(
+    pool: Pool, logger: Logger, subscription_name: str | None = None
+) -> dict[str, list[dict]]:
+    """
+    Collect best-effort diagnostics from pglogical to help identify failures.
+    Strips DSNs and secrets from results.
+    """
+    diagnostics: dict[str, list[dict]] = {}
+
+    try:
+        status_rows = await pool.fetch(
+            "SELECT * FROM pglogical.show_subscription_status();"
+        )
+        status_data = [_sanitize_pglogical_record(r) for r in status_rows]
+        if subscription_name:
+            status_data = [
+                r
+                for r in status_data
+                if r.get("subscription_name") == subscription_name
+                or r.get("sub_name") == subscription_name
+                or r.get("name") == subscription_name
+            ]
+        if status_data:
+            diagnostics["subscription_status"] = status_data
+    except (
+        InvalidSchemaNameError,
+        UndefinedFunctionError,
+        ObjectNotInPrerequisiteStateError,
+    ):
+        logger.debug("pglogical show_subscription_status is unavailable")
+
+    for label, query in (
+        ("subscription", "SELECT * FROM pglogical.subscription;"),
+        ("subscription_status", "SELECT * FROM pglogical.subscription_status;"),
+        ("apply_status", "SELECT * FROM pglogical.apply_status;"),
+    ):
+        try:
+            rows = await pool.fetch(query)
+            data = [_sanitize_pglogical_record(r) for r in rows]
+            if subscription_name:
+                data = [
+                    r
+                    for r in data
+                    if r.get("subscription_name") == subscription_name
+                    or r.get("sub_name") == subscription_name
+                ]
+            if data:
+                diagnostics[label] = data
+        except (
+            InvalidSchemaNameError,
+            UndefinedFunctionError,
+            ObjectNotInPrerequisiteStateError,
+            UndefinedObjectError,
+            UndefinedTableError,
+        ):
+            logger.debug(f"pglogical {label} is unavailable")
+
+    try:
+        sync_rows = await pool.fetch("SELECT * FROM pglogical.local_sync_status;")
+        sync_data = [_sanitize_pglogical_record(r) for r in sync_rows]
+        if subscription_name:
+            sync_data = [
+                r
+                for r in sync_data
+                if r.get("sub_name") == subscription_name
+                or r.get("subscription_name") == subscription_name
+            ]
+        if sync_data:
+            diagnostics["local_sync_status"] = sync_data
+    except (
+        InvalidSchemaNameError,
+        UndefinedFunctionError,
+        ObjectNotInPrerequisiteStateError,
+    ):
+        logger.debug("pglogical local_sync_status is unavailable")
+
+    return diagnostics
+
+
+async def replication_activity(
+    pool: Pool, logger: Logger, app_prefix: str
+) -> list[dict]:
+    try:
+        rows = await pool.fetch(
+            """
+            SELECT pid, application_name, state, query
+            FROM pg_stat_activity
+            WHERE application_name LIKE $1 OR query LIKE 'START_REPLICATION%';
+            """,
+            f"{app_prefix}%",
+        )
+        return [_sanitize_activity_record(r) for r in rows]
+    except Exception as e:
+        logger.debug(f"pg_stat_activity lookup failed: {e}")
+        return []
+
+
 async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
     """
     Get the status of the back replication subscription and the forward replication lag
     """
     logger.info("checking source status...")
-    status = {"pg2_pg1": await subscription_status(pool, logger)}
+    status_value = await subscription_status(pool, logger)
+    status = {"pg2_pg1": status_value}
+    if status_value == "down":
+        diagnostics = await subscription_diagnostics(pool, logger, "pg2_pg1")
+        if diagnostics:
+            logger.error(f"pglogical diagnostics (pg2_pg1): {diagnostics}")
 
     server_version = await pool.fetchval("SHOW server_version;")
 
@@ -333,4 +485,9 @@ async def dst_status(pool: Pool, logger: Logger) -> dict[str, str]:
     Get the status of the forward replication subscription
     """
     logger.info("checking target status...")
-    return {"pg1_pg2": await subscription_status(pool, logger)}
+    status_value = await subscription_status(pool, logger)
+    if status_value == "down":
+        diagnostics = await subscription_diagnostics(pool, logger, "pg1_pg2")
+        if diagnostics:
+            logger.error(f"pglogical diagnostics (pg1_pg2): {diagnostics}")
+    return {"pg1_pg2": status_value}
