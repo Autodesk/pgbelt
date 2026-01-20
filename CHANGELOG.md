@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/Autodesk/pgbelt/compare/v0.9.0...v0.9.1) (2026-01-20)
+
+
+### Bug Fixes
+
+* precheck extension fix by using same ordering [#815](https://github.com/Autodesk/pgbelt/issues/815) ([#816](https://github.com/Autodesk/pgbelt/issues/816)) ([e8b816a](https://github.com/Autodesk/pgbelt/commit/e8b816a265f5381bc0bd37573e975758895f8ec9))
+
 ## [0.9.0](https://github.com/Autodesk/pgbelt/compare/v0.8.3...v0.9.0) (2026-01-05)
 
 
