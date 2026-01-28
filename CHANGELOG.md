@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.2](https://github.com/Autodesk/pgbelt/compare/v0.9.1...v0.9.2) (2026-01-28)
+
+
+### Bug Fixes
+
+* pushing up testing stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+
 ## [0.9.1](https://github.com/Autodesk/pgbelt/compare/v0.9.0...v0.9.1) (2026-01-20)
 
 
