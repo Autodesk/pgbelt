@@ -76,6 +76,33 @@ async def _execute_subprocess(
     return out
 
 
+async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> None:
+    """
+    Dump a single table using pg_dump, strip unwanted lines, and save to file.
+    """
+    command = [
+        "pg_dump",
+        "--data-only",
+        f'--table={config.schema_name}."{table}"',
+        config.src.pglogical_dsn,
+    ]
+
+    out = await _execute_subprocess(command, f"dumped {table}", logger)
+    content = out.decode("utf-8")
+
+    # Strip out unwanted lines, stupid PG17 adding transaction_timeout lines.
+    keywords = ["transaction_timeout"]
+    lines = content.split("\n")
+    filtered_lines = [
+        line for line in lines if not any(keyword in line for keyword in keywords)
+    ]
+    filtered_content = "\n".join(filtered_lines)
+
+    # Write the filtered content to file
+    async with aopen(table_file(config.db, config.dc, table), "w") as f:
+        await f.write(filtered_content)
+
+
 async def dump_source_tables(
     config: DbupgradeConfig, tables: list[str], logger: Logger
 ) -> None:
@@ -88,21 +115,7 @@ async def dump_source_tables(
 
     dumps = []
     for table in tables:
-        dumps.append(
-            _execute_subprocess(
-                [
-                    "pg_dump",
-                    "--data-only",
-                    f'--table={config.schema_name}."{table}"',
-                    "-Fc",
-                    "-f",
-                    table_file(config.db, config.dc, table),
-                    config.src.pglogical_dsn,
-                ],
-                f"dumped {table}",
-                logger,
-            )
-        )
+        dumps.append(_dump_table(config, table, logger))
 
     await asyncio.gather(*dumps)
 
@@ -137,9 +150,9 @@ async def load_dumped_tables(
         loads.append(
             _execute_subprocess(
                 [
-                    "pg_restore",
-                    "-d",
+                    "psql",
                     config.dst.owner_dsn,
+                    "-f",
                     file,
                 ],
                 f"loaded {file}",
@@ -204,7 +217,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
         schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
     ) as out:
         for command in commands:
-            if not ("NOT VALID" in command) and not (
+            if "NOT VALID" not in command and not (
                 "CREATE" in command and "INDEX" in command
             ):
                 await out.write(command)

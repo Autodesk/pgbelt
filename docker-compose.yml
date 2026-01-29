@@ -2,7 +2,7 @@ version: "3"
 
 services:
   db-src-set-public-schema-full: &db
-    image: autodesk/postgres-pglogical-docker:17
+    image: autodesk/postgres-pglogical-docker:16
     environment:
       POSTGRES_PASSWORD: postgres
       PGDATA: /tmp/pgdata
