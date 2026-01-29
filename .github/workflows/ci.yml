@@ -36,10 +36,10 @@ jobs:
       - name: Build Postgres Image with pglogical
         uses: docker/build-push-action@v6
         with:
-          context: tests/integration/files/postgres17-pglogical-docker
+          context: tests/integration/files/postgres16-pglogical-docker
           push: false
           load: true
-          tags: autodesk/postgres-pglogical-docker:17
+          tags: autodesk/postgres-pglogical-docker:16
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Run flake8
