@@ -16,4 +16,5 @@ RUN set -e \
 
 COPY ./ /opt/pgbelt
 WORKDIR /opt/pgbelt
-RUN poetry install
+RUN pip install --upgrade pip \
+    && poetry install
