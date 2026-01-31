@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.2](https://github.com/Autodesk/pgbelt/compare/v0.9.1...v0.9.2) (2026-01-31)
+
+
+### Bug Fixes
+
+* pushing up testing stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* remove dst skip flag ([#828](https://github.com/Autodesk/pgbelt/issues/828)) ([2d03864](https://github.com/Autodesk/pgbelt/commit/2d0386466df726e3b6d6599eb25828282e28aa27))
+* removing postgres 17 pg_dump incompatible commands [#826](https://github.com/Autodesk/pgbelt/issues/826) ([#827](https://github.com/Autodesk/pgbelt/issues/827)) ([aaf88ef](https://github.com/Autodesk/pgbelt/commit/aaf88ef863427117e2ad07b9cdf081b85f1174ed))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+* undo stuff ([c76868c](https://github.com/Autodesk/pgbelt/commit/c76868c0806a9a374abef749be2e0c26e840dca7))
+
 ## [0.9.1](https://github.com/Autodesk/pgbelt/compare/v0.9.0...v0.9.1) (2026-01-20)
 
 
