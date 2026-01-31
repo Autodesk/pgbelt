@@ -578,7 +578,7 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
     return src_summary_table, dst_summary_table
 
 
-@run_with_configs(skip_dst=True, results_callback=_print_prechecks)
+@run_with_configs(results_callback=_print_prechecks)
 async def precheck(config_future: Awaitable[DbupgradeConfig]) -> dict:
     """
     Report whether your source database meets the basic requirements for pgbelt.
