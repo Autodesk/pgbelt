@@ -318,13 +318,13 @@ async def remove_dst_not_valid_constraints(
         if not regex_matches:
             continue
         table = regex_matches.groupdict()["table"]
-        constraint = table = regex_matches.groupdict()["constraint"]
+        constraint = regex_matches.groupdict()["constraint"]
 
         if (config.tables and table in config.tables) or not config.tables:
             queries = queries + f"ALTER TABLE {table} DROP CONSTRAINT {constraint};"
 
     if queries != "":
-        command = ["psql", config.dst.owner_dsn, "-c", f"'{queries}'"]
+        command = ["psql", config.dst.owner_dsn, "-c", queries]
 
         await _execute_subprocess(
             command, "Finished removing NOT VALID constraints from the target.", logger
