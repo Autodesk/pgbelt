@@ -90,8 +90,22 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
     out = await _execute_subprocess(command, f"dumped {table}", logger)
     content = out.decode("utf-8")
 
-    # Strip out unwanted lines, stupid PG17 adding transaction_timeout lines.
-    keywords = ["transaction_timeout"]
+    # Strip out unwanted lines, stupid PG17
+    keywords = [
+        "transaction_timeout",
+        "SET statement_timeout",
+        "SET lock_timeout",
+        "SET idle_in_transaction_session_timeout",
+        "SET client_encoding",
+        "SET standard_conforming_strings",
+        "SET check_function_bodies",
+        "SET xmloption",
+        "SET client_min_messages",
+        "SET row_security",
+        "pg_catalog.set_config",
+        "\\restrict",
+        "\\unrestrict",
+    ]
     lines = content.split("\n")
     filtered_lines = [
         line for line in lines if not any(keyword in line for keyword in keywords)
