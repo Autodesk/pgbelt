@@ -93,16 +93,16 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
     # Strip out unwanted lines, stupid PG17
     keywords = [
         "transaction_timeout",
-        "SET statement_timeout",
-        "SET lock_timeout",
-        "SET idle_in_transaction_session_timeout",
+        # "SET statement_timeout", # This one is fine
+        # "SET lock_timeout", # This one is fine
+        # "SET idle_in_transaction_session_timeout", # This one is fine
         "SET client_encoding",
         "SET standard_conforming_strings",
         "SET check_function_bodies",
         "SET xmloption",
         "SET client_min_messages",
         "SET row_security",
-        "pg_catalog.set_config",
+        "pg_catalog.set_config",  # Stupid search path, this should not be run.
         "\\restrict",
         "\\unrestrict",
     ]
