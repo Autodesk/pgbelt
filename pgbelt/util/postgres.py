@@ -259,6 +259,98 @@ async def compare_latest_100_rows(
     await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
+async def compare_tables_without_pkeys(
+    src_pool: Pool,
+    dst_pool: Pool,
+    tables: list[str],
+    schema: str,
+    logger: Logger,
+) -> None:
+    """
+    Validate data for tables without primary keys by:
+    1. Getting the list of tables without primary keys
+    2. For each table, selecting 100 random rows from source
+    3. For each row, verifying it exists in destination by matching all columns
+    """
+    logger.info("Comparing tables without primary keys...")
+
+    _, no_pkeys, _ = await analyze_table_pkeys(src_pool, schema, logger)
+
+    # Filter by tables list if provided
+    if tables:
+        no_pkeys = [t for t in no_pkeys if t in tables]
+
+    if not no_pkeys:
+        logger.info("No tables without primary keys to compare.")
+        return
+
+    src_old_extra_float_digits = await src_pool.fetchval("SHOW extra_float_digits;")
+    await src_pool.execute("SET extra_float_digits TO 0;")
+
+    dst_old_extra_float_digits = await dst_pool.fetchval("SHOW extra_float_digits;")
+    await dst_pool.execute("SET extra_float_digits TO 0;")
+
+    for table in no_pkeys:
+        full_table_name = f'{schema}."{table}"'
+        logger.debug(f"Validating table without primary key: {full_table_name}...")
+
+        # Select 100 random rows from source
+        query = f"""
+        SELECT * FROM {full_table_name}
+        ORDER BY RANDOM()
+        LIMIT 100;
+        """
+
+        src_rows = await src_pool.fetch(query)
+
+        if len(src_rows) == 0:
+            logger.debug(f"Table {full_table_name} is empty in source.")
+            continue
+
+        # For each source row, check if it exists in destination
+        for src_row in src_rows:
+            # Build WHERE clause matching all columns
+            where_clauses = []
+            for key, value in src_row.items():
+                # Handle Decimal NaN values
+                if isinstance(value, Decimal) and value.is_nan():
+                    value = None
+
+                if value is None:
+                    where_clauses.append(f'"{key}" IS NULL')
+                elif isinstance(value, (int, float, Decimal)):
+                    where_clauses.append(f'"{key}" = {value}')
+                elif isinstance(value, bool):
+                    where_clauses.append(f'"{key}" = {str(value).upper()}')
+                elif isinstance(value, bytes):
+                    hex_val = value.hex()
+                    where_clauses.append(f"\"{key}\" = '\\x{hex_val}'")
+                else:
+                    # Escape single quotes in string values
+                    escaped_val = str(value).replace("'", "''")
+                    where_clauses.append(f"\"{key}\" = '{escaped_val}'")
+
+            where_clause = " AND ".join(where_clauses)
+            check_query = (
+                f"SELECT 1 FROM {full_table_name} WHERE {where_clause} LIMIT 1;"
+            )
+
+            dst_result = await dst_pool.fetch(check_query)
+
+            if len(dst_result) == 0:
+                raise AssertionError(
+                    f"Row from source not found in destination.\n"
+                    f"Table: {full_table_name}\n"
+                    f"Source Row: {dict(src_row)}"
+                )
+
+        logger.debug(f"Table {full_table_name} validated successfully.")
+
+    await src_pool.execute(f"SET extra_float_digits TO {src_old_extra_float_digits};")
+    await dst_pool.execute(f"SET extra_float_digits TO {dst_old_extra_float_digits};")
+    logger.info("Tables without primary keys validation complete!")
+
+
 async def table_empty(pool: Pool, table: str, schema: str, logger: Logger) -> bool:
     """
     return true if the table is empty

@@ -14,6 +14,7 @@ from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import compare_100_rows
 from pgbelt.util.postgres import compare_latest_100_rows
+from pgbelt.util.postgres import compare_tables_without_pkeys
 from pgbelt.util.postgres import dump_sequences
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
@@ -145,6 +146,9 @@ async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
         await gather(
             compare_100_rows(src_pool, dst_pool, conf.tables, conf.schema_name, logger),
             compare_latest_100_rows(
+                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            ),
+            compare_tables_without_pkeys(
                 src_pool, dst_pool, conf.tables, conf.schema_name, logger
             ),
         )
