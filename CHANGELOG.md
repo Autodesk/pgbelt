@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.5](https://github.com/Autodesk/pgbelt/compare/v0.9.4...v0.9.5) (2026-02-04)
+
+
+### Bug Fixes
+
+* pg_dump straight to disk to not consume too much memory ([#838](https://github.com/Autodesk/pgbelt/issues/838)) ([737f719](https://github.com/Autodesk/pgbelt/commit/737f7190690a4bbf9b58c12133f4756e099fb511))
+
 ## [0.9.4](https://github.com/Autodesk/pgbelt/compare/v0.9.3...v0.9.4) (2026-02-04)
 
 
