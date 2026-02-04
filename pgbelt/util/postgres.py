@@ -709,8 +709,6 @@ async def get_active_connections(
     ORDER BY usename;
     """
 
-    logger.debug(f"Fetching active connections with query: {query}")
-
     rows = await pool.fetch(query)
 
     usernames = {}
