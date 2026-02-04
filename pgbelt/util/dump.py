@@ -97,7 +97,8 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
 
     await _execute_subprocess(command, f"dumped {table}", logger)
 
-    # Strip out unwanted lines, stupid PG17
+    # Strip out unwanted SET commands from the header (first ~50 lines only)
+    # These appear at the start of pg_dump output, no need to scan the whole file
     keywords = [
         "transaction_timeout",
         # "SET statement_timeout", # This one is fine
@@ -110,15 +111,27 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
         "SET client_min_messages",
         "SET row_security",
         "pg_catalog.set_config",  # Stupid search path, this should not be run.
-        "\\restrict",
-        "\\unrestrict",
     ]
 
-    # Stream line-by-line from temp file to final file (low memory usage)
+    header_lines_to_check = 50
+
     async with aopen(temp_file, "r") as src, aopen(output_file, "w") as dst:
+        # Filter only the first N lines (where SET commands appear)
+        line_num = 0
         async for line in src:
-            if not any(keyword in line for keyword in keywords):
+            line_num += 1
+            if line_num <= header_lines_to_check:
+                # Filter SET commands in header
+                if not any(keyword in line for keyword in keywords):
+                    await dst.write(line)
+            else:
+                # Past the header, write this line and stop filtering
                 await dst.write(line)
+                break
+
+        # Copy the rest of the file efficiently (no filtering)
+        async for line in src:
+            await dst.write(line)
 
     # Clean up temp file
     os.remove(temp_file)
