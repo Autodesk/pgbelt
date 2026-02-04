@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging import Logger
 from os.path import join
 from pgbelt.config.models import DbupgradeConfig
@@ -79,18 +80,25 @@ async def _execute_subprocess(
 async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> None:
     """
     Dump a single table using pg_dump, strip unwanted lines, and save to file.
+    Writes directly to disk to avoid memory issues with large tables.
     """
+    output_file = table_file(config.db, config.dc, table)
+    temp_file = output_file + ".tmp"
+
+    # pg_dump writes directly to temp file (no Python memory usage)
     command = [
         "pg_dump",
         "--data-only",
         f'--table={config.schema_name}."{table}"',
+        "-f",
+        temp_file,
         config.src.pglogical_dsn,
     ]
 
-    out = await _execute_subprocess(command, f"dumped {table}", logger)
-    content = out.decode("utf-8")
+    await _execute_subprocess(command, f"dumped {table}", logger)
 
-    # Strip out unwanted lines, stupid PG17
+    # Strip out unwanted SET commands from the header (first ~50 lines only)
+    # These appear at the start of pg_dump output, no need to scan the whole file
     keywords = [
         "transaction_timeout",
         # "SET statement_timeout", # This one is fine
@@ -103,18 +111,44 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
         "SET client_min_messages",
         "SET row_security",
         "pg_catalog.set_config",  # Stupid search path, this should not be run.
-        "\\restrict",
-        "\\unrestrict",
     ]
-    lines = content.split("\n")
-    filtered_lines = [
-        line for line in lines if not any(keyword in line for keyword in keywords)
-    ]
-    filtered_content = "\n".join(filtered_lines)
 
-    # Write the filtered content to file
-    async with aopen(table_file(config.db, config.dc, table), "w") as f:
-        await f.write(filtered_content)
+    header_lines = 50
+
+    # Get first N lines, filter them, write to output file
+    head_proc = await asyncio.create_subprocess_exec(
+        "head",
+        "-n",
+        str(header_lines),
+        temp_file,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    head_out, _ = await head_proc.communicate()
+
+    # Filter the header lines
+    header_content = head_out.decode("utf-8")
+    filtered_lines = [
+        line + "\n"
+        for line in header_content.split("\n")
+        if line and not any(keyword in line for keyword in keywords)
+    ]
+
+    # Write filtered header to output file
+    async with aopen(output_file, "w") as dst:
+        await dst.writelines(filtered_lines)
+
+    # Append the rest of the file using tail (fast, no Python overhead)
+    tail_proc = await asyncio.create_subprocess_shell(
+        f"tail -n +{header_lines + 1} '{temp_file}' >> '{output_file}'",
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, tail_err = await tail_proc.communicate()
+    if tail_proc.returncode != 0:
+        raise Exception(f"tail failed: {tail_err.decode('utf-8')}")
+
+    # Clean up temp file
+    os.remove(temp_file)
 
 
 async def dump_source_tables(
