@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.4](https://github.com/Autodesk/pgbelt/compare/v0.9.3...v0.9.4) (2026-02-04)
+
+
+### Bug Fixes
+
+* pk-less validation fix with escaped arrays ([#836](https://github.com/Autodesk/pgbelt/issues/836)) ([0869985](https://github.com/Autodesk/pgbelt/commit/08699855acb63864283a9f9ea7fd098f16b149bd))
+
 ## [0.9.3](https://github.com/Autodesk/pgbelt/compare/v0.9.2...v0.9.3) (2026-02-04)
 
 
