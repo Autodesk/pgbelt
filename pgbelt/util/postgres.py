@@ -326,6 +326,21 @@ async def compare_tables_without_pkeys(
                 elif isinstance(value, bytes):
                     hex_val = value.hex()
                     where_clauses.append(f"\"{key}\" = '\\x{hex_val}'")
+                elif isinstance(value, list):
+                    # Handle PostgreSQL arrays - format as '{val1, val2, ...}'
+                    # Need this and not in the PK comparison because these rows are compared by row here only, not by row there also broken by column.
+                    escaped_elements = []
+                    for elem in value:
+                        if elem is None:
+                            escaped_elements.append("NULL")
+                        else:
+                            # Escape double quotes and backslashes in array elements
+                            escaped_elem = (
+                                str(elem).replace("\\", "\\\\").replace('"', '\\"')
+                            )
+                            escaped_elements.append(f'"{escaped_elem}"')
+                    array_literal = "{" + ",".join(escaped_elements) + "}"
+                    where_clauses.append(f"\"{key}\" = '{array_literal}'")
                 else:
                     # Escape single quotes in string values
                     escaped_val = str(value).replace("'", "''")
