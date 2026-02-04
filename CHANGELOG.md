@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Autodesk/pgbelt/compare/v0.9.5...v0.10.0) (2026-02-04)
+
+
+### Features
+
+* connection monitoring ([#840](https://github.com/Autodesk/pgbelt/issues/840)) ([f431727](https://github.com/Autodesk/pgbelt/commit/f431727646ae02bdcdac45c9db4fb92859b9804c))
+
 ## [0.9.5](https://github.com/Autodesk/pgbelt/compare/v0.9.4...v0.9.5) (2026-02-04)
 
 
