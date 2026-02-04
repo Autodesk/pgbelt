@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging import Logger
 from os.path import join
 from pgbelt.config.models import DbupgradeConfig
@@ -79,16 +80,22 @@ async def _execute_subprocess(
 async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> None:
     """
     Dump a single table using pg_dump, strip unwanted lines, and save to file.
+    Writes directly to disk to avoid memory issues with large tables.
     """
+    output_file = table_file(config.db, config.dc, table)
+    temp_file = output_file + ".tmp"
+
+    # pg_dump writes directly to temp file (no Python memory usage)
     command = [
         "pg_dump",
         "--data-only",
         f'--table={config.schema_name}."{table}"',
+        "-f",
+        temp_file,
         config.src.pglogical_dsn,
     ]
 
-    out = await _execute_subprocess(command, f"dumped {table}", logger)
-    content = out.decode("utf-8")
+    await _execute_subprocess(command, f"dumped {table}", logger)
 
     # Strip out unwanted lines, stupid PG17
     keywords = [
@@ -106,15 +113,15 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
         "\\restrict",
         "\\unrestrict",
     ]
-    lines = content.split("\n")
-    filtered_lines = [
-        line for line in lines if not any(keyword in line for keyword in keywords)
-    ]
-    filtered_content = "\n".join(filtered_lines)
 
-    # Write the filtered content to file
-    async with aopen(table_file(config.db, config.dc, table), "w") as f:
-        await f.write(filtered_content)
+    # Stream line-by-line from temp file to final file (low memory usage)
+    async with aopen(temp_file, "r") as src, aopen(output_file, "w") as dst:
+        async for line in src:
+            if not any(keyword in line for keyword in keywords):
+                await dst.write(line)
+
+    # Clean up temp file
+    os.remove(temp_file)
 
 
 async def dump_source_tables(
