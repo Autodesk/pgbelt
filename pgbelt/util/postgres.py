@@ -214,22 +214,23 @@ async def compare_data(
     )
 
 
-async def compare_100_rows(
+async def compare_100_random_rows(
     src_pool: Pool, dst_pool: Pool, tables: list[str], schema: str, logger: Logger
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
     1. Get all tables with primary keys
-    2. For each of those tables, select * limit 100
+    2. For each of those tables, select 100 random rows
     3. For each row, ensure the row in the destination is identical
     """
-    logger.info("Comparing 100 rows...")
+    logger.info("Comparing 100 random rows...")
 
     query = """
     SELECT * FROM
     (
         SELECT *
         FROM {table}
+        ORDER BY RANDOM()
         LIMIT 100
     ) AS T1
     ORDER BY {order_by_pkeys};

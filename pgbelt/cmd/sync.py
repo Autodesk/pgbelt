@@ -12,7 +12,7 @@ from pgbelt.util.dump import dump_source_tables
 from pgbelt.util.dump import load_dumped_tables
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
-from pgbelt.util.postgres import compare_100_rows
+from pgbelt.util.postgres import compare_100_random_rows
 from pgbelt.util.postgres import compare_latest_100_rows
 from pgbelt.util.postgres import compare_tables_without_pkeys
 from pgbelt.util.postgres import dump_sequences
@@ -144,7 +144,9 @@ async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
     try:
         logger = get_logger(conf.db, conf.dc, "sync")
         await gather(
-            compare_100_rows(src_pool, dst_pool, conf.tables, conf.schema_name, logger),
+            compare_100_random_rows(
+                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            ),
             compare_latest_100_rows(
                 src_pool, dst_pool, conf.tables, conf.schema_name, logger
             ),
@@ -222,7 +224,7 @@ async def sync(
             )
 
         await gather(
-            compare_100_rows(
+            compare_100_random_rows(
                 src_pool,
                 dst_owner_pool,
                 conf.tables,
