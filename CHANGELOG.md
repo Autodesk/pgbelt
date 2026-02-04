@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/Autodesk/pgbelt/compare/v0.9.2...v0.9.3) (2026-02-04)
+
+
+### Bug Fixes
+
+* validate-data now checks PK-less tables, validate on RANDOM rows explicitly, and PG17 SETs need to be removed ([#834](https://github.com/Autodesk/pgbelt/issues/834)) ([8eee20b](https://github.com/Autodesk/pgbelt/commit/8eee20bba33dd8445a984a06b108efe20fab5a78))
+
 ## [0.9.2](https://github.com/Autodesk/pgbelt/compare/v0.9.1...v0.9.2) (2026-02-02)
 
 
