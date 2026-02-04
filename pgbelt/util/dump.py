@@ -113,25 +113,39 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
         "pg_catalog.set_config",  # Stupid search path, this should not be run.
     ]
 
-    header_lines_to_check = 50
+    header_lines = 50
 
-    async with aopen(temp_file, "r") as src, aopen(output_file, "w") as dst:
-        # Filter only the first N lines (where SET commands appear)
-        line_num = 0
-        async for line in src:
-            line_num += 1
-            if line_num <= header_lines_to_check:
-                # Filter SET commands in header
-                if not any(keyword in line for keyword in keywords):
-                    await dst.write(line)
-            else:
-                # Past the header, write this line and stop filtering
-                await dst.write(line)
-                break
+    # Get first N lines, filter them, write to output file
+    head_proc = await asyncio.create_subprocess_exec(
+        "head",
+        "-n",
+        str(header_lines),
+        temp_file,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    head_out, _ = await head_proc.communicate()
 
-        # Copy the rest of the file efficiently (no filtering)
-        async for line in src:
-            await dst.write(line)
+    # Filter the header lines
+    header_content = head_out.decode("utf-8")
+    filtered_lines = [
+        line + "\n"
+        for line in header_content.split("\n")
+        if line and not any(keyword in line for keyword in keywords)
+    ]
+
+    # Write filtered header to output file
+    async with aopen(output_file, "w") as dst:
+        await dst.writelines(filtered_lines)
+
+    # Append the rest of the file using tail (fast, no Python overhead)
+    tail_proc = await asyncio.create_subprocess_shell(
+        f"tail -n +{header_lines + 1} '{temp_file}' >> '{output_file}'",
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, tail_err = await tail_proc.communicate()
+    if tail_proc.returncode != 0:
+        raise Exception(f"tail failed: {tail_err.decode('utf-8')}")
 
     # Clean up temp file
     os.remove(temp_file)
