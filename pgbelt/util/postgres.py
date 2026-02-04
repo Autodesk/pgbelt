@@ -667,3 +667,60 @@ async def initialization_progress(
         "progress": progress,
     }
     return status
+
+
+async def get_active_connections(
+    pool: Pool,
+    logger: Logger,
+    exclude_users: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+) -> dict:
+    """
+    Get the count and list of usernames for active client connections.
+
+    Always excludes 'rdsadmin' and 'postgres'.
+    Optionally excludes additional users specified in exclude_users.
+    Optionally excludes users matching LIKE patterns in exclude_patterns.
+
+    Returns a dict with 'count' and 'usernames' keys.
+    """
+    # Always exclude these users
+    always_exclude = ["rdsadmin", "postgres"]
+    all_exclude_users = always_exclude + (exclude_users or [])
+
+    # Build the WHERE clause
+    where_clauses = ["backend_type = 'client backend'"]
+
+    # Add exact user exclusions
+    for user in all_exclude_users:
+        where_clauses.append(f"usename != '{user}'")
+
+    # Add LIKE pattern exclusions
+    for pattern in exclude_patterns or []:
+        where_clauses.append(f"usename NOT LIKE '{pattern}'")
+
+    where_clause = " AND ".join(where_clauses)
+
+    query = f"""
+    SELECT usename, COUNT(*) as conn_count
+    FROM pg_stat_activity
+    WHERE {where_clause}
+    GROUP BY usename
+    ORDER BY usename;
+    """
+
+    rows = await pool.fetch(query)
+
+    usernames = {}
+    total_count = 0
+    for row in rows:
+        username = row["usename"]
+        count = row["conn_count"]
+        if username:  # Filter out None usernames
+            usernames[username] = count
+            total_count += count
+
+    return {
+        "count": total_count,
+        "usernames": usernames,
+    }
