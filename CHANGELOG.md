@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/Autodesk/pgbelt/compare/v0.10.0...v0.10.1) (2026-02-05)
+
+
+### Bug Fixes
+
+* stopping triggers from running when load PK-less tables ([#843](https://github.com/Autodesk/pgbelt/issues/843)) ([bef6906](https://github.com/Autodesk/pgbelt/commit/bef690603ffae2fb5c5f94bc85a95c19b21323b8))
+
 ## [0.10.0](https://github.com/Autodesk/pgbelt/compare/v0.9.5...v0.10.0) (2026-02-04)
 
 
