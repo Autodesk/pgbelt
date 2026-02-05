@@ -238,6 +238,13 @@ async def sync(
                 conf.schema_name,
                 validation_logger,
             ),
+            compare_tables_without_pkeys(
+                src_pool,
+                dst_owner_pool,
+                conf.tables,
+                conf.schema_name,
+                validation_logger,
+            ),
             run_analyze(dst_root_no_timeout_pool, dst_logger),
         )
     finally:
