@@ -261,7 +261,7 @@ async def load_dumped_tables(
             _execute_subprocess(
                 [
                     "psql",
-                    config.dst.owner_dsn,
+                    config.dst.root_dsn,
                     "-f",
                     file,
                 ],
