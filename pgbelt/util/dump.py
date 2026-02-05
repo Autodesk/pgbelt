@@ -134,9 +134,23 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
         if line and not any(keyword in line for keyword in keywords)
     ]
 
+    # Inject BEGIN and SET LOCAL session_replication_role = replica before the first SET statement in the header
+    # We need this to ensure when we load PK-less tables, we don't run any triggers that may modify other tables.
+    # All data is loaded table by table either by dump and load or replication, not fanning relationships, so this process
+    # runs down a list of tables. So essentially, if triggers modify other tables, that should be taken care of by the SRC and replicated,
+    # then the PK-less tables will catch up to the right state when this is run. We don't want to rerun the triggers, further modifying state.
+    begin_injected = False
+    final_header_lines = []
+    for line in filtered_lines:
+        if not begin_injected and line.startswith("SET "):
+            final_header_lines.append("BEGIN;\n")
+            final_header_lines.append("SET LOCAL session_replication_role = replica;\n")
+            begin_injected = True
+        final_header_lines.append(line)
+
     # Write filtered header to output file
     async with aopen(output_file, "w") as dst:
-        await dst.writelines(filtered_lines)
+        await dst.writelines(final_header_lines)
 
     # Append the rest of the file using tail (fast, no Python overhead)
     tail_proc = await asyncio.create_subprocess_shell(
@@ -146,6 +160,53 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
     _, tail_err = await tail_proc.communicate()
     if tail_proc.returncode != 0:
         raise Exception(f"tail failed: {tail_err.decode('utf-8')}")
+
+    # Inject COMMIT; before the \unrestrict line at the end of the file.
+    # Read only the last few lines (tail), find \unrestrict, insert COMMIT;
+    # above it, then truncate and rewrite just that portion.
+    tail_n = 10
+    tail_proc = await asyncio.create_subprocess_exec(
+        "tail",
+        "-n",
+        str(tail_n),
+        output_file,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    tail_out, _ = await tail_proc.communicate()
+    tail_lines = tail_out.decode("utf-8").splitlines(keepends=True)
+
+    # Walk backwards through the tail lines to find \unrestrict
+    for i in range(len(tail_lines) - 1, -1, -1):
+        if tail_lines[i].startswith("\\unrestrict "):
+            tail_lines.insert(i, "COMMIT;\n")
+            break
+
+    # Count total lines to know where to truncate
+    wc_proc = await asyncio.create_subprocess_exec(
+        "wc",
+        "-l",
+        output_file,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    wc_out, _ = await wc_proc.communicate()
+    total_lines = int(wc_out.decode("utf-8").strip().split()[0])
+
+    # Truncate the file to remove the original tail lines, then append modified ones
+    keep_lines = total_lines - tail_n
+    truncate_proc = await asyncio.create_subprocess_shell(
+        f"head -n {keep_lines} '{output_file}' > '{output_file}.commit_tmp' "
+        f"&& mv '{output_file}.commit_tmp' '{output_file}'",
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, trunc_err = await truncate_proc.communicate()
+    if truncate_proc.returncode != 0:
+        raise Exception(f"truncate failed: {trunc_err.decode('utf-8')}")
+
+    # Append the modified tail lines with COMMIT; injected
+    async with aopen(output_file, "a") as f:
+        await f.writelines(tail_lines)
 
     # Clean up temp file
     os.remove(temp_file)
@@ -199,7 +260,9 @@ async def load_dumped_tables(
             _execute_subprocess(
                 [
                     "psql",
-                    config.dst.owner_dsn,
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    config.dst.root_dsn,
                     "-f",
                     file,
                 ],
