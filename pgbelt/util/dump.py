@@ -135,6 +135,10 @@ async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> No
     ]
 
     # Inject BEGIN and SET LOCAL session_replication_role = replica
+    # We need this to ensure when we load PK-less tables, we don't run any triggers that may modify other tables.
+    # All data is loaded table by table either by dump and load or replication, not fanning relationships, so this process
+    # runs down a list of tables. So essentially, if triggers modify other tables, that should be taken care of by the SRC and replicated,
+    # then the PK-less tables will catch up to the right state when this is run. We don't want to rerun the triggers, further modifying state.
     # right before the first SET statement in the header
     begin_injected = False
     final_header_lines = []
