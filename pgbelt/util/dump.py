@@ -299,7 +299,7 @@ async def _dump_and_filter_schema(dsn: str, schema_name: str, logger: Logger) ->
         f"pg_dump -s --no-owner -n {schema_name} '{dsn}'"
         " | grep -vE '^\\s*$'"
         " | grep -vE '^\\s*--'"
-        " | grep -vE 'EXTENSION |GRANT |REVOKE '"
+        " | grep -vE 'EXTENSION |GRANT |REVOKE |\\\\restrict |\\\\unrestrict '"
         " | cat -s"
     )
     p = await asyncio.create_subprocess_shell(
