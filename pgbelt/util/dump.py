@@ -40,8 +40,8 @@ def _parse_dump_commands(out: str) -> list[str]:
     each is a complete postgres command. Commands may be multi-line.
 
     Dollar-quoted strings (e.g. function bodies between $_$ ... $_$) are treated
-    as opaque content — semicolons, comments, and blank lines within them do not
-    affect command boundary detection.
+    as opaque content — semicolons within them do not affect command boundary
+    detection.
     """
     lines = out.split("\n")
     commands = []
@@ -51,11 +51,9 @@ def _parse_dump_commands(out: str) -> list[str]:
     for line in lines:
         stripped = line.strip()
 
-        # Outside dollar-quoted blocks: skip blank lines and comments.
-        # Inside dollar-quoted blocks: preserve everything as-is.
-        if not in_dollar_quote:
-            if not stripped or stripped.startswith("--"):
-                continue
+        # Skip blank lines and comments regardless of context.
+        if not stripped or stripped.startswith("--"):
+            continue
 
         # Start a new command if we have no commands yet, or the previous command
         # is fully terminated (ends with ;) and we're not inside a dollar-quoted string.
