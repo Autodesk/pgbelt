@@ -7,7 +7,7 @@ from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
-from re import search
+from re import finditer, search
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
@@ -38,9 +38,15 @@ def _parse_dump_commands(out: str) -> list[str]:
     """
     Given a string containing output from pg_dump, return a list of strings where
     each is a complete postgres command. Commands may be multi-line.
+
+    Dollar-quoted strings (e.g. function bodies between $_$ ... $_$) are treated
+    as opaque content — semicolons within them do not affect command boundary
+    detection.
     """
     lines = out.split("\n")
     commands = []
+    in_dollar_quote = False
+    dollar_quote_tag = None
 
     for line in lines:
         stripped = line.strip()
@@ -48,12 +54,23 @@ def _parse_dump_commands(out: str) -> list[str]:
         if not stripped or stripped.startswith("--"):
             continue
 
-        # if the last command is terminated or we don't have any yet start a new one
-        if not commands or commands[-1].endswith(";\n"):
+        # Start a new command if we have no commands yet, or the previous command
+        # is fully terminated (ends with ;) and we're not inside a dollar-quoted string.
+        if not commands or (commands[-1].endswith(";\n") and not in_dollar_quote):
             commands.append(line + "\n")
-        # otherwise we append to the last command because it must be multi-line
         else:
             commands[-1] += line + "\n"
+
+        # Track dollar-quoting by scanning for dollar-quote tags in this line.
+        # A dollar-quote tag is $$ or $tag$ where tag matches [a-zA-Z_][a-zA-Z0-9_]*.
+        for match in finditer(r"\$([a-zA-Z_][a-zA-Z0-9_]*)?\$", line):
+            tag = match.group(0)
+            if not in_dollar_quote:
+                in_dollar_quote = True
+                dollar_quote_tag = tag
+            elif tag == dollar_quote_tag:
+                in_dollar_quote = False
+                dollar_quote_tag = None
 
     return commands
 
@@ -272,6 +289,90 @@ async def load_dumped_tables(
         )
 
     await asyncio.gather(*loads)
+
+
+async def _dump_and_filter_schema(
+    dsn: str, schema_name: str, logger: Logger, full: bool = False
+) -> str:
+    """
+    Run pg_dump -s piped through shell grep filters to produce a clean schema.
+    """
+    excludes = "EXTENSION |GRANT |REVOKE |\\\\restrict |\\\\unrestrict "
+    cmd = (
+        f"pg_dump -s --no-owner -n {schema_name} '{dsn}'"
+        " | grep -vE '^\\s*$'"
+        " | grep -vE '^\\s*--'"
+        f" | grep -vE '{excludes}'"
+    )
+    if not full:
+        # Use awk to buffer multi-line commands (accumulate lines until ;)
+        # and only print the command if it doesn't contain excluded keywords.
+        # This avoids orphaned lines from multi-line NOT VALID or CREATE INDEX statements.
+        cmd += (
+            " | awk '"
+            '/;[[:space:]]*$/ { buf = buf "\\n" $0;'
+            " if (buf !~ /NOT VALID/ && buf !~ /CREATE (UNIQUE )?INDEX/) print buf;"
+            ' buf = ""; next }'
+            ' { buf = (buf == "" ? $0 : buf "\\n" $0) }'
+            "'"
+        )
+    cmd += " | cat -s"
+    p = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await p.communicate()
+    if p.returncode != 0:
+        raise Exception(
+            f"Schema dump failed, got code {p.returncode}.\n  err: {err.decode('utf-8')}"
+        )
+    logger.debug("Retrieved and filtered schema dump.")
+    return out.decode("utf-8")
+
+
+async def validate_schema_dump(
+    config: DbupgradeConfig, logger: Logger, full: bool = False
+) -> dict:
+    """
+    Compare the source and destination database schemas by running pg_dump -s
+    on both sides, filtered through shell grep pipelines.
+
+    Skips databases with a table list configured (subset migrations).
+
+    Returns a dict with 'db' and 'result' keys.
+    """
+    if config.tables:
+        logger.info("Skipping schema diff: table list configured (subset migration).")
+        return {"db": config.db, "result": "skipped"}
+
+    src_filtered, dst_filtered = await asyncio.gather(
+        _dump_and_filter_schema(
+            config.src.pglogical_dsn, config.schema_name, logger, full
+        ),
+        _dump_and_filter_schema(
+            config.dst.pglogical_dsn, config.schema_name, logger, full
+        ),
+    )
+
+    if src_filtered == dst_filtered:
+        logger.info("Schema diff passed: source and destination match.")
+        return {"db": config.db, "result": "match"}
+    else:
+        from difflib import unified_diff
+
+        diff = "".join(
+            unified_diff(
+                src_filtered.splitlines(keepends=True),
+                dst_filtered.splitlines(keepends=True),
+                fromfile="source",
+                tofile="destination",
+            )
+        )
+        logger.warning(
+            f"Schema diff FAILED: source and destination schemas differ.\n{diff}"
+        )
+        return {"db": config.db, "result": "mismatch"}
 
 
 async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
