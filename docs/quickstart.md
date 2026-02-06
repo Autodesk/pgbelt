@@ -176,7 +176,7 @@ Before proceeding, verify that no application connections remain on the source d
 
 All source connection counts should be `0`. You can exclude specific usernames (e.g. monitoring agents) with `--exclude-user/-e` or LIKE patterns with `--exclude-pattern/-p`:
 
-    $ belt connections testdatacenter1 database1 --exclude-user datadog --exclude-pattern '%%repuser%%'
+    $ belt connections testdatacenter1 database1 --exclude-user datadog --exclude-pattern '%repuser%'
 
 ## Step 6: Stop forward replication
 
