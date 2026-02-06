@@ -7,7 +7,7 @@ from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
-from re import search
+from re import finditer, search
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
@@ -38,22 +38,42 @@ def _parse_dump_commands(out: str) -> list[str]:
     """
     Given a string containing output from pg_dump, return a list of strings where
     each is a complete postgres command. Commands may be multi-line.
+
+    Dollar-quoted strings (e.g. function bodies between $_$ ... $_$) are treated
+    as opaque content — semicolons, comments, and blank lines within them do not
+    affect command boundary detection.
     """
     lines = out.split("\n")
     commands = []
+    in_dollar_quote = False
+    dollar_quote_tag = None
 
     for line in lines:
         stripped = line.strip()
-        # if the line is whitespace only or a comment then ignore it
-        if not stripped or stripped.startswith("--"):
-            continue
 
-        # if the last command is terminated or we don't have any yet start a new one
-        if not commands or commands[-1].endswith(";\n"):
+        # Outside dollar-quoted blocks: skip blank lines and comments.
+        # Inside dollar-quoted blocks: preserve everything as-is.
+        if not in_dollar_quote:
+            if not stripped or stripped.startswith("--"):
+                continue
+
+        # Start a new command if we have no commands yet, or the previous command
+        # is fully terminated (ends with ;) and we're not inside a dollar-quoted string.
+        if not commands or (commands[-1].endswith(";\n") and not in_dollar_quote):
             commands.append(line + "\n")
-        # otherwise we append to the last command because it must be multi-line
         else:
             commands[-1] += line + "\n"
+
+        # Track dollar-quoting by scanning for dollar-quote tags in this line.
+        # A dollar-quote tag is $$ or $tag$ where tag matches [a-zA-Z_][a-zA-Z0-9_]*.
+        for match in finditer(r"\$([a-zA-Z_][a-zA-Z0-9_]*)?\$", line):
+            tag = match.group(0)
+            if not in_dollar_quote:
+                in_dollar_quote = True
+                dollar_quote_tag = tag
+            elif tag == dollar_quote_tag:
+                in_dollar_quote = False
+                dollar_quote_tag = None
 
     return commands
 
