@@ -170,19 +170,19 @@ This would be the beginning of your application downtime. We revoke all login pe
 
     $ belt revoke-logins testdatacenter1 database1
 
-## Step 6: Stop forward replication
-
-Once write traffic has stopped on the source database, we need to stop replication in the forward direction.
-
-    $ belt teardown-forward-replication testdatacenter1 database1
-
-After stopping forward replication, verify that no application connections remain on the source database. This ensures no writes are happening on the source during the cutover:
+Before proceeding, verify that no application connections remain on the source database. This ensures no writes are happening on the source during the cutover:
 
     $ belt connections testdatacenter1 database1
 
 All source connection counts should be `0`. You can exclude specific usernames (e.g. monitoring agents) with `--exclude-user/-e` or LIKE patterns with `--exclude-pattern/-p`:
 
     $ belt connections testdatacenter1 database1 --exclude-user datadog --exclude-pattern '%%repuser%%'
+
+## Step 6: Stop forward replication
+
+Once write traffic has stopped on the source database, we need to stop replication in the forward direction.
+
+    $ belt teardown-forward-replication testdatacenter1 database1
 
 ## Step 7: Sync all the missing bits from source to destination (that could not be done by replication)
 
