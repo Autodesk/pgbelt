@@ -50,8 +50,7 @@ def _parse_dump_commands(out: str) -> list[str]:
 
     for line in lines:
         stripped = line.strip()
-
-        # Skip blank lines and comments regardless of context.
+        # if the line is whitespace only or a comment then ignore it
         if not stripped or stripped.startswith("--"):
             continue
 
