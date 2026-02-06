@@ -298,15 +298,25 @@ async def _dump_and_filter_schema(
     Run pg_dump -s piped through shell grep filters to produce a clean schema.
     """
     excludes = "EXTENSION |GRANT |REVOKE |\\\\restrict |\\\\unrestrict "
-    if not full:
-        excludes += "|NOT VALID|CREATE INDEX|CREATE UNIQUE INDEX"
     cmd = (
         f"pg_dump -s --no-owner -n {schema_name} '{dsn}'"
         " | grep -vE '^\\s*$'"
         " | grep -vE '^\\s*--'"
         f" | grep -vE '{excludes}'"
-        " | cat -s"
     )
+    if not full:
+        # Use awk to buffer multi-line commands (accumulate lines until ;)
+        # and only print the command if it doesn't contain excluded keywords.
+        # This avoids orphaned lines from multi-line NOT VALID or CREATE INDEX statements.
+        cmd += (
+            " | awk '"
+            '/;[[:space:]]*$/ { buf = buf "\\n" $0;'
+            " if (buf !~ /NOT VALID/ && buf !~ /CREATE (UNIQUE )?INDEX/) print buf;"
+            ' buf = ""; next }'
+            ' { buf = (buf == "" ? $0 : buf "\\n" $0) }'
+            "'"
+        )
+    cmd += " | cat -s"
     p = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
