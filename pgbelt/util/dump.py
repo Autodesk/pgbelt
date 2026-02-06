@@ -338,7 +338,19 @@ async def validate_schema_dump(config: DbupgradeConfig, logger: Logger) -> dict:
         logger.info("Schema diff passed: source and destination match.")
         return {"db": config.db, "result": "match"}
     else:
-        logger.warning("Schema diff FAILED: source and destination schemas differ.")
+        from difflib import unified_diff
+
+        diff = "".join(
+            unified_diff(
+                src_filtered.splitlines(keepends=True),
+                dst_filtered.splitlines(keepends=True),
+                fromfile="source",
+                tofile="destination",
+            )
+        )
+        logger.warning(
+            f"Schema diff FAILED: source and destination schemas differ.\n{diff}"
+        )
         return {"db": config.db, "result": "mismatch"}
 
 
