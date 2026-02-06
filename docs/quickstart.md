@@ -123,6 +123,12 @@ source to the destination.
 
     $ belt setup testdatacenter1 database1
 
+After setup completes, verify the schema was loaded correctly into the destination by running a schema diff. This compares `pg_dump -s` output from both databases (excluding indexes and NOT VALID constraints, which are loaded in later steps):
+
+    $ belt diff-schemas testdatacenter1 database1
+
+All databases should show `match`. If any show `mismatch`, review the diff output to identify what differs before proceeding.
+
 You can check the status of the migration, database hosts, replication delay, etc using the following command:
 
     $ belt status testdatacenter1
@@ -136,6 +142,10 @@ this command during a period of low traffic.
 Note that this command will create all the indexes in the target database, **and will run ANALYZE after** to ensure optimal performance.
 
     $ belt create-indexes testdatacenter1 database1
+
+After indexes are created, run the schema diff again, this time with `--full`, to confirm that indexes are now present and only NOT VALID constraints remain:
+
+    $ belt diff-schemas testdatacenter1 database1 --full
 
 ## Step 3: (Optional) Run ANALYZE on the target database before your application cutover
 
@@ -159,6 +169,14 @@ This would be the beginning of your application downtime. We revoke all login pe
 **NOTE: Do not run this command if the schema owner of your database is the same as your root user.**
 
     $ belt revoke-logins testdatacenter1 database1
+
+Before proceeding, verify that no application connections remain on the source database. This ensures no writes are happening on the source during the cutover:
+
+    $ belt connections testdatacenter1 database1
+
+All source connection counts should be `0`. You can exclude specific usernames (e.g. monitoring agents) with `--exclude-user/-e` or LIKE patterns with `--exclude-pattern/-p`:
+
+    $ belt connections testdatacenter1 database1 --exclude-user datadog --exclude-pattern '%repuser%'
 
 ## Step 6: Stop forward replication
 
@@ -190,6 +208,12 @@ $ belt sync testdatacenter1 database1
 ```
 
 If the above command fails, please see the `playbook.md` document in this repository for more information on how to resolve the issue.
+
+After sync completes, run a full schema diff to confirm the source and destination schemas are exactly the same:
+
+    $ belt diff-schemas testdatacenter1 database1 --full
+
+All databases should show `match`. At this point, indexes and NOT VALID constraints have been loaded, so the schemas should be identical.
 
 ## Step 8: Enable write traffic to the destination host
 
