@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/Autodesk/pgbelt/compare/v0.10.1...v0.11.0) (2026-02-06)
+
+
+### Features
+
+* schema diff command and fix for fragmented function/triggers ([#845](https://github.com/Autodesk/pgbelt/issues/845)) ([4d6cc69](https://github.com/Autodesk/pgbelt/commit/4d6cc699dca6599fb886d97a8e2e41f8e508eaed))
+
 ## [0.10.1](https://github.com/Autodesk/pgbelt/compare/v0.10.0...v0.10.1) (2026-02-05)
 
 
