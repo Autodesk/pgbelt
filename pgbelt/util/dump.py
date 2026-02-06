@@ -291,6 +291,57 @@ async def load_dumped_tables(
     await asyncio.gather(*loads)
 
 
+async def _dump_and_filter_schema(dsn: str, schema_name: str, logger: Logger) -> str:
+    """
+    Run pg_dump -s piped through shell grep filters to produce a clean schema.
+    """
+    cmd = (
+        f"pg_dump -s --no-owner -n {schema_name} '{dsn}'"
+        " | grep -vE '^\\s*$'"
+        " | grep -vE '^\\s*--'"
+        " | grep -vE 'EXTENSION |GRANT |REVOKE '"
+        " | cat -s"
+    )
+    p = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await p.communicate()
+    if p.returncode != 0:
+        raise Exception(
+            f"Schema dump failed, got code {p.returncode}.\n  err: {err.decode('utf-8')}"
+        )
+    logger.debug("Retrieved and filtered schema dump.")
+    return out.decode("utf-8")
+
+
+async def validate_schema_dump(config: DbupgradeConfig, logger: Logger) -> dict:
+    """
+    Compare the source and destination database schemas by running pg_dump -s
+    on both sides, filtered through shell grep pipelines.
+
+    Skips databases with a table list configured (subset migrations).
+
+    Returns a dict with 'db' and 'result' keys.
+    """
+    if config.tables:
+        logger.info("Skipping schema diff: table list configured (subset migration).")
+        return {"db": config.db, "result": "skipped"}
+
+    src_filtered, dst_filtered = await asyncio.gather(
+        _dump_and_filter_schema(config.src.pglogical_dsn, config.schema_name, logger),
+        _dump_and_filter_schema(config.dst.pglogical_dsn, config.schema_name, logger),
+    )
+
+    if src_filtered == dst_filtered:
+        logger.info("Schema diff passed: source and destination match.")
+        return {"db": config.db, "result": "match"}
+    else:
+        logger.warning("Schema diff FAILED: source and destination schemas differ.")
+        return {"db": config.db, "result": "mismatch"}
+
+
 async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
     """
     Dump the schema from the source db and write a file with the complete schema,

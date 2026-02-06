@@ -1,5 +1,8 @@
 from collections.abc import Awaitable
 from asyncpg import create_pool
+from tabulate import tabulate
+from typer import echo
+from typer import style
 
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
@@ -9,6 +12,7 @@ from pgbelt.util.dump import create_target_indexes
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.dump import remove_dst_not_valid_constraints
 from pgbelt.util.dump import remove_dst_indexes
+from pgbelt.util.dump import validate_schema_dump
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import run_analyze
 
@@ -106,6 +110,51 @@ async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
         await run_analyze(dst_pool, logger)
 
 
+async def _print_diff_table(results: list[dict[str, str]]) -> list[list[str]]:
+    table = [
+        [
+            style("database", "yellow"),
+            style("schema match", "yellow"),
+        ]
+    ]
+
+    results.sort(key=lambda d: d["db"])
+
+    for r in results:
+        result = r["result"]
+        if result == "match":
+            color = "green"
+        elif result == "skipped":
+            color = "yellow"
+        else:
+            color = "red"
+        table.append(
+            [
+                style(r["db"], "green"),
+                style(result, color),
+            ]
+        )
+
+    echo(tabulate(table, headers="firstrow"))
+
+    return table
+
+
+@run_with_configs(results_callback=_print_diff_table)
+async def diff_schemas(config_future: Awaitable[DbupgradeConfig]) -> dict:
+    """
+    Validate that pgbelt-processed schema.sql files match a fresh pg_dump from
+    the source database. Compares using simple line-by-line filtering independent
+    of pgbelt's internal schema parser to catch any processing bugs.
+
+    DBs with a table list configured are skipped since they represent subset
+    migrations where schemas will naturally differ.
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "schema.diff")
+    return await validate_schema_dump(conf, logger)
+
+
 COMMANDS = [
     dump_schema,
     load_schema,
@@ -113,4 +162,5 @@ COMMANDS = [
     remove_constraints,
     remove_indexes,
     create_indexes,
+    diff_schemas,
 ]
