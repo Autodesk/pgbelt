@@ -2,6 +2,7 @@ from collections.abc import Awaitable
 from asyncpg import create_pool
 from tabulate import tabulate
 from typer import echo
+from typer import Option
 from typer import style
 
 from pgbelt.cmd.helpers import run_with_configs
@@ -141,18 +142,28 @@ async def _print_diff_table(results: list[dict[str, str]]) -> list[list[str]]:
 
 
 @run_with_configs(results_callback=_print_diff_table)
-async def diff_schemas(config_future: Awaitable[DbupgradeConfig]) -> dict:
+async def diff_schemas(
+    config_future: Awaitable[DbupgradeConfig],
+    full: bool = Option(
+        False,
+        "--full",
+        help="Include NOT VALID constraints and CREATE INDEX statements in the diff. Without this flag, those are excluded since they are loaded in separate steps.",
+    ),
+) -> dict:
     """
-    Validate that pgbelt-processed schema.sql files match a fresh pg_dump from
-    the source database. Compares using simple line-by-line filtering independent
-    of pgbelt's internal schema parser to catch any processing bugs.
+    Compare source and destination schemas using pg_dump, filtered through
+    shell grep pipelines independent of pgbelt's internal schema parser.
+
+    By default, NOT VALID constraints and CREATE INDEX statements are excluded
+    from the comparison since pgbelt loads those in separate steps. Use --full
+    to include them.
 
     DBs with a table list configured are skipped since they represent subset
     migrations where schemas will naturally differ.
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.diff")
-    return await validate_schema_dump(conf, logger)
+    return await validate_schema_dump(conf, logger, full=full)
 
 
 COMMANDS = [

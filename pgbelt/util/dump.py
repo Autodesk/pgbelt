@@ -291,15 +291,20 @@ async def load_dumped_tables(
     await asyncio.gather(*loads)
 
 
-async def _dump_and_filter_schema(dsn: str, schema_name: str, logger: Logger) -> str:
+async def _dump_and_filter_schema(
+    dsn: str, schema_name: str, logger: Logger, full: bool = False
+) -> str:
     """
     Run pg_dump -s piped through shell grep filters to produce a clean schema.
     """
+    excludes = "EXTENSION |GRANT |REVOKE |\\\\restrict |\\\\unrestrict "
+    if not full:
+        excludes += "|NOT VALID|CREATE INDEX|CREATE UNIQUE INDEX"
     cmd = (
         f"pg_dump -s --no-owner -n {schema_name} '{dsn}'"
         " | grep -vE '^\\s*$'"
         " | grep -vE '^\\s*--'"
-        " | grep -vE 'EXTENSION |GRANT |REVOKE |\\\\restrict |\\\\unrestrict '"
+        f" | grep -vE '{excludes}'"
         " | cat -s"
     )
     p = await asyncio.create_subprocess_shell(
@@ -316,7 +321,9 @@ async def _dump_and_filter_schema(dsn: str, schema_name: str, logger: Logger) ->
     return out.decode("utf-8")
 
 
-async def validate_schema_dump(config: DbupgradeConfig, logger: Logger) -> dict:
+async def validate_schema_dump(
+    config: DbupgradeConfig, logger: Logger, full: bool = False
+) -> dict:
     """
     Compare the source and destination database schemas by running pg_dump -s
     on both sides, filtered through shell grep pipelines.
@@ -330,8 +337,12 @@ async def validate_schema_dump(config: DbupgradeConfig, logger: Logger) -> dict:
         return {"db": config.db, "result": "skipped"}
 
     src_filtered, dst_filtered = await asyncio.gather(
-        _dump_and_filter_schema(config.src.pglogical_dsn, config.schema_name, logger),
-        _dump_and_filter_schema(config.dst.pglogical_dsn, config.schema_name, logger),
+        _dump_and_filter_schema(
+            config.src.pglogical_dsn, config.schema_name, logger, full
+        ),
+        _dump_and_filter_schema(
+            config.dst.pglogical_dsn, config.schema_name, logger, full
+        ),
     )
 
     if src_filtered == dst_filtered:
