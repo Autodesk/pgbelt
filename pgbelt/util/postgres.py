@@ -70,6 +70,7 @@ async def compare_data(
     tables: list[str],
     schema: str,
     logger: Logger,
+    fallback_query: str | None = None,
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
@@ -119,6 +120,18 @@ async def compare_data(
         )
 
         src_rows = await src_pool.fetch(filled_query)
+
+        # If the primary query (e.g. TABLESAMPLE) returned fewer rows than
+        # expected and a fallback query is available, try the fallback.  On
+        # small tables ORDER BY RANDOM() is fast, so this is only costly on
+        # large tables — which TABLESAMPLE will have already handled.
+        if fallback_query and len(src_rows) < 100:
+            filled_fallback = fallback_query.format(
+                table=full_table_name, order_by_pkeys=order_by_pkeys
+            )
+            fallback_rows = await src_pool.fetch(filled_fallback)
+            if len(fallback_rows) > len(src_rows):
+                src_rows = fallback_rows
 
         # There is a chance tables are empty...
         if len(src_rows) == 0:
@@ -222,10 +235,26 @@ async def compare_100_random_rows(
     1. Get all tables with primary keys
     2. For each of those tables, select 100 random rows
     3. For each row, ensure the row in the destination is identical
+
+    Uses TABLESAMPLE SYSTEM for fast block-level sampling on large tables,
+    falling back to ORDER BY RANDOM() when the sample is too small (i.e.
+    on smaller tables where ORDER BY RANDOM() is cheap anyway).
     """
     logger.info("Comparing 100 random rows...")
 
+    # Primary: fast block-level sampling (~1% of pages), avoids full table
+    # scan + sort that ORDER BY RANDOM() requires.
     query = """
+    SELECT *
+    FROM {table} TABLESAMPLE SYSTEM (1)
+    ORDER BY {order_by_pkeys}
+    LIMIT 100;
+    """
+
+    # Fallback: used when TABLESAMPLE returns fewer than 100 rows (small
+    # tables).  ORDER BY RANDOM() is fine here because the table is small
+    # enough that performance isn't a concern.
+    fallback_query = """
     SELECT * FROM
     (
         SELECT *
@@ -236,7 +265,9 @@ async def compare_100_random_rows(
     ORDER BY {order_by_pkeys};
     """
 
-    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
+    await compare_data(
+        src_pool, dst_pool, query, tables, schema, logger, fallback_query
+    )
 
 
 async def compare_latest_100_rows(
@@ -295,14 +326,27 @@ async def compare_tables_without_pkeys(
         full_table_name = f'{schema}."{table}"'
         logger.debug(f"Validating table without primary key: {full_table_name}...")
 
-        # Select 100 random rows from source
+        # Select 100 random rows from source using fast block-level sampling.
         query = f"""
-        SELECT * FROM {full_table_name}
-        ORDER BY RANDOM()
+        SELECT * FROM {full_table_name} TABLESAMPLE SYSTEM (1)
         LIMIT 100;
         """
 
         src_rows = await src_pool.fetch(query)
+
+        # If TABLESAMPLE returned fewer rows than expected, fall back to
+        # ORDER BY RANDOM().  On small tables this is fast anyway.
+        # This also covers the case where TABLESAMPLE returns 0 rows from a
+        # non-empty table (no pages were selected).
+        if len(src_rows) < 100:
+            fallback_query = f"""
+            SELECT * FROM {full_table_name}
+            ORDER BY RANDOM()
+            LIMIT 100;
+            """
+            fallback_rows = await src_pool.fetch(fallback_query)
+            if len(fallback_rows) > len(src_rows):
+                src_rows = fallback_rows
 
         if len(src_rows) == 0:
             logger.debug(f"Table {full_table_name} is empty in source.")
