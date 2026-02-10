@@ -38,7 +38,8 @@ async def _sync_sequences(
 async def sync_sequences(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Retrieve the current value of all sequences in the source database and update
-    the sequences in the target to match.
+    the sequences in the target to match, but only if the source value is >= the
+    current destination value. This prevents regressing sequences if run after cutover.
     """
     conf = await config_future
     pools = await gather(

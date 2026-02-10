@@ -44,8 +44,11 @@ async def load_sequences(
     pool: Pool, seqs: dict[str, int], schema: str, logger: Logger
 ) -> None:
     """
-    given a dict of sequence named mapped to values, set each sequence to the
-    matching value
+    Given a dict of sequence names mapped to values, set each sequence to the
+    matching value, but only if the new value is >= the current value in the
+    destination. This prevents accidentally regressing sequences (e.g. if
+    sync-sequences is run after a cutover when the destination has already
+    advanced past the source).
     """
 
     # If seqs is empty, we have nothing to do. Skip the operation.
@@ -54,13 +57,35 @@ async def load_sequences(
         return
 
     logger.info(f"Loading sequences {list(seqs.keys())} from schema {schema}...")
+
+    # Fetch current destination sequence values so we only advance, never regress.
+    dst_current = {}
+    for seq_name in seqs:
+        val = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq_name}";')
+        dst_current[seq_name] = val
+
+    seqs_to_set = {}
+    for seq_name, src_val in seqs.items():
+        dst_val = dst_current[seq_name]
+        if src_val >= dst_val:
+            seqs_to_set[seq_name] = src_val
+        else:
+            logger.warning(
+                f'Skipping sequence "{seq_name}": source value {src_val} is less than '
+                f"current destination value {dst_val}. Keeping destination value."
+            )
+
+    if not seqs_to_set:
+        logger.info("All sequences already at equal or higher values. Nothing to set.")
+        return
+
     sql_template = "SELECT pg_catalog.setval('{}.\"{}\"', {}, true);"
-    sql = "\n".join([sql_template.format(schema, k, v) for k, v in seqs.items()])
+    sql = "\n".join([sql_template.format(schema, k, v) for k, v in seqs_to_set.items()])
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(sql)
 
-    logger.debug("Loaded sequences")
+    logger.debug(f"Loaded sequences: {list(seqs_to_set.keys())}")
 
 
 async def compare_data(
