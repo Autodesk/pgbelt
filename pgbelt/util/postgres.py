@@ -46,28 +46,89 @@ async def detect_pk_sequences(
     """
     Detect sequences that serve as defaults for primary key columns.
 
-    Looks up ownership/dependency relationships in pg_depend to find sequences
-    that back SERIAL, BIGSERIAL, or IDENTITY primary key columns.
+    Covers all the ways a sequence can back a primary key column:
 
-    Returns a dict mapping sequence_name -> (table_name, column_name) for every
+    * **SERIAL / BIGSERIAL** – creates an ``integer`` / ``bigint`` column with
+      an owned sequence (``deptype = 'a'`` in ``pg_depend``).
+    * **IDENTITY columns** (PG 10+) – internally managed sequence
+      (``deptype = 'i'``).
+    * **Manual nextval() defaults** – e.g.
+      ``ALTER TABLE t ALTER COLUMN id SET DEFAULT nextval('my_seq')`` on an
+      ``integer`` / ``bigint`` PK column.  Detected via the ``pg_attrdef`` →
+      sequence dependency in ``pg_depend``.
+
+    Returns a dict mapping sequence_name → (table_name, column_name) for every
     primary-key sequence found in the given schema (filtered by
     targeted_sequences when provided).
     """
     logger.info("Detecting primary key sequences...")
 
+    # This query finds every sequence in the schema that serves as the
+    # default value generator for a primary key column.  It uses a UNION
+    # of two strategies so that all common patterns are covered:
+    #
+    # Case 1 – SERIAL / BIGSERIAL / IDENTITY columns:
+    #   When Postgres processes "id SERIAL PRIMARY KEY" or
+    #   "id INT GENERATED ALWAYS AS IDENTITY", it creates a sequence and
+    #   records an ownership dependency in pg_depend:
+    #     - deptype 'a' (auto)     → SERIAL / BIGSERIAL (int/bigint)
+    #     - deptype 'i' (internal) → IDENTITY columns (PG 10+)
+    #   In both cases d.objid is the sequence, d.refobjid is the table,
+    #   and d.refobjsubid is the column's attnum.  We then verify that
+    #   the column is part of a primary key constraint (contype = 'p').
+    #
+    # Case 2 – Manual "DEFAULT nextval(...)" on a PK column:
+    #   When someone writes:
+    #     CREATE SEQUENCE my_seq;
+    #     CREATE TABLE t (id bigint PRIMARY KEY DEFAULT nextval('my_seq'));
+    #   Postgres stores the default expression in pg_attrdef and records a
+    #   dependency from that pg_attrdef entry (d.objid / d.classid) to the
+    #   sequence (d.refobjid / d.refclassid).  We resolve the pg_attrdef
+    #   entry back to its table + column, then check the PK constraint the
+    #   same way.
+    #
+    # The UNION deduplicates rows that match both cases (e.g. a SERIAL
+    # column is caught by Case 1 via ownership AND Case 2 via pg_attrdef).
     query = """
+        -- Case 1: SERIAL / BIGSERIAL (owned) or IDENTITY sequences.
+        -- pg_depend links the sequence directly to the table column via
+        -- deptype 'a' (auto/owned) or 'i' (identity).
         SELECT
             seq.relname  AS sequence_name,
             tab.relname  AS table_name,
             a.attname    AS column_name
         FROM pg_class seq
-        JOIN pg_namespace ns  ON seq.relnamespace = ns.oid AND ns.nspname = $1
-        JOIN pg_depend d      ON d.objid = seq.oid AND d.deptype IN ('a', 'i')
-        JOIN pg_class tab     ON d.refobjid = tab.oid
-        JOIN pg_attribute a   ON a.attrelid = tab.oid AND a.attnum = d.refobjsubid
-        JOIN pg_constraint con ON con.conrelid = tab.oid
-                              AND con.contype = 'p'
-                              AND a.attnum = ANY(con.conkey)
+        JOIN pg_namespace ns   ON seq.relnamespace = ns.oid AND ns.nspname = $1
+        JOIN pg_depend d       ON d.objid = seq.oid          -- sequence is the dependent object
+                               AND d.deptype IN ('a', 'i')   -- auto-owned or identity
+        JOIN pg_class tab      ON d.refobjid = tab.oid        -- referenced object is the table
+        JOIN pg_attribute a    ON a.attrelid = tab.oid         -- resolve the column by attnum
+                               AND a.attnum = d.refobjsubid
+        JOIN pg_constraint con ON con.conrelid = tab.oid       -- table has a PK constraint...
+                               AND con.contype = 'p'
+                               AND a.attnum = ANY(con.conkey)  -- ...that includes this column
+        WHERE seq.relkind = 'S'
+
+        UNION
+
+        -- Case 2: Manual nextval() defaults.
+        -- The column default expression (pg_attrdef) depends on the sequence;
+        -- we follow that dependency backwards from the sequence to the column.
+        SELECT
+            seq.relname  AS sequence_name,
+            tab.relname  AS table_name,
+            a.attname    AS column_name
+        FROM pg_class seq
+        JOIN pg_namespace ns   ON seq.relnamespace = ns.oid AND ns.nspname = $1
+        JOIN pg_depend d       ON d.refobjid = seq.oid                      -- sequence is the *referenced* object
+                               AND d.refclassid = 'pg_class'::regclass      -- ...in the pg_class catalog
+                               AND d.classid = 'pg_attrdef'::regclass       -- dependent object is a column default
+        JOIN pg_attrdef ad     ON ad.oid = d.objid                           -- resolve the default expression
+        JOIN pg_class tab      ON ad.adrelid = tab.oid                       -- table the default belongs to
+        JOIN pg_attribute a    ON a.attrelid = tab.oid AND a.attnum = ad.adnum  -- column the default belongs to
+        JOIN pg_constraint con ON con.conrelid = tab.oid                     -- table has a PK constraint...
+                               AND con.contype = 'p'
+                               AND a.attnum = ANY(con.conkey)                -- ...that includes this column
         WHERE seq.relkind = 'S';
     """
 
