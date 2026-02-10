@@ -40,6 +40,100 @@ async def dump_sequences(
     return seq_vals
 
 
+async def detect_pk_sequences(
+    pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
+) -> dict[str, tuple[str, str]]:
+    """
+    Detect sequences that serve as defaults for primary key columns.
+
+    Looks up ownership/dependency relationships in pg_depend to find sequences
+    that back SERIAL, BIGSERIAL, or IDENTITY primary key columns.
+
+    Returns a dict mapping sequence_name -> (table_name, column_name) for every
+    primary-key sequence found in the given schema (filtered by
+    targeted_sequences when provided).
+    """
+    logger.info("Detecting primary key sequences...")
+
+    query = """
+        SELECT
+            seq.relname  AS sequence_name,
+            tab.relname  AS table_name,
+            a.attname    AS column_name
+        FROM pg_class seq
+        JOIN pg_namespace ns  ON seq.relnamespace = ns.oid AND ns.nspname = $1
+        JOIN pg_depend d      ON d.objid = seq.oid AND d.deptype IN ('a', 'i')
+        JOIN pg_class tab     ON d.refobjid = tab.oid
+        JOIN pg_attribute a   ON a.attrelid = tab.oid AND a.attnum = d.refobjsubid
+        JOIN pg_constraint con ON con.conrelid = tab.oid
+                              AND con.contype = 'p'
+                              AND a.attnum = ANY(con.conkey)
+        WHERE seq.relkind = 'S';
+    """
+
+    rows = await pool.fetch(query, schema)
+
+    pk_seqs: dict[str, tuple[str, str]] = {}
+    for row in rows:
+        seq_name = row["sequence_name"]
+        # If targeted_sequences is specified, only include those.
+        if targeted_sequences and seq_name not in targeted_sequences:
+            continue
+        pk_seqs[seq_name] = (row["table_name"], row["column_name"])
+
+    if pk_seqs:
+        logger.info(f"Found primary key sequences: {list(pk_seqs.keys())}")
+    else:
+        logger.debug("No primary key sequences found.")
+
+    return pk_seqs
+
+
+async def set_pk_sequences_from_data(
+    pool: Pool,
+    pk_seqs: dict[str, tuple[str, str]],
+    schema: str,
+    logger: Logger,
+) -> None:
+    """
+    For sequences that back primary key columns, set each sequence value to the
+    maximum value currently present in the corresponding table column.
+
+    Uses the standard PostgreSQL idiom::
+
+        SELECT setval('<schema>."<seq>"',
+                      coalesce(max("<col>"), 1),
+                      max("<col>") IS NOT null)
+        FROM <schema>."<table>";
+
+    This ensures the sequence is always at or above the highest existing primary
+    key value, which is the safest baseline regardless of whether we are reading
+    from source or destination.
+    """
+    if not pk_seqs:
+        return
+
+    logger.info(
+        f"Setting primary key sequences from table data: {list(pk_seqs.keys())}..."
+    )
+
+    sql_parts = []
+    for seq_name, (table_name, col_name) in pk_seqs.items():
+        sql_parts.append(
+            f"SELECT setval('{schema}.\"{seq_name}\"', "
+            f'coalesce(max("{col_name}"), 1), '
+            f'max("{col_name}") IS NOT null) '
+            f'FROM {schema}."{table_name}";'
+        )
+
+    sql = "\n".join(sql_parts)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(sql)
+
+    logger.debug("Set primary key sequences from table data.")
+
+
 async def load_sequences(
     pool: Pool, seqs: dict[str, int], schema: str, logger: Logger
 ) -> None:

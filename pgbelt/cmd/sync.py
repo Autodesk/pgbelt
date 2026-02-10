@@ -15,9 +15,11 @@ from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import compare_100_random_rows
 from pgbelt.util.postgres import compare_latest_100_rows
 from pgbelt.util.postgres import compare_tables_without_pkeys
+from pgbelt.util.postgres import detect_pk_sequences
 from pgbelt.util.postgres import dump_sequences
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
+from pgbelt.util.postgres import set_pk_sequences_from_data
 from typer import Option
 
 
@@ -30,16 +32,39 @@ async def _sync_sequences(
     dst_logger: Logger,
 ) -> None:
 
+    # 1. Detect sequences that back primary key columns on the destination.
+    pk_seqs = await detect_pk_sequences(
+        dst_pool, targeted_sequences, schema, dst_logger
+    )
+
+    # 2. For PK sequences, set values from max(pk_column) on the destination.
+    #    This is the safest approach because it always reflects the actual data.
+    if pk_seqs:
+        await set_pk_sequences_from_data(dst_pool, pk_seqs, schema, dst_logger)
+
+    # 3. For non-PK sequences, dump from source and load to destination.
+    #    load_sequences already guards against regressing values.
     seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
-    await load_sequences(dst_pool, seq_vals, schema, dst_logger)
+    # Remove PK sequences — they were already handled above.
+    for pk_seq_name in pk_seqs:
+        seq_vals.pop(pk_seq_name, None)
+    if seq_vals:
+        await load_sequences(dst_pool, seq_vals, schema, dst_logger)
+    elif not pk_seqs:
+        dst_logger.info("No sequences to sync.")
 
 
 @run_with_configs
 async def sync_sequences(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
-    Retrieve the current value of all sequences in the source database and update
-    the sequences in the target to match, but only if the source value is >= the
-    current destination value. This prevents regressing sequences if run after cutover.
+    Sync all sequences to the destination database.
+
+    For sequences that back primary key columns, the value is set from
+    max(pk_column) on the destination table — this is always the safest baseline.
+
+    For all other sequences, the current value is read from the source and applied
+    to the destination, but only if the source value is >= the current destination
+    value. This prevents regressing sequences if run after cutover.
     """
     conf = await config_future
     pools = await gather(
