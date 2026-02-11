@@ -192,7 +192,7 @@ async def set_pk_sequences_from_data(
         async with conn.transaction():
             await conn.execute(sql)
 
-    logger.debug("Set primary key sequences from table data.")
+    logger.debug(f"Set primary key sequences from table data: {pk_seqs}")
 
 
 async def load_sequences(
