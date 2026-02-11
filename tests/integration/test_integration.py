@@ -1,13 +1,11 @@
 import re
 import subprocess
 from time import sleep
-from unittest.mock import AsyncMock
 from unittest.mock import Mock
 from pgbelt.util.dump import _parse_dump_commands
 from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
-from asyncpg import create_pool
 
 import pgbelt
 import pytest
@@ -73,18 +71,25 @@ async def _test_setup(configs: dict[str, DbupgradeConfig]):
     # Run Setup on the dc of the first config to run against all DBs in that dc
     await pgbelt.cmd.setup.setup(db=None, dc=configs[list(configs.keys())[0]].dc)
 
-    # Ensure Schema in the destination doesn't have NOT VALID, no Indexes across all DB pairs
+    # Ensure Schema in the destination doesn't have NOT VALID, no non-unique Indexes across all DB pairs.
+    # FK-required CREATE UNIQUE INDEX statements ARE expected because they must be present
+    # before the FK constraints that depend on them can be applied.
     dst_dumps = await _get_dumps(configs)
 
     # Format of dumps: {setname: stdout}
     for setname, stdout in dst_dumps.items():
         commands_raw = _parse_dump_commands(stdout.decode("utf-8"))
         print(
-            f"Test Setup: checking {setname} for NOT VALID and INDEXES in destination schema..."
+            f"Test Setup: checking {setname} for NOT VALID and non-unique INDEXES in destination schema..."
         )
         for c in commands_raw:
             assert "NOT VALID" not in c
-            assert "INDEX" not in c
+            # Non-unique CREATE INDEX statements should be deferred.
+            # CREATE UNIQUE INDEX may be present when needed to satisfy FK constraints.
+            if "INDEX" in c:
+                assert (
+                    "UNIQUE" in c
+                ), f"Non-unique index found in destination after setup for {setname}: {c}"
 
     await _check_status(configs, "replicating", "unconfigured")
 
