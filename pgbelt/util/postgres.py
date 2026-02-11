@@ -192,7 +192,9 @@ async def set_pk_sequences_from_data(
         async with conn.transaction():
             await conn.execute(sql)
 
-    logger.debug(f"Set primary key sequences from table data: {pk_seqs}")
+    logger.debug(
+        f"Set primary key sequences to max of table data via max(column): {pk_seqs}"
+    )
 
 
 async def load_sequences(
