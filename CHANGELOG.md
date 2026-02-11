@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/Autodesk/pgbelt/compare/v0.12.0...v0.12.1) (2026-02-11)
+
+
+### Bug Fixes
+
+* ensure that foreign keys that depend on unique indexes are included in base schema ([#856](https://github.com/Autodesk/pgbelt/issues/856)) ([c180c48](https://github.com/Autodesk/pgbelt/commit/c180c48e385ae818eb9d7f3d131f3a33d290814d))
+
 ## [0.12.0](https://github.com/Autodesk/pgbelt/compare/v0.11.1...v0.12.0) (2026-02-11)
 
 
