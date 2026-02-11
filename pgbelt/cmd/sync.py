@@ -8,8 +8,7 @@ from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import create_target_indexes
-from pgbelt.util.dump import dump_source_tables
-from pgbelt.util.dump import load_dumped_tables
+from pgbelt.util.dump import dump_and_load_tables
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import compare_100_random_rows
@@ -112,20 +111,24 @@ async def sync_sequences(
         await gather(*[p.close() for p in pools])
 
 
-@run_with_configs(skip_dst=True)
-async def dump_tables(
+@run_with_configs
+async def sync_tables(
     config_future: Awaitable[DbupgradeConfig],
-    tables: list[str] = Option([], help="Specific tables to dump"),
+    tables: list[str] = Option([], help="Specific tables to sync"),
 ) -> None:
     """
-    Dump all tables without primary keys from the source database and save
-    them to files locally.
+    Dump tables without primary keys from the source and pipe them directly
+    into the destination database. No intermediate files are used -- data is
+    streamed via pg_dump | psql.
 
-    You may also provide a list of tables to dump with the
-    --tables option and only these tables will be dumped.
+    A table will only be loaded into the destination if it currently contains
+    no rows.
+
+    You may also provide a list of tables to sync with the
+    --tables option and only these tables will be synced.
     """
     conf = await config_future
-    logger = get_logger(conf.db, conf.dc, "sync.src")
+    logger = get_logger(conf.db, conf.dc, "sync")
 
     if tables:
         tables = tables.split(",")
@@ -136,33 +139,7 @@ async def dump_tables(
         if conf.tables:
             tables = [t for t in tables if t in conf.tables]
 
-    await dump_source_tables(conf, tables, logger)
-
-
-@run_with_configs(skip_src=True)
-async def load_tables(
-    config_future: Awaitable[DbupgradeConfig],
-    tables: list[str] = Option([], help="Specific tables to load"),
-):
-    """
-    Load all locally saved table data files into the destination db. A table will
-    only be loaded into the destination if it currently contains no rows.
-
-    You may also provide a list of tables to load with the
-    --tables option and only these files will be loaded.
-    """
-    conf = await config_future
-    logger = get_logger(conf.db, conf.dc, "sync.dst")
-
-    if tables:
-        tables = tables.split(",")
-    else:
-        if conf.tables:
-            tables = [t for t in tables if t in conf.tables]
-        else:
-            tables = []
-
-    await load_dumped_tables(conf, tables, logger)
+    await dump_and_load_tables(conf, tables, logger)
 
 
 @run_with_configs(skip_src=True)
@@ -220,8 +197,7 @@ async def _dump_and_load_all_tables(
     _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, src_logger)
     if conf.tables:
         tables = [t for t in tables if t in conf.tables]
-    await dump_source_tables(conf, tables, src_logger)
-    await load_dumped_tables(conf, tables, dst_logger)
+    await dump_and_load_tables(conf, tables, dst_logger)
 
 
 @run_with_configs
@@ -309,8 +285,7 @@ async def sync(
 
 COMMANDS = [
     sync_sequences,
-    dump_tables,
-    load_tables,
+    sync_tables,
     analyze,
     validate_data,
     sync,
