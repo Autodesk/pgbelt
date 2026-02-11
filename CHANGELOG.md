@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/Autodesk/pgbelt/compare/v0.11.1...v0.12.0) (2026-02-11)
+
+
+### Features
+
+* feature for sync-sequences with stride post-cutover (when writes occur) ([#855](https://github.com/Autodesk/pgbelt/issues/855)) ([0469b3b](https://github.com/Autodesk/pgbelt/commit/0469b3b3602ee2442aed0f0dd22ef50b1f1c837e))
+* feature for sync-sequences with stride post-cutover (when writes occurring) ([0469b3b](https://github.com/Autodesk/pgbelt/commit/0469b3b3602ee2442aed0f0dd22ef50b1f1c837e))
+
+
+### Bug Fixes
+
+* ensure sync-sequences cannot regress sequence values, also set to max PK values when PKs are detected ([#852](https://github.com/Autodesk/pgbelt/issues/852)) ([17ea084](https://github.com/Autodesk/pgbelt/commit/17ea084e9cf10ed3e8c188c4e03e4213337f91a7))
+
 ## [0.11.1](https://github.com/Autodesk/pgbelt/compare/v0.11.0...v0.11.1) (2026-02-08)
 
 
