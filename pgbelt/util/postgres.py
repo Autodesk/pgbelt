@@ -213,9 +213,7 @@ async def load_sequences(
         logger.info("No sequences to load. Skipping sequence loading.")
         return
 
-    logger.info(
-        f"Loading non-primary-key sequences {list(seqs.keys())} from schema {schema}..."
-    )
+    logger.info(f"Loading non-primary-key sequences {seqs} from schema {schema}...")
 
     # Fetch current destination sequence values so we only advance, never regress.
     dst_current = {}

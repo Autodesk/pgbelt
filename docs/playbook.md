@@ -73,6 +73,27 @@ If the `sync` command fails, you can try to run the individual commands that mak
 
 - `sync-sequences` - reads and sets sequences values from SRC to DST at the time of command execution
 
+#### Sequences are out of whack after writes on DST (unique constraint violations)
+
+If **writes have occurred on the destination database** (e.g. after cutover) and you start seeing application or DB errors like:
+
+- `duplicate key value violates unique constraint ...`
+- `unique constraint violation ...`
+
+for columns that are supposed to be **sequence-backed IDs** (e.g. `id` columns), your sequences may be behind the data currently in DST.
+
+Run:
+
+    $ belt sync-sequences <dc> <db> --stride <NUM>
+
+Notes:
+
+- For sequences that back **primary key** columns, `sync-sequences` will set the destination sequence based on the **current max(primary key)** value in DST (so it matches the data).
+- For sequences that are **not** primary-key sequences, it will copy the value from SRC to DST (and will not regress sequences that are already ahead in DST), and we should STRIDE these values to reduce risk of collision.
+
+  $ belt sync-sequences <dc> <db> --stride 1000
+  $ belt sync-sequences <dc> <db> --stride 5000
+
 ### 2. Syncing Tables without Primary Keys:
 
 - `dump-tables` - dumps only tables without Primary Keys (to ensure only tables without Primary Keys are dumped, DO NOT specify the `--tables` flag for this command)
