@@ -90,9 +90,14 @@ CREATE SEQUENCE public."userS_id_seq"
 
 
 ALTER TABLE public."userS_id_seq" OWNER TO owner;
+ALTER SEQUENCE public."userS_id_seq" OWNED BY public."UsersCapital".id;
+ALTER TABLE ONLY public."UsersCapital" ALTER COLUMN id SET DEFAULT nextval('public."userS_id_seq"'::regclass);
 
 --
 -- Name: users2_id_seq; Type: SEQUENCE; Schema: public; Owner: owner
+-- NOTE: Intentionally NOT linked to a PK column (no OWNED BY / no DEFAULT nextval()).
+-- This ensures we keep coverage for the non-PK sequence path, where values are
+-- copied via dump + load (rather than being set from max(pk) on the destination).
 --
 
 CREATE SEQUENCE public.users2_id_seq

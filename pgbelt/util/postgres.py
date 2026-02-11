@@ -10,9 +10,9 @@ async def dump_sequences(
     pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
 ) -> dict[str, int]:
     """
-    return a dictionary of sequence names mapped to their last values
+    return a dictionary of sequence names mapped to their last values (non-PK sequences)
     """
-    logger.info("Dumping sequence values...")
+    logger.info("Dumping non-primary-key sequence values...")
     # Get all sequences in the schema
     seqs = await pool.fetch(
         f"""
@@ -36,16 +36,176 @@ async def dump_sequences(
         res = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq}";')
         seq_vals[seq.strip()] = res
 
-    logger.debug(f"Dumped sequences: {seq_vals}")
+    logger.debug(f"Dumped non-primary-key sequences: {seq_vals}")
     return seq_vals
+
+
+async def detect_pk_sequences(
+    pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
+) -> dict[str, tuple[str, str]]:
+    """
+    Detect sequences that serve as defaults for primary key columns.
+
+    Covers all the ways a sequence can back a primary key column:
+
+    * **SERIAL / BIGSERIAL** – creates an ``integer`` / ``bigint`` column with
+      an owned sequence (``deptype = 'a'`` in ``pg_depend``).
+    * **IDENTITY columns** (PG 10+) – internally managed sequence
+      (``deptype = 'i'``).
+    * **Manual nextval() defaults** – e.g.
+      ``ALTER TABLE t ALTER COLUMN id SET DEFAULT nextval('my_seq')`` on an
+      ``integer`` / ``bigint`` PK column.  Detected via the ``pg_attrdef`` →
+      sequence dependency in ``pg_depend``.
+
+    Returns a dict mapping sequence_name → (table_name, column_name) for every
+    primary-key sequence found in the given schema (filtered by
+    targeted_sequences when provided).
+    """
+    logger.info("Detecting primary key sequences...")
+
+    # This query finds every sequence in the schema that serves as the
+    # default value generator for a primary key column.  It uses a UNION
+    # of two strategies so that all common patterns are covered:
+    #
+    # Case 1 – SERIAL / BIGSERIAL / IDENTITY columns:
+    #   When Postgres processes "id SERIAL PRIMARY KEY" or
+    #   "id INT GENERATED ALWAYS AS IDENTITY", it creates a sequence and
+    #   records an ownership dependency in pg_depend:
+    #     - deptype 'a' (auto)     → SERIAL / BIGSERIAL (int/bigint)
+    #     - deptype 'i' (internal) → IDENTITY columns (PG 10+)
+    #   In both cases d.objid is the sequence, d.refobjid is the table,
+    #   and d.refobjsubid is the column's attnum.  We then verify that
+    #   the column is part of a primary key constraint (contype = 'p').
+    #
+    # Case 2 – Manual "DEFAULT nextval(...)" on a PK column:
+    #   When someone writes:
+    #     CREATE SEQUENCE my_seq;
+    #     CREATE TABLE t (id bigint PRIMARY KEY DEFAULT nextval('my_seq'));
+    #   Postgres stores the default expression in pg_attrdef and records a
+    #   dependency from that pg_attrdef entry (d.objid / d.classid) to the
+    #   sequence (d.refobjid / d.refclassid).  We resolve the pg_attrdef
+    #   entry back to its table + column, then check the PK constraint the
+    #   same way.
+    #
+    # The UNION deduplicates rows that match both cases (e.g. a SERIAL
+    # column is caught by Case 1 via ownership AND Case 2 via pg_attrdef).
+    query = """
+        -- Case 1: SERIAL / BIGSERIAL (owned) or IDENTITY sequences.
+        -- pg_depend links the sequence directly to the table column via
+        -- deptype 'a' (auto/owned) or 'i' (identity).
+        SELECT
+            seq.relname  AS sequence_name,
+            tab.relname  AS table_name,
+            a.attname    AS column_name
+        FROM pg_class seq
+        JOIN pg_namespace ns   ON seq.relnamespace = ns.oid AND ns.nspname = $1
+        JOIN pg_depend d       ON d.objid = seq.oid          -- sequence is the dependent object
+                               AND d.deptype IN ('a', 'i')   -- auto-owned or identity
+        JOIN pg_class tab      ON d.refobjid = tab.oid        -- referenced object is the table
+        JOIN pg_attribute a    ON a.attrelid = tab.oid         -- resolve the column by attnum
+                               AND a.attnum = d.refobjsubid
+        JOIN pg_constraint con ON con.conrelid = tab.oid       -- table has a PK constraint...
+                               AND con.contype = 'p'
+                               AND a.attnum = ANY(con.conkey)  -- ...that includes this column
+        WHERE seq.relkind = 'S'
+
+        UNION
+
+        -- Case 2: Manual nextval() defaults.
+        -- The column default expression (pg_attrdef) depends on the sequence;
+        -- we follow that dependency backwards from the sequence to the column.
+        SELECT
+            seq.relname  AS sequence_name,
+            tab.relname  AS table_name,
+            a.attname    AS column_name
+        FROM pg_class seq
+        JOIN pg_namespace ns   ON seq.relnamespace = ns.oid AND ns.nspname = $1
+        JOIN pg_depend d       ON d.refobjid = seq.oid                      -- sequence is the *referenced* object
+                               AND d.refclassid = 'pg_class'::regclass      -- ...in the pg_class catalog
+                               AND d.classid = 'pg_attrdef'::regclass       -- dependent object is a column default
+        JOIN pg_attrdef ad     ON ad.oid = d.objid                           -- resolve the default expression
+        JOIN pg_class tab      ON ad.adrelid = tab.oid                       -- table the default belongs to
+        JOIN pg_attribute a    ON a.attrelid = tab.oid AND a.attnum = ad.adnum  -- column the default belongs to
+        JOIN pg_constraint con ON con.conrelid = tab.oid                     -- table has a PK constraint...
+                               AND con.contype = 'p'
+                               AND a.attnum = ANY(con.conkey)                -- ...that includes this column
+        WHERE seq.relkind = 'S';
+    """
+
+    rows = await pool.fetch(query, schema)
+
+    pk_seqs: dict[str, tuple[str, str]] = {}
+    for row in rows:
+        seq_name = row["sequence_name"]
+        # If targeted_sequences is specified, only include those.
+        if targeted_sequences and seq_name not in targeted_sequences:
+            continue
+        pk_seqs[seq_name] = (row["table_name"], row["column_name"])
+
+    if pk_seqs:
+        logger.info(f"Found primary key sequences: {list(pk_seqs.keys())}")
+    else:
+        logger.debug("No primary key sequences found.")
+
+    return pk_seqs
+
+
+async def set_pk_sequences_from_data(
+    pool: Pool,
+    pk_seqs: dict[str, tuple[str, str]],
+    schema: str,
+    logger: Logger,
+) -> None:
+    """
+    For sequences that back primary key columns, set each sequence value to the
+    maximum value currently present in the corresponding table column.
+
+    Uses the standard PostgreSQL idiom::
+
+        SELECT setval('<schema>."<seq>"',
+                      coalesce(max("<col>"), 1),
+                      max("<col>") IS NOT null)
+        FROM <schema>."<table>";
+
+    This ensures the sequence is always at or above the highest existing primary
+    key value, which is the safest baseline regardless of whether we are reading
+    from source or destination.
+    """
+    if not pk_seqs:
+        return
+
+    logger.info(
+        f"Setting primary key sequences from table data: {list(pk_seqs.keys())}..."
+    )
+
+    sql_parts = []
+    for seq_name, (table_name, col_name) in pk_seqs.items():
+        sql_parts.append(
+            f"SELECT setval('{schema}.\"{seq_name}\"', "
+            f'coalesce(max("{col_name}"), 1), '
+            f'max("{col_name}") IS NOT null) '
+            f'FROM {schema}."{table_name}";'
+        )
+
+    sql = "\n".join(sql_parts)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(sql)
+
+    logger.debug(
+        f"Set primary key sequences to max of table data via max(column): {pk_seqs}"
+    )
 
 
 async def load_sequences(
     pool: Pool, seqs: dict[str, int], schema: str, logger: Logger
 ) -> None:
     """
-    given a dict of sequence named mapped to values, set each sequence to the
-    matching value
+    Given a dict of sequence names mapped to values, set each sequence to the
+    matching value, but only if the new value is >= the current value in the
+    destination. This prevents accidentally regressing sequences (e.g. if
+    sync-sequences is run after a cutover when the destination has already
+    advanced past the source).
     """
 
     # If seqs is empty, we have nothing to do. Skip the operation.
@@ -53,14 +213,38 @@ async def load_sequences(
         logger.info("No sequences to load. Skipping sequence loading.")
         return
 
-    logger.info(f"Loading sequences {list(seqs.keys())} from schema {schema}...")
+    logger.info(
+        f"Loading non-primary-key sequences {list(seqs.keys())} from schema {schema}..."
+    )
+
+    # Fetch current destination sequence values so we only advance, never regress.
+    dst_current = {}
+    for seq_name in seqs:
+        val = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq_name}";')
+        dst_current[seq_name] = val
+
+    seqs_to_set = {}
+    for seq_name, src_val in seqs.items():
+        dst_val = dst_current[seq_name]
+        if src_val >= dst_val:
+            seqs_to_set[seq_name] = src_val
+        else:
+            logger.warning(
+                f'Skipping sequence "{seq_name}": source value {src_val} is less than '
+                f"current destination value {dst_val}. Keeping destination value."
+            )
+
+    if not seqs_to_set:
+        logger.info("All sequences already at equal or higher values. Nothing to set.")
+        return
+
     sql_template = "SELECT pg_catalog.setval('{}.\"{}\"', {}, true);"
-    sql = "\n".join([sql_template.format(schema, k, v) for k, v in seqs.items()])
+    sql = "\n".join([sql_template.format(schema, k, v) for k, v in seqs_to_set.items()])
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(sql)
 
-    logger.debug("Loaded sequences")
+    logger.debug(f"Loaded non-primary-key sequences: {list(seqs_to_set.keys())}")
 
 
 async def compare_data(
