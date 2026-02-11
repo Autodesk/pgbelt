@@ -188,3 +188,39 @@ ALTER TABLE ONLY public."UsersCapital2"
 
 ALTER TABLE ONLY public.another_test_table
     ADD CONSTRAINT another_test_table_pkey PRIMARY KEY ("someThingIDontKnow", "anotherThing");
+
+--
+-- Testing FK constraints that depend on unique indexes (not PKs or unique constraints).
+-- This exercises the fix for the case where pgbelt defers a CREATE UNIQUE INDEX
+-- that a FOREIGN KEY constraint depends on, causing the FK to fail at setup time.
+--
+
+CREATE TABLE public.fk_unique_parent (
+    id integer NOT NULL,
+    unique_code character varying(20) NOT NULL
+);
+
+ALTER TABLE public.fk_unique_parent OWNER TO owner;
+
+CREATE TABLE public.fk_unique_child (
+    id integer NOT NULL,
+    parent_code character varying(20) NOT NULL
+);
+
+ALTER TABLE public.fk_unique_child OWNER TO owner;
+
+INSERT INTO public.fk_unique_parent (id, unique_code) VALUES (1, 'code_a'), (2, 'code_b');
+INSERT INTO public.fk_unique_child (id, parent_code) VALUES (1, 'code_a'), (2, 'code_b');
+
+ALTER TABLE ONLY public.fk_unique_parent
+    ADD CONSTRAINT fk_unique_parent_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.fk_unique_child
+    ADD CONSTRAINT fk_unique_child_pkey PRIMARY KEY (id);
+
+-- This is a UNIQUE INDEX (not a UNIQUE CONSTRAINT). The FK below depends on it.
+CREATE UNIQUE INDEX fk_unique_parent_unique_code_idx ON public.fk_unique_parent USING btree (unique_code);
+
+-- FK referencing the unique-index-backed column, not a PK.
+ALTER TABLE ONLY public.fk_unique_child
+    ADD CONSTRAINT fk_unique_child_parent_fkey FOREIGN KEY (parent_code) REFERENCES public.fk_unique_parent(unique_code);

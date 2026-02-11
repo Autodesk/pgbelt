@@ -7,7 +7,7 @@ from pgbelt.util.asyncfuncs import isfile
 from pgbelt.util.asyncfuncs import listdir
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
-from re import finditer, search
+from re import finditer, IGNORECASE, search
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
@@ -73,6 +73,76 @@ def _parse_dump_commands(out: str) -> list[str]:
                 dollar_quote_tag = None
 
     return commands
+
+
+def _normalize_columns(cols_str: str) -> tuple:
+    """
+    Normalize a comma-separated column list for set comparison.
+    Strips whitespace, removes quotes, lowercases, and sorts alphabetically.
+    """
+    cols = [c.strip().replace('"', "").lower() for c in cols_str.split(",")]
+    return tuple(sorted(cols))
+
+
+def _find_fk_required_unique_indexes(commands: list[str], logger: Logger) -> set[int]:
+    """
+    Given a list of schema commands from pg_dump, identify CREATE UNIQUE INDEX
+    commands that are required by FOREIGN KEY constraints.
+
+    A FK constraint like: FOREIGN KEY (col) REFERENCES parent_table(ref_col)
+    requires that parent_table has a unique constraint on ref_col. If the only
+    such constraint is a CREATE UNIQUE INDEX (rather than a PRIMARY KEY or
+    ALTER TABLE ADD CONSTRAINT ... UNIQUE), the index must be present before
+    the FK can be applied.
+
+    This function finds matching unique indexes and returns their indices in the
+    commands list so they can be included in the base schema rather than being
+    deferred.
+
+    Partial unique indexes (those with a WHERE clause) are excluded because
+    PostgreSQL does not accept them as FK targets.
+    """
+
+    # Collect (table, columns) tuples referenced by FK constraints
+    fk_references = set()
+    for command in commands:
+        if "FOREIGN KEY" in command and "REFERENCES" in command:
+            match = search(
+                r"REFERENCES\s+(?P<ref_table>[^\s(]+)\s*\((?P<ref_cols>[^)]+)\)",
+                command,
+            )
+            if match:
+                ref_table = match.group("ref_table").replace('"', "").lower()
+                ref_cols = _normalize_columns(match.group("ref_cols"))
+                fk_references.add((ref_table, ref_cols))
+
+    if not fk_references:
+        return set()
+
+    # Find CREATE UNIQUE INDEX commands whose table(columns) match an FK reference
+    fk_required = set()
+    for i, command in enumerate(commands):
+        if "CREATE" in command and "UNIQUE" in command and "INDEX" in command:
+            # Partial unique indexes (with WHERE clause) cannot satisfy FKs
+            if search(r"\)\s*WHERE\s+", command, IGNORECASE):
+                continue
+            match = search(
+                r"CREATE\s+UNIQUE\s+INDEX\s+[^\s]+\s+ON\s+(?P<table>[^\s(]+)"
+                r"\s+(?:USING\s+\w+\s+)?\((?P<cols>[^)]+)\)",
+                command,
+            )
+            if match:
+                table = match.group("table").replace('"', "").lower()
+                cols = _normalize_columns(match.group("cols"))
+                if (table, cols) in fk_references:
+                    fk_required.add(i)
+                    logger.info(
+                        f"Unique index on {table}({', '.join(cols)}) "
+                        f"is required by a FK constraint and will be "
+                        f"included in the base schema."
+                    )
+
+    return fk_required
 
 
 async def _execute_subprocess(
@@ -420,18 +490,26 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
             if "NOT VALID" in command:
                 await out.write(command)
 
+    # Identify unique indexes that are required by FK constraints so they
+    # can be loaded with the base schema instead of being deferred.
+    fk_required_indexes = _find_fk_required_unique_indexes(commands, logger)
+
     async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
-        for command in commands:
-            if "CREATE" in command and "INDEX" in command:
+        for i, command in enumerate(commands):
+            is_index = "CREATE" in command and "INDEX" in command
+            if is_index and i not in fk_required_indexes:
                 await out.write(command)
 
     async with aopen(
         schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
     ) as out:
-        for command in commands:
-            if "NOT VALID" not in command and not (
-                "CREATE" in command and "INDEX" in command
-            ):
+        for i, command in enumerate(commands):
+            is_index = "CREATE" in command and "INDEX" in command
+            is_not_valid = "NOT VALID" in command
+            if i in fk_required_indexes:
+                # FK-required unique indexes go into the base schema
+                await out.write(command)
+            elif not is_not_valid and not is_index:
                 await out.write(command)
 
     logger.debug("Finished dumping schema.")
