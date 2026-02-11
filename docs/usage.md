@@ -656,6 +656,7 @@ $ belt sync-sequences [OPTIONS] DC [DB]
 
 **Options**:
 
+- `--stride INTEGER`: Pad non-PK sequences by this amount when syncing: loads `source_value + stride`. Recommended default: `--stride 1000`.
 - `--help`: Show this message and exit.
 
 ## `belt sync-tables`

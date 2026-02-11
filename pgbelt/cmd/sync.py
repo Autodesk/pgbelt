@@ -30,6 +30,7 @@ async def _sync_sequences(
     dst_pool: Pool,
     src_logger: Logger,
     dst_logger: Logger,
+    stride: int | None = None,
 ) -> None:
 
     # 1. Detect sequences that back primary key columns on the destination.
@@ -55,6 +56,11 @@ async def _sync_sequences(
     # 4. For non-PK sequences, load to destination
     #    load_sequences already guards against regressing values.
     if seq_vals:
+        if stride is not None:
+            src_logger.info(
+                f"Applying stride to non-PK sequences: source_value + {stride}"
+            )
+            seq_vals = {k: v + stride for k, v in seq_vals.items()}
         await load_sequences(dst_pool, seq_vals, schema, dst_logger)
     elif not pk_seqs:
         # At this point, seq_vals AND pk_seqs are empty, so we have nothing to sync.
@@ -62,7 +68,18 @@ async def _sync_sequences(
 
 
 @run_with_configs
-async def sync_sequences(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def sync_sequences(
+    config_future: Awaitable[DbupgradeConfig],
+    stride: int | None = Option(
+        None,
+        "--stride",
+        help=(
+            "Pad non-PK sequences by this amount when syncing: "
+            "loads source_value + stride. "
+            "Recommended default: --stride 1000."
+        ),
+    ),
+) -> None:
     """
     Sync all sequences to the destination database.
 
@@ -83,7 +100,13 @@ async def sync_sequences(config_future: Awaitable[DbupgradeConfig]) -> None:
         src_logger = get_logger(conf.db, conf.dc, "sync.src")
         dst_logger = get_logger(conf.db, conf.dc, "sync.dst")
         await _sync_sequences(
-            conf.sequences, conf.schema_name, src_pool, dst_pool, src_logger, dst_logger
+            conf.sequences,
+            conf.schema_name,
+            src_pool,
+            dst_pool,
+            src_logger,
+            dst_logger,
+            stride=stride,
         )
     finally:
         await gather(*[p.close() for p in pools])
