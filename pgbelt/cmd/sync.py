@@ -37,20 +37,27 @@ async def _sync_sequences(
         dst_pool, targeted_sequences, schema, dst_logger
     )
 
-    # 2. For PK sequences, set values from max(pk_column) on the destination.
+    # 2. For non-PK sequences, dump all from the source then pop the non-PK ones
+    seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
+    src_logger.info(f"Total sequences to sync: {seq_vals.keys()}")
+    for pk_seq_name in pk_seqs:
+        seq_vals.pop(pk_seq_name, None)
+
+    # Log the sequences that were PK vs non-PK
+    src_logger.info(f"PK sequences: {list(pk_seqs.keys())}")
+    src_logger.info(f"Non-PK sequences: {list(seq_vals.keys())}")
+
+    # 3. For PK sequences, set values from max(pk_column) on the destination.
     #    This is the safest approach because it always reflects the actual data.
     if pk_seqs:
         await set_pk_sequences_from_data(dst_pool, pk_seqs, schema, dst_logger)
 
-    # 3. For non-PK sequences, dump from source and load to destination.
+    # 4. For non-PK sequences, load to destination
     #    load_sequences already guards against regressing values.
-    seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
-    # Remove PK sequences — they were already handled above.
-    for pk_seq_name in pk_seqs:
-        seq_vals.pop(pk_seq_name, None)
     if seq_vals:
         await load_sequences(dst_pool, seq_vals, schema, dst_logger)
     elif not pk_seqs:
+        # At this point, seq_vals AND pk_seqs are empty, so we have nothing to sync.
         dst_logger.info("No sequences to sync.")
 
 

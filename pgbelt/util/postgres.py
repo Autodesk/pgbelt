@@ -10,9 +10,9 @@ async def dump_sequences(
     pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
 ) -> dict[str, int]:
     """
-    return a dictionary of sequence names mapped to their last values
+    return a dictionary of sequence names mapped to their last values (non-PK sequences)
     """
-    logger.info("Dumping sequence values...")
+    logger.info("Dumping non-primary-key sequence values...")
     # Get all sequences in the schema
     seqs = await pool.fetch(
         f"""
@@ -36,7 +36,7 @@ async def dump_sequences(
         res = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq}";')
         seq_vals[seq.strip()] = res
 
-    logger.debug(f"Dumped sequences: {seq_vals}")
+    logger.debug(f"Dumped non-primary-key sequences: {seq_vals}")
     return seq_vals
 
 
@@ -213,7 +213,9 @@ async def load_sequences(
         logger.info("No sequences to load. Skipping sequence loading.")
         return
 
-    logger.info(f"Loading sequences {list(seqs.keys())} from schema {schema}...")
+    logger.info(
+        f"Loading non-primary-key sequences {list(seqs.keys())} from schema {schema}..."
+    )
 
     # Fetch current destination sequence values so we only advance, never regress.
     dst_current = {}
@@ -242,7 +244,7 @@ async def load_sequences(
         async with conn.transaction():
             await conn.execute(sql)
 
-    logger.debug(f"Loaded sequences: {list(seqs_to_set.keys())}")
+    logger.debug(f"Loaded non-primary-key sequences: {list(seqs_to_set.keys())}")
 
 
 async def compare_data(
