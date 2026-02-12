@@ -10,9 +10,9 @@ async def dump_sequences(
     pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
 ) -> dict[str, int]:
     """
-    return a dictionary of sequence names mapped to their last values (non-PK sequences)
+    return a dictionary of sequence names mapped to their last values
     """
-    logger.info("Dumping non-primary-key sequence values...")
+    logger.info("Dumping sequence values...")
     # Get all sequences in the schema
     seqs = await pool.fetch(
         f"""
@@ -36,7 +36,7 @@ async def dump_sequences(
         res = await pool.fetchval(f'SELECT last_value FROM {schema}."{seq}";')
         seq_vals[seq.strip()] = res
 
-    logger.debug(f"Dumped non-primary-key sequences: {seq_vals}")
+    logger.debug(f"Dumped sequences: {seq_vals}")
     return seq_vals
 
 
