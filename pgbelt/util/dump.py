@@ -185,9 +185,9 @@ async def _pipe_dump_and_load_table(
     table_arg = f'{config.schema_name}."{table}"'
 
     cmd = (
-        f"pg_dump --data-only --table={table_arg} {config.src.pglogical_dsn}"
+        f'pg_dump --data-only --table={table_arg} "{config.src.pglogical_dsn}"'
         f" | sed -E '/{sed_filter}/d'"
-        f" | psql {config.dst.root_dsn} -v ON_ERROR_STOP=1"
+        f' | psql "{config.dst.root_dsn}" -v ON_ERROR_STOP=1'
         f" -c 'BEGIN; SET LOCAL session_replication_role = replica;'"
         f" -f -"
         f" -c 'COMMIT;'"
