@@ -33,7 +33,7 @@ jobs:
         run: poetry lock
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           title: "ci: update supported Python versions"
           commit-message: "ci: update supported Python versions"
