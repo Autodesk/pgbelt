@@ -11,6 +11,7 @@ from pgbelt.util.dump import remove_dst_indexes
 from pgbelt.util.dump import remove_dst_not_valid_constraints
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
+from pgbelt.util.postgres import get_dataset_size
 from pgbelt.util.pglogical import teardown_subscription
 
 
@@ -45,6 +46,46 @@ async def _truncate_dst_tables(
     logger.debug("Finished truncating destination tables.")
 
 
+async def _validate_reset_dataset_sizes(
+    conf: DbupgradeConfig,
+    src_pool: Pool,
+    dst_pool: Pool,
+    src_logger: Logger,
+    dst_logger: Logger,
+) -> None:
+    # Mirror status command targeting: all tables in schema unless config.tables filters them.
+    pkey_tables, non_pkey_tables, _ = await analyze_table_pkeys(
+        src_pool, conf.schema_name, src_logger
+    )
+    all_tables = pkey_tables + non_pkey_tables
+    target_tables = all_tables
+    if conf.tables:
+        target_tables = [t for t in all_tables if t in conf.tables]
+
+    if not target_tables:
+        raise ValueError(
+            f"Targeted tables not found in the source database. Please check your config's schema and tables. DB: {conf.db} DC: {conf.dc}, SCHEMA: {conf.schema_name} TABLES: {conf.tables}."
+        )
+
+    src_dataset_size = await get_dataset_size(
+        target_tables, conf.schema_name, src_pool, src_logger
+    )
+    dst_dataset_size = await get_dataset_size(
+        target_tables, conf.schema_name, dst_pool, dst_logger
+    )
+
+    src_size = int(src_dataset_size["db_size"] or 0)
+    dst_size = int(dst_dataset_size["db_size"] or 0)
+
+    if src_size <= dst_size:
+        raise ValueError(
+            "Reset aborted by failsafe: expected SRC dataset size to be greater than DST "
+            f"for targeted tables, but got SRC={src_dataset_size['db_size_pretty'] or '0 bytes'} "
+            f"and DST={dst_dataset_size['db_size_pretty'] or '0 bytes'}. "
+            "Please verify config.json source/destination host configuration."
+        )
+
+
 @run_with_configs
 async def reset(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
@@ -71,6 +112,9 @@ async def reset(config_future: Awaitable[DbupgradeConfig]) -> None:
     )
     src_pool, dst_pool = pools
     try:
+        await _validate_reset_dataset_sizes(
+            conf, src_pool, dst_pool, src_logger, dst_logger
+        )
         await gather(
             teardown_subscription(dst_pool, "pg1_pg2", dst_logger),
             teardown_subscription(src_pool, "pg2_pg1", src_logger),
