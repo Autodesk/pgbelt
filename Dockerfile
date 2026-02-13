@@ -1,4 +1,5 @@
-FROM python:3.13-slim
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 

@@ -11,6 +11,10 @@ jobs:
   pgbelt_ci:
     name: CI
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
 
     steps:
       - name: Checkout Code
@@ -21,9 +25,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: ${{ runner.os }}-buildx-${{ matrix.python-version }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-buildx-
+            ${{ runner.os }}-buildx-${{ matrix.python-version }}-
       - name: Build pgbelt Image
         uses: docker/build-push-action@v6
         with:
@@ -31,6 +35,8 @@ jobs:
           push: false
           load: true
           tags: autodesk/pgbelt:latest
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Build Postgres Image with pglogical
