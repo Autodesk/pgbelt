@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.0](https://github.com/Autodesk/pgbelt/compare/v0.14.1...v0.15.0) (2026-02-13)
+
+
+### Features
+
+* teardown previous pgbelt artifacts either standalone or before setting up again ([#870](https://github.com/Autodesk/pgbelt/issues/870)) ([7aaa6f0](https://github.com/Autodesk/pgbelt/commit/7aaa6f08ddd22cea4ea6cb5b0db5a341be65af02))
+
+
+### Bug Fixes
+
+* better tablesample logic based on pg_class reltuples estimates ([#872](https://github.com/Autodesk/pgbelt/issues/872)) ([0299fa7](https://github.com/Autodesk/pgbelt/commit/0299fa7a99e2928f653a458c0ec28db2cb4a4e59))
+
+
+### Documentation
+
+* update usage docs ([#874](https://github.com/Autodesk/pgbelt/issues/874)) ([0885723](https://github.com/Autodesk/pgbelt/commit/08857233fcaea5f90796deb8138388c6149b50ca))
+
 ## [0.14.1](https://github.com/Autodesk/pgbelt/compare/v0.14.0...v0.14.1) (2026-02-13)
 
 
