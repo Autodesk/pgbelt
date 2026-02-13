@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0](https://github.com/Autodesk/pgbelt/compare/v0.12.1...v0.13.0) (2026-02-13)
+
+
+### Features
+
+* pk-less dump and load -&gt; pipling the data now ([#859](https://github.com/Autodesk/pgbelt/issues/859)) ([5576bce](https://github.com/Autodesk/pgbelt/commit/5576bcef849cb22a0e86e2852d6c8d1803875d38))
+
+
+### Bug Fixes
+
+* go back to just pipe ([5576bce](https://github.com/Autodesk/pgbelt/commit/5576bcef849cb22a0e86e2852d6c8d1803875d38))
+* sync-tables --table flag fix - type mismatch ([91dfcbb](https://github.com/Autodesk/pgbelt/commit/91dfcbb61e32c754b882cd3a8ea4e648b81d5468))
+* sync-tables --table flag fix - type mismatch ([#861](https://github.com/Autodesk/pgbelt/issues/861)) ([91dfcbb](https://github.com/Autodesk/pgbelt/commit/91dfcbb61e32c754b882cd3a8ea4e648b81d5468))
+
 ## [0.12.1](https://github.com/Autodesk/pgbelt/compare/v0.12.0...v0.12.1) (2026-02-11)
 
 
