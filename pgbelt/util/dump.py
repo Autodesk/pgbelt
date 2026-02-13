@@ -1,10 +1,8 @@
 import asyncio
-import os
+import shlex
 from logging import Logger
 from os.path import join
 from pgbelt.config.models import DbupgradeConfig
-from pgbelt.util.asyncfuncs import isfile
-from pgbelt.util.asyncfuncs import listdir
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
 from re import finditer, IGNORECASE, search
@@ -24,14 +22,6 @@ def schema_dir(db: str, dc: str) -> str:
 
 def schema_file(db: str, dc: str, name: str) -> str:
     return join(schema_dir(db, dc), f"{name}.sql")
-
-
-def table_dir(db: str, dc: str) -> str:
-    return f"tables/{dc}/{db}"
-
-
-def table_file(db: str, dc: str, name: str) -> str:
-    return join(table_dir(db, dc), f"{name}.sql")
 
 
 def _parse_dump_commands(out: str) -> list[str]:
@@ -164,200 +154,93 @@ async def _execute_subprocess(
     return out
 
 
-async def _dump_table(config: DbupgradeConfig, table: str, logger: Logger) -> None:
+async def _pipe_dump_and_load_table(
+    config: DbupgradeConfig, table: str, logger: Logger
+) -> None:
     """
-    Dump a single table using pg_dump, strip unwanted lines, and save to file.
-    Writes directly to disk to avoid memory issues with large tables.
+    Dump a single table from the source and pipe it directly into the
+    destination database via a shell pipeline:
+
+        pg_dump | sed (filter) | psql (load in transaction with replica role)
+
+    No intermediate files or in-memory buffers are used. The OS handles
+    backpressure between the processes natively.
+
+    The psql side wraps the load in a transaction with
+    session_replication_role = replica so triggers don't fire during the load.
     """
-    output_file = table_file(config.db, config.dc, table)
-    temp_file = output_file + ".tmp"
+    # sed filter: strip unwanted SET commands from pg_dump header.
+    # These are not appropriate for the destination (e.g. transaction_timeout
+    # may not exist on older PG, search_path should not be overridden).
+    sed_filter = (
+        "transaction_timeout"
+        "|SET client_encoding"
+        "|SET standard_conforming_strings"
+        "|SET check_function_bodies"
+        "|SET xmloption"
+        "|SET client_min_messages"
+        "|SET row_security"
+        "|pg_catalog.set_config"
+    )
 
-    # pg_dump writes directly to temp file (no Python memory usage)
-    command = [
-        "pg_dump",
-        "--data-only",
-        f'--table={config.schema_name}."{table}"',
-        "-f",
-        temp_file,
-        config.src.pglogical_dsn,
-    ]
+    # Use shell-safe quoting so mixed-case identifiers keep their double quotes
+    # when passed through bash.
+    table_arg = shlex.quote(f'{config.schema_name}."{table}"')
+    src_dsn = shlex.quote(config.src.pglogical_dsn)
+    dst_dsn = shlex.quote(config.dst.root_dsn)
 
-    await _execute_subprocess(command, f"dumped {table}", logger)
+    cmd = (
+        f"pg_dump --data-only --table={table_arg} {src_dsn}"
+        f" | sed -E '/{sed_filter}/d'"
+        f" | psql {dst_dsn} -v ON_ERROR_STOP=1"
+        f" -c 'BEGIN; SET LOCAL session_replication_role = replica;'"
+        f" -f -"
+        f" -c 'COMMIT;'"
+    )
 
-    # Strip out unwanted SET commands from the header (first ~50 lines only)
-    # These appear at the start of pg_dump output, no need to scan the whole file
-    keywords = [
-        "transaction_timeout",
-        # "SET statement_timeout", # This one is fine
-        # "SET lock_timeout", # This one is fine
-        # "SET idle_in_transaction_session_timeout", # This one is fine
-        "SET client_encoding",
-        "SET standard_conforming_strings",
-        "SET check_function_bodies",
-        "SET xmloption",
-        "SET client_min_messages",
-        "SET row_security",
-        "pg_catalog.set_config",  # Stupid search path, this should not be run.
-    ]
-
-    header_lines = 50
-
-    # Get first N lines, filter them, write to output file
-    head_proc = await asyncio.create_subprocess_exec(
-        "head",
-        "-n",
-        str(header_lines),
-        temp_file,
+    p = await asyncio.create_subprocess_exec(
+        "bash",
+        "-c",
+        f"set -o pipefail; {cmd}",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    head_out, _ = await head_proc.communicate()
+    out, err = await p.communicate()
 
-    # Filter the header lines
-    header_content = head_out.decode("utf-8")
-    filtered_lines = [
-        line + "\n"
-        for line in header_content.split("\n")
-        if line and not any(keyword in line for keyword in keywords)
-    ]
+    if p.returncode != 0:
+        raise Exception(
+            f"Pipe dump and load of table '{table}' failed with code {p.returncode}.\n"
+            f"  out: {out.decode('utf-8')}\n  err: {err.decode('utf-8')}"
+        )
 
-    # Inject BEGIN and SET LOCAL session_replication_role = replica before the first SET statement in the header
-    # We need this to ensure when we load PK-less tables, we don't run any triggers that may modify other tables.
-    # All data is loaded table by table either by dump and load or replication, not fanning relationships, so this process
-    # runs down a list of tables. So essentially, if triggers modify other tables, that should be taken care of by the SRC and replicated,
-    # then the PK-less tables will catch up to the right state when this is run. We don't want to rerun the triggers, further modifying state.
-    begin_injected = False
-    final_header_lines = []
-    for line in filtered_lines:
-        if not begin_injected and line.startswith("SET "):
-            final_header_lines.append("BEGIN;\n")
-            final_header_lines.append("SET LOCAL session_replication_role = replica;\n")
-            begin_injected = True
-        final_header_lines.append(line)
-
-    # Write filtered header to output file
-    async with aopen(output_file, "w") as dst:
-        await dst.writelines(final_header_lines)
-
-    # Append the rest of the file using tail (fast, no Python overhead)
-    tail_proc = await asyncio.create_subprocess_shell(
-        f"tail -n +{header_lines + 1} '{temp_file}' >> '{output_file}'",
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, tail_err = await tail_proc.communicate()
-    if tail_proc.returncode != 0:
-        raise Exception(f"tail failed: {tail_err.decode('utf-8')}")
-
-    # Inject COMMIT; before the \unrestrict line at the end of the file.
-    # Read only the last few lines (tail), find \unrestrict, insert COMMIT;
-    # above it, then truncate and rewrite just that portion.
-    tail_n = 10
-    tail_proc = await asyncio.create_subprocess_exec(
-        "tail",
-        "-n",
-        str(tail_n),
-        output_file,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    tail_out, _ = await tail_proc.communicate()
-    tail_lines = tail_out.decode("utf-8").splitlines(keepends=True)
-
-    # Walk backwards through the tail lines to find \unrestrict
-    for i in range(len(tail_lines) - 1, -1, -1):
-        if tail_lines[i].startswith("\\unrestrict "):
-            tail_lines.insert(i, "COMMIT;\n")
-            break
-
-    # Count total lines to know where to truncate
-    wc_proc = await asyncio.create_subprocess_exec(
-        "wc",
-        "-l",
-        output_file,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    wc_out, _ = await wc_proc.communicate()
-    total_lines = int(wc_out.decode("utf-8").strip().split()[0])
-
-    # Truncate the file to remove the original tail lines, then append modified ones
-    keep_lines = total_lines - tail_n
-    truncate_proc = await asyncio.create_subprocess_shell(
-        f"head -n {keep_lines} '{output_file}' > '{output_file}.commit_tmp' "
-        f"&& mv '{output_file}.commit_tmp' '{output_file}'",
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, trunc_err = await truncate_proc.communicate()
-    if truncate_proc.returncode != 0:
-        raise Exception(f"truncate failed: {trunc_err.decode('utf-8')}")
-
-    # Append the modified tail lines with COMMIT; injected
-    async with aopen(output_file, "a") as f:
-        await f.writelines(tail_lines)
-
-    # Clean up temp file
-    os.remove(temp_file)
+    logger.info(f"Piped dump and load of {table} complete.")
 
 
-async def dump_source_tables(
+async def dump_and_load_tables(
     config: DbupgradeConfig, tables: list[str], logger: Logger
 ) -> None:
-    try:
-        await makedirs(table_dir(config.db, config.dc))
-    except FileExistsError:
-        pass
+    """
+    Dump tables from the source and pipe them directly into the destination.
+    Each table is piped independently (pg_dump | psql) with no intermediate
+    files or in-memory buffers.
 
-    logger.info(f"Dumping tables {tables}")
-
-    dumps = []
-    for table in tables:
-        dumps.append(_dump_table(config, table, logger))
-
-    await asyncio.gather(*dumps)
-
-
-async def load_dumped_tables(
-    config: DbupgradeConfig, tables: list[str], logger: Logger
-) -> None:
-    # unless we get an explicit list of tables to load just load all the dump files
-    if not tables:
-        tables_dir = table_dir(config.db, config.dc)
-        tables = [
-            f.split(".")[0]
-            for f in await listdir(tables_dir)
-            if await isfile(join(tables_dir, f))
-        ]
-
-    logger.info(f"Loading dumped tables {tables}")
-
-    # only load a dump file if the target table is completely empty
+    Only loads into tables that are currently empty on the destination.
+    """
+    # Check which destination tables are empty before loading
     async with create_pool(config.dst.root_uri, min_size=1) as pool:
         to_load = []
         for t in tables:
             if await table_empty(pool, t, config.schema_name, logger):
-                to_load.append(table_file(config.db, config.dc, t))
+                to_load.append(t)
             else:
                 logger.warning(
-                    f"Not loading {t}, table not empty. If this is unexpected please investigate."
+                    f"Not loading {t}, table not empty. "
+                    f"If this is unexpected please investigate."
                 )
 
-    loads = []
-    for file in to_load:
-        loads.append(
-            _execute_subprocess(
-                [
-                    "psql",
-                    "-v",
-                    "ON_ERROR_STOP=1",
-                    config.dst.root_dsn,
-                    "-f",
-                    file,
-                ],
-                f"loaded {file}",
-                logger,
-            )
-        )
+    logger.info(f"Piping dump and load for tables {to_load}")
 
+    loads = [_pipe_dump_and_load_table(config, t, logger) for t in to_load]
     await asyncio.gather(*loads)
 
 
