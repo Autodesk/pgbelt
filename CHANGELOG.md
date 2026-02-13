@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/Autodesk/pgbelt/compare/v0.14.0...v0.14.1) (2026-02-13)
+
+
+### Bug Fixes
+
+* add failsafe to reset command in case SRC and DST are flipped in config.json ([#865](https://github.com/Autodesk/pgbelt/issues/865)) ([d21a63f](https://github.com/Autodesk/pgbelt/commit/d21a63f90df39dc6ec418891edaded519d2cee31))
+
 ## [0.14.0](https://github.com/Autodesk/pgbelt/compare/v0.13.0...v0.14.0) (2026-02-13)
 
 
