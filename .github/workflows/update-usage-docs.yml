@@ -39,7 +39,7 @@ jobs:
         run: make generate-usage-docs
 
       - name: Create PR with docs changes
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "docs: update usage docs"
           title: "docs: update usage docs"
