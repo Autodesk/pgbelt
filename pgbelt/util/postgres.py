@@ -245,6 +245,27 @@ async def load_sequences(
     logger.debug(f"Loaded non-primary-key sequences: {list(seqs_to_set.keys())}")
 
 
+async def _estimate_tablesample_pct(pool: Pool, table: str, schema: str) -> float:
+    """
+    Estimate the TABLESAMPLE SYSTEM percentage needed to return at least 100
+    rows.  Uses pg_class.reltuples for a fast approximation without a full
+    count.  Returns a value between 0 and 100.
+    """
+    reltuples = await pool.fetchval(
+        """
+        SELECT c.reltuples
+        FROM pg_class c
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relname = $1 AND n.nspname = $2;
+        """,
+        table,
+        schema,
+    )
+    if reltuples is None or reltuples <= 0:
+        return 100.0
+    return min(100.0, 10000.0 / reltuples)
+
+
 async def compare_data(
     src_pool: Pool,
     dst_pool: Pool,
@@ -252,7 +273,6 @@ async def compare_data(
     tables: list[str],
     schema: str,
     logger: Logger,
-    fallback_query: str | None = None,
 ) -> None:
     """
     Validate data between source and destination databases by doing the following:
@@ -297,23 +317,18 @@ async def compare_data(
             order_by_pkeys += f'"{pkey}", '
         order_by_pkeys = order_by_pkeys[:-2]
 
+        # Compute dynamic TABLESAMPLE percentage if the query uses it.
+        tablesample_pct = 0.0
+        if "{tablesample_pct}" in query:
+            tablesample_pct = await _estimate_tablesample_pct(src_pool, table, schema)
+
         filled_query = query.format(
-            table=full_table_name, order_by_pkeys=order_by_pkeys
+            table=full_table_name,
+            order_by_pkeys=order_by_pkeys,
+            tablesample_pct=tablesample_pct,
         )
 
         src_rows = await src_pool.fetch(filled_query)
-
-        # If the primary query (e.g. TABLESAMPLE) returned fewer rows than
-        # expected and a fallback query is available, try the fallback.  On
-        # small tables ORDER BY RANDOM() is fast, so this is only costly on
-        # large tables — which TABLESAMPLE will have already handled.
-        if fallback_query and len(src_rows) < 100:
-            filled_fallback = fallback_query.format(
-                table=full_table_name, order_by_pkeys=order_by_pkeys
-            )
-            fallback_rows = await src_pool.fetch(filled_fallback)
-            if len(fallback_rows) > len(src_rows):
-                src_rows = fallback_rows
 
         # There is a chance tables are empty...
         if len(src_rows) == 0:
@@ -418,38 +433,20 @@ async def compare_100_random_rows(
     2. For each of those tables, select 100 random rows
     3. For each row, ensure the row in the destination is identical
 
-    Uses TABLESAMPLE SYSTEM for fast block-level sampling on large tables,
-    falling back to ORDER BY RANDOM() when the sample is too small (i.e.
-    on smaller tables where ORDER BY RANDOM() is cheap anyway).
+    Uses TABLESAMPLE SYSTEM with a dynamically computed percentage based on
+    the estimated row count (pg_class.reltuples), targeting at least 100 rows.
+    The result is always capped at 100 rows via LIMIT.
     """
     logger.info("Comparing 100 random rows...")
 
-    # Primary: fast block-level sampling (~1% of pages), avoids full table
-    # scan + sort that ORDER BY RANDOM() requires.
     query = """
     SELECT *
-    FROM {table} TABLESAMPLE SYSTEM (1)
+    FROM {table} TABLESAMPLE SYSTEM ({tablesample_pct})
     ORDER BY {order_by_pkeys}
     LIMIT 100;
     """
 
-    # Fallback: used when TABLESAMPLE returns fewer than 100 rows (small
-    # tables).  ORDER BY RANDOM() is fine here because the table is small
-    # enough that performance isn't a concern.
-    fallback_query = """
-    SELECT * FROM
-    (
-        SELECT *
-        FROM {table}
-        ORDER BY RANDOM()
-        LIMIT 100
-    ) AS T1
-    ORDER BY {order_by_pkeys};
-    """
-
-    await compare_data(
-        src_pool, dst_pool, query, tables, schema, logger, fallback_query
-    )
+    await compare_data(src_pool, dst_pool, query, tables, schema, logger)
 
 
 async def compare_latest_100_rows(
@@ -508,27 +505,15 @@ async def compare_tables_without_pkeys(
         full_table_name = f'{schema}."{table}"'
         logger.debug(f"Validating table without primary key: {full_table_name}...")
 
-        # Select 100 random rows from source using fast block-level sampling.
+        # Compute a TABLESAMPLE percentage that targets at least 100 rows,
+        # then cap the result with LIMIT 100.
+        tablesample_pct = await _estimate_tablesample_pct(src_pool, table, schema)
         query = f"""
-        SELECT * FROM {full_table_name} TABLESAMPLE SYSTEM (1)
+        SELECT * FROM {full_table_name} TABLESAMPLE SYSTEM ({tablesample_pct})
         LIMIT 100;
         """
 
         src_rows = await src_pool.fetch(query)
-
-        # If TABLESAMPLE returned fewer rows than expected, fall back to
-        # ORDER BY RANDOM().  On small tables this is fast anyway.
-        # This also covers the case where TABLESAMPLE returns 0 rows from a
-        # non-empty table (no pages were selected).
-        if len(src_rows) < 100:
-            fallback_query = f"""
-            SELECT * FROM {full_table_name}
-            ORDER BY RANDOM()
-            LIMIT 100;
-            """
-            fallback_rows = await src_pool.fetch(fallback_query)
-            if len(fallback_rows) > len(src_rows):
-                src_rows = fallback_rows
 
         if len(src_rows) == 0:
             logger.debug(f"Table {full_table_name} is empty in source.")
