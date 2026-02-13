@@ -43,6 +43,7 @@ $ belt [OPTIONS] COMMAND [ARGS]...
 * `teardown-back-replication`: Stops pglogical replication from the...
 * `teardown-forward-replication`: Stops pglogical replication from the...
 * `teardown`: Removes all pglogical configuration from...
+* `cleanup-previous-config`: Removes any pglogical configuration left...
 
 ## `belt connections`
 
@@ -810,6 +811,41 @@ If the db name is not given run on all dbs in the dc.
 
 ```console
 $ belt teardown [OPTIONS] DC [DB]
+```
+
+**Arguments**:
+
+* `DC`: [required]
+* `[DB]`
+
+**Options**:
+
+* `--full / --no-full`: Remove pglogical extension  [default: no-full]
+* `--help`: Show this message and exit.
+
+## `belt cleanup-previous-config`
+
+Removes any pglogical configuration left over from a previous migration on the
+source database. This is useful when the source database was previously a
+destination in an earlier migration and still has pglogical artifacts.
+
+Tries to clean up all pglogical subscriptions, replication sets, nodes, and the
+pglogical role regardless of what role the database previously played.
+
+If run with --full the pglogical extension will be dropped.
+
+WARNING: running with --full may cause the database to lock up. You should be
+prepared to reboot the database if you do this.
+
+
+Can be run with a null dst in the config file.
+
+If the db name is not given run on all dbs in the dc.
+
+**Usage**:
+
+```console
+$ belt cleanup-previous-config [OPTIONS] DC [DB]
 ```
 
 **Arguments**:
