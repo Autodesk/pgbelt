@@ -1,7 +1,10 @@
+
 name: Update usage docs
 
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - docs/usage.md
   workflow_dispatch:
