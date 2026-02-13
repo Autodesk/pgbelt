@@ -114,7 +114,7 @@ async def sync_sequences(
 @run_with_configs
 async def sync_tables(
     config_future: Awaitable[DbupgradeConfig],
-    tables: list[str] = Option([], help="Specific tables to sync"),
+    table: list[str] = Option([], help="Specific tables to sync"),
 ) -> None:
     """
     Dump tables without primary keys from the source and pipe them directly
@@ -124,15 +124,19 @@ async def sync_tables(
     A table will only be loaded into the destination if it currently contains
     no rows.
 
-    You may also provide a list of tables to sync with the
-    --tables option and only these tables will be synced.
+    You may also provide specific PK-less tables to sync with the --table option.
+    Need to run like --table table1 --table table2 ...
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync")
 
-    if tables:
-        tables = tables.split(",")
-    else:
+    if table:
+        # Technically I'm just doing this to rename the variable.
+        # From the CLI arg side, saying --tables table1 --tables table2 ...
+        # makes no sense since each arg is a single table, but here all of them
+        # get collected into a list, so a rename really is needed for clarity.
+        tables = table
+    elif not table:
         async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
             _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)
 
