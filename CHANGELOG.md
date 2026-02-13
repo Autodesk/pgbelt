@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/Autodesk/pgbelt/compare/v0.13.0...v0.14.0) (2026-02-13)
+
+
+### Features
+
+* reset command to restart replication fresh [#561](https://github.com/Autodesk/pgbelt/issues/561) ([#862](https://github.com/Autodesk/pgbelt/issues/862)) ([b19b992](https://github.com/Autodesk/pgbelt/commit/b19b992239d16698048c25a6ff0b78e67ee619c7))
+
 ## [0.13.0](https://github.com/Autodesk/pgbelt/compare/v0.12.1...v0.13.0) (2026-02-13)
 
 
