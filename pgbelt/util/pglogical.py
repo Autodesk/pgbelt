@@ -268,6 +268,30 @@ async def teardown_pgl(pool: Pool, logger: Logger) -> None:
             logger.debug("Pglogical extension dropped")
 
 
+async def cleanup_all_pglogical(
+    pool: Pool, tables: list[str], schema: str, logger: Logger
+) -> None:
+    """
+    Remove all pglogical configuration from a single database, regardless of
+    what role (source or destination) it played in a previous migration.
+
+    Tries to drop both subscription names (pg1_pg2 and pg2_pg1) and both node
+    names (pg1 and pg2) since we may not know which role the database previously
+    played. All teardown functions handle "does not exist" gracefully.
+    """
+    logger.info("Cleaning up previous pglogical configuration...")
+
+    await teardown_subscription(pool, "pg1_pg2", logger)
+    await teardown_subscription(pool, "pg2_pg1", logger)
+
+    await teardown_replication_set(pool, logger)
+
+    await teardown_node(pool, "pg1", logger)
+    await teardown_node(pool, "pg2", logger)
+
+    await revoke_pgl(pool, tables, schema, logger)
+
+
 async def subscription_status(pool: Pool, logger: Logger) -> str:
     """
     Get the status of a subscription. Assumes one subscription in a db.

@@ -6,6 +6,7 @@ from asyncpg import create_pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
+from pgbelt.util.pglogical import cleanup_all_pglogical
 from pgbelt.util.pglogical import revoke_pgl
 from pgbelt.util.pglogical import teardown_node
 from pgbelt.util.pglogical import teardown_pgl
@@ -95,4 +96,37 @@ async def teardown(
         await gather(*[p.close() for p in pools])
 
 
-COMMANDS = [teardown_back_replication, teardown_forward_replication, teardown]
+@run_with_configs(skip_dst=True)
+async def cleanup_previous_config(
+    config_future: Awaitable[DbupgradeConfig],
+    full: bool = Option(False, help="Remove pglogical extension"),
+):
+    """
+    Removes any pglogical configuration left over from a previous migration on the
+    source database. This is useful when the source database was previously a
+    destination in an earlier migration and still has pglogical artifacts.
+
+    Tries to clean up all pglogical subscriptions, replication sets, nodes, and the
+    pglogical role regardless of what role the database previously played.
+
+    If run with --full the pglogical extension will be dropped.
+
+    WARNING: running with --full may cause the database to lock up. You should be
+    prepared to reboot the database if you do this.
+    """
+    conf = await config_future
+    async with create_pool(conf.src.root_uri, min_size=1) as src_pool:
+        logger = get_logger(conf.db, conf.dc, "cleanup.src")
+        await cleanup_all_pglogical(src_pool, conf.tables, conf.schema_name, logger)
+
+        if full:
+            await sleep(15)
+            await teardown_pgl(src_pool, logger)
+
+
+COMMANDS = [
+    teardown_back_replication,
+    teardown_forward_replication,
+    teardown,
+    cleanup_previous_config,
+]

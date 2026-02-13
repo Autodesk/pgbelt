@@ -10,6 +10,7 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_schema
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.logs import get_logger
+from pgbelt.util.pglogical import cleanup_all_pglogical
 from pgbelt.util.pglogical import configure_node
 from pgbelt.util.pglogical import configure_pgl
 from pgbelt.util.pglogical import configure_replication_set
@@ -82,6 +83,13 @@ async def setup(
     try:
         src_logger = get_logger(conf.db, conf.dc, "setup.src")
         dst_logger = get_logger(conf.db, conf.dc, "setup.dst")
+
+        # Clean up any pglogical artifacts from a previous migration on the source.
+        # This handles the case where the source was previously a destination in an
+        # earlier migration and still has leftover pglogical configuration.
+        await cleanup_all_pglogical(
+            src_root_pool, conf.tables, conf.schema_name, src_logger
+        )
 
         # Configure Source for pglogical (before we can configure the plugin)
         await configure_pgl(
