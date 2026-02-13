@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   db-src-set-public-schema-full: &db
     image: autodesk/postgres-pglogical-docker:16

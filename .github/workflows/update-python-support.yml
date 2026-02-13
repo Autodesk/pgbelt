@@ -1,0 +1,46 @@
+name: Update Python support
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-python-support:
+    name: Update supported Python versions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: python -m pip install poetry requests
+
+      - name: Update Python support files from official source
+        run: python .github/scripts/update_python_support.py
+
+      - name: Refresh lock file metadata
+        run: poetry lock
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          title: "ci: update supported Python versions"
+          commit-message: "ci: update supported Python versions"
+          body: |
+            ## Summary
+            - fetch currently supported released Python versions from https://devguide.python.org/versions/
+            - update CI matrix, Makefile matrix, and `pyproject.toml` Python constraint
+            - refresh `poetry.lock`
+          branch: chore/update-python-support
+          delete-branch: true

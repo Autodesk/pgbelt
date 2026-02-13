@@ -1,4 +1,5 @@
 PYTHON_CODE_PATH="./pgbelt"
+PYTHON_VERSIONS ?= 3.12 3.13 3.14
 
 .DEFAULT_GOAL := help
 
@@ -14,7 +15,10 @@ setup: ## Install development requirements. You should be in a virtualenv
 	poetry install && pre-commit install
 
 test: ## Run tests
-	docker build . -t autodesk/pgbelt:latest && docker build tests/integration/files/postgres16-pglogical-docker/ -t autodesk/postgres-pglogical-docker:16 && docker compose run tests
+	docker build . -t autodesk/pgbelt:latest && docker build tests/integration/files/postgres16-pglogical-docker/ -t autodesk/postgres-pglogical-docker:16 && docker compose run --rm tests
+
+test-matrix: ## Run tests across multiple Python versions (set PYTHON_VERSIONS="3.12 3.13")
+	docker build tests/integration/files/postgres16-pglogical-docker/ -t autodesk/postgres-pglogical-docker:16 && set -e; cleanup(){ docker compose down --remove-orphans -v; }; trap cleanup EXIT INT TERM; for py in $(PYTHON_VERSIONS); do echo "=== Running tests on Python $$py ==="; cleanup; docker build . --build-arg PYTHON_VERSION=$$py -t autodesk/pgbelt:latest && docker compose run --rm tests; done
 
 tests: test
 
