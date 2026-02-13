@@ -184,3 +184,19 @@ B. Your network may have been interrupted between the SRC and DST databases.
                 - As of now, there is no recovery process for this. You will need to start your replication job again from the beginning.
 
 Source: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.pglogical.recover-replication-after-upgrade.html
+
+## My database has leftover pglogical configuration from a previous migration. How do I clean it up?
+
+This can happen when someone forgets to run `teardown` after a migration. Months or years later, you may encounter issues like being unable to drop a table because it's still part of a replication set, or seeing pglogical-related errors on what should be a standalone database.
+
+To clean up, create a pgbelt config with the database as the `src` (set `dst` to `null`) and run:
+
+    $ belt cleanup-previous-config testdatacenter1 database1
+
+This will remove all pglogical subscriptions, replication sets, nodes, and the pglogical role from the database regardless of what role (source or destination) it played in the previous migration.
+
+If you also want to drop the pglogical extension itself, run with `--full`:
+
+    $ belt cleanup-previous-config testdatacenter1 database1 --full
+
+**WARNING:** running with `--full` may cause the database to lock up. You should be prepared to reboot the database if you do this. See the `belt hangs when running teardown --full` section above for troubleshooting.
