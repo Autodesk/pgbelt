@@ -1,4 +1,5 @@
 import asyncio
+import shlex
 from logging import Logger
 from os.path import join
 from pgbelt.config.models import DbupgradeConfig
@@ -182,12 +183,16 @@ async def _pipe_dump_and_load_table(
         "|pg_catalog.set_config"
     )
 
-    table_arg = f'{config.schema_name}."{table}"'
+    # Use shell-safe quoting so mixed-case identifiers keep their double quotes
+    # when passed through bash.
+    table_arg = shlex.quote(f'{config.schema_name}."{table}"')
+    src_dsn = shlex.quote(config.src.pglogical_dsn)
+    dst_dsn = shlex.quote(config.dst.root_dsn)
 
     cmd = (
-        f'pg_dump --data-only --table={table_arg} "{config.src.pglogical_dsn}"'
+        f"pg_dump --data-only --table={table_arg} {src_dsn}"
         f" | sed -E '/{sed_filter}/d'"
-        f' | psql "{config.dst.root_dsn}" -v ON_ERROR_STOP=1'
+        f" | psql {dst_dsn} -v ON_ERROR_STOP=1"
         f" -c 'BEGIN; SET LOCAL session_replication_role = replica;'"
         f" -f -"
         f" -c 'COMMIT;'"
