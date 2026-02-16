@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
 
 jobs:
   update-python-support:
@@ -36,6 +35,8 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v8
         with:
+          token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
+          branch-token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
           title: "ci: update supported Python versions"
           commit-message: "ci: update supported Python versions"
           body: |
