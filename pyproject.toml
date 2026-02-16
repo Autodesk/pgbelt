@@ -10,7 +10,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.12,<4.0"
+python = ">=3.10,<3.15"
 aiofiles = ">=0.8,<24.2"
 asyncpg = ">=0.27,<0.32"
 pydantic = ">=2.0,<3.0"
