@@ -1,4 +1,5 @@
 import socket
+from asyncio import gather
 from asyncio import open_connection
 from asyncio import run
 from asyncio import TimeoutError
@@ -10,6 +11,8 @@ from asyncpg import create_pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.config import get_config
 from pgbelt.config.models import DbupgradeConfig
+from pgbelt.util.dblink import check_connectivity_via_dblink
+from pgbelt.util.dblink import ensure_dblink
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from tabulate import tabulate
@@ -93,8 +96,12 @@ async def _print_connectivity_results(results: list[dict]):
     table = [
         [
             style("database", "yellow"),
-            style("src connect ok", "yellow"),
-            style("dst connect ok", "yellow"),
+            style("src tcp ok", "yellow"),
+            style("src query ok", "yellow"),
+            style("src->dst dblink ok", "yellow"),
+            style("dst tcp ok", "yellow"),
+            style("dst query ok", "yellow"),
+            style("dst->src dblink ok", "yellow"),
         ]
     ]
 
@@ -105,12 +112,30 @@ async def _print_connectivity_results(results: list[dict]):
         table.append(
             [
                 style(r["db"], "green"),
-                style(r["src"], "green" if r["src"] else "red"),
-                style(r["dst"], "green" if r["dst"] else "red"),
+                style(r["src_tcp"], "green" if r["src_tcp"] else "red"),
+                style(r["src_query"], "green" if r["src_query"] else "red"),
+                style(
+                    r["src_to_dst_dblink"],
+                    "green" if r["src_to_dst_dblink"] else "red",
+                ),
+                style(r["dst_tcp"], "green" if r["dst_tcp"] else "red"),
+                style(r["dst_query"], "green" if r["dst_query"] else "red"),
+                style(
+                    r["dst_to_src_dblink"],
+                    "green" if r["dst_to_src_dblink"] else "red",
+                ),
             ]
         )
-        # If any of the connections have failed in this DB, and the flag hasn't been set, set it.
-        if not failed_connection_exists and (r["src"] is False or r["dst"] is False):
+        if not failed_connection_exists and not all(
+            [
+                r["src_tcp"],
+                r["src_query"],
+                r["src_to_dst_dblink"],
+                r["dst_tcp"],
+                r["dst_query"],
+                r["dst_to_src_dblink"],
+            ]
+        ):
             failed_connection_exists = True
 
     echo(tabulate(table, headers="firstrow"))
@@ -119,64 +144,119 @@ async def _print_connectivity_results(results: list[dict]):
         exit(1)
 
 
+async def _check_tcp(host: str, port: str, logger: Logger) -> bool:
+    try:
+        logger.info("Checking network access to port...")
+        _, writer = await wait_for(open_connection(host, port), timeout=3)
+        logger.debug("Can access network port.")
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except TimeoutError:
+        logger.error("Cannot access network port. timed out.")
+    except socket.gaierror as e:
+        logger.error(f"Socket.gaierror {e}")
+    except ConnectionRefusedError as e:
+        logger.error(f"ConnectionRefusedError {e}")
+    return False
+
+
 @run_with_configs(results_callback=_print_connectivity_results)
 async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Returns exit code 0 if pgbelt can connect to all databases in a datacenter
     (if db is not specified), or to both src and dst of a database.
 
-    This is done by checking network access to the database ports ONLY.
+    Runs three checks per side:
+    1. TCP connectivity to the database port (from pgbelt).
+    2. SELECT 1 via a connection pool (validates credentials from pgbelt).
+    3. dblink from src->dst and dst->src (validates that the database servers
+    themselves can reach each other -- the same network path pglogical uses).
 
-    If any connection times out, the command will exit 1. It will test ALL connections
-    before returning exit code 1 or 0, and output which connections passed/failed.
+    The dblink extension is created if not present and left in place. It is
+    removed by belt teardown --full.
+
+    If any check fails, the command will exit 1. It will test ALL connections
+    before returning exit code 1 or 0, and output which checks passed/failed.
     """
 
     conf = await config_future
 
-    src_future = open_connection(conf.src.ip, conf.src.port)
     src_logger = get_logger(conf.db, conf.dc, "connect.src")
-    dst_future = open_connection(conf.dst.ip, conf.dst.port)
     dst_logger = get_logger(conf.db, conf.dc, "connect.dst")
-    src_connect_ok = False
-    dst_connect_ok = False
 
-    # Source Connection Checks
-    try:
-        src_logger.info("Checking network access to port...")
+    src_tcp = await _check_tcp(conf.src.ip, conf.src.port, src_logger)
+    dst_tcp = await _check_tcp(conf.dst.ip, conf.dst.port, dst_logger)
 
-        # Wait for 3 seconds, then raise TimeoutError
-        _, writer = await wait_for(src_future, timeout=3)
-        src_logger.debug("Can access network port.")
-        writer.close()
-        await writer.wait_closed()
-        src_connect_ok = True
-    except TimeoutError:
-        src_logger.error("Cannot access network port. timed out.")
-    except socket.gaierror as e:
-        src_logger.error(f"Socket.gaierror {e}")
-    except ConnectionRefusedError as e:
-        src_logger.error(f"ConnectionRefusedError {e}")
+    src_query = False
+    dst_query = False
+    src_to_dst_dblink = False
+    dst_to_src_dblink = False
 
-    # Destination Connection Checks
-    try:
-        dst_logger.info("Checking network access to port...")
+    if src_tcp and dst_tcp:
+        pools = await gather(
+            create_pool(conf.src.root_uri, min_size=1),
+            create_pool(conf.dst.root_uri, min_size=1),
+        )
+        src_pool, dst_pool = pools
 
-        # Wait for 3 seconds, then raise TimeoutError
-        _, writer = await wait_for(dst_future, timeout=3)
-        dst_logger.debug("Can access network port.")
-        writer.close()
-        await writer.wait_closed()
-        dst_connect_ok = True
-    except TimeoutError:
-        dst_logger.error("Cannot access network port. timed out.")
-    except socket.gaierror as e:
-        dst_logger.error(f"Socket.gaierror {e}")
-    except ConnectionRefusedError as e:
-        dst_logger.error(f"ConnectionRefusedError {e}")
+        try:
+            # SELECT 1 to validate credentials from pgbelt's perspective
+            try:
+                await src_pool.fetchval("SELECT 1")
+                src_query = True
+                src_logger.debug("SELECT 1 succeeded.")
+            except Exception as e:
+                src_logger.error(f"SELECT 1 failed: {e}")
 
-    # TODO: Exit code AFTER all have run
+            try:
+                await dst_pool.fetchval("SELECT 1")
+                dst_query = True
+                dst_logger.debug("SELECT 1 succeeded.")
+            except Exception as e:
+                dst_logger.error(f"SELECT 1 failed: {e}")
 
-    return {"db": conf.db, "src": src_connect_ok, "dst": dst_connect_ok}
+            # dblink cross-host checks
+            if src_query and dst_query:
+                await gather(
+                    ensure_dblink(src_pool, src_logger),
+                    ensure_dblink(dst_pool, dst_logger),
+                )
+
+                src_to_dst_dblink = await check_connectivity_via_dblink(
+                    src_pool, conf.dst.root_dsn, src_logger
+                )
+                dst_to_src_dblink = await check_connectivity_via_dblink(
+                    dst_pool, conf.src.root_dsn, dst_logger
+                )
+        finally:
+            await gather(*[p.close() for p in pools])
+    elif src_tcp:
+        async with create_pool(conf.src.root_uri, min_size=1) as src_pool:
+            try:
+                await src_pool.fetchval("SELECT 1")
+                src_query = True
+                src_logger.debug("SELECT 1 succeeded.")
+            except Exception as e:
+                src_logger.error(f"SELECT 1 failed: {e}")
+    elif dst_tcp:
+        async with create_pool(conf.dst.root_uri, min_size=1) as dst_pool:
+            try:
+                await dst_pool.fetchval("SELECT 1")
+                dst_query = True
+                dst_logger.debug("SELECT 1 succeeded.")
+            except Exception as e:
+                dst_logger.error(f"SELECT 1 failed: {e}")
+
+    return {
+        "db": conf.db,
+        "src_tcp": src_tcp,
+        "src_query": src_query,
+        "src_to_dst_dblink": src_to_dst_dblink,
+        "dst_tcp": dst_tcp,
+        "dst_query": dst_query,
+        "dst_to_src_dblink": dst_to_src_dblink,
+    }
 
 
 COMMANDS = [src_dsn, dst_dsn, check_pkeys, check_connectivity]

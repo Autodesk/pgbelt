@@ -228,7 +228,7 @@ Up until this step, reverse replication will be ongoing. It is meant to do this 
 
 The first command will tear down all replication jobs if still running. At this point, you should only have your reverse replication running. It will also tear down all of the pgbelt replication job objects in the database, including the `pglogical` role used by the jobs.
 
-The second command will run through the first command, and finally drop the `pglogical` extension from the database. This is separated out because the extension drop tends to hang if the previous steps are done right beforehand. When run separately, the DROP command likely will run without hanging or run in significantly less time.
+The second command will run through the first command, and finally drop the `pglogical` and `dblink` extensions from the database. This is separated out because the extension drop tends to hang if the previous steps are done right beforehand. When run separately, the DROP command likely will run without hanging or run in significantly less time.
 
 # Final Notes
 
