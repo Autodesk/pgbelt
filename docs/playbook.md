@@ -114,7 +114,7 @@ Notes:
 
 ## belt hangs when running `teardown --full`. What can I do?
 
-If `belt` hangs when running `teardown --full`, it is likely having trouble dropping the `pglogical` extension. This normally happens due to any _idle in transaction_ connections to the database. To resolve this, you can run the following when it hangs:
+If `belt` hangs when running `teardown --full`, it is likely having trouble dropping the `pglogical` or `dblink` extensions. This normally happens due to any _idle in transaction_ connections to the database. To resolve this, you can run the following when it hangs:
 
 - CTRL+C to stop the `teardown --full` command
 - Identify which database is getting traffic (SRC or DST)
