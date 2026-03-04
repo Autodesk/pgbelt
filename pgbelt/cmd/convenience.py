@@ -6,6 +6,7 @@ from asyncio import wait_for
 from collections.abc import Awaitable
 from logging import Logger
 
+from asyncpg import connect as pg_connect
 from asyncpg import create_pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.config import get_config
@@ -93,8 +94,10 @@ async def _print_connectivity_results(results: list[dict]):
     table = [
         [
             style("database", "yellow"),
-            style("src connect ok", "yellow"),
-            style("dst connect ok", "yellow"),
+            style("src tcp ok", "yellow"),
+            style("src query ok", "yellow"),
+            style("dst tcp ok", "yellow"),
+            style("dst query ok", "yellow"),
         ]
     ]
 
@@ -105,12 +108,18 @@ async def _print_connectivity_results(results: list[dict]):
         table.append(
             [
                 style(r["db"], "green"),
-                style(r["src"], "green" if r["src"] else "red"),
-                style(r["dst"], "green" if r["dst"] else "red"),
+                style(r["src_tcp"], "green" if r["src_tcp"] else "red"),
+                style(r["src_query"], "green" if r["src_query"] else "red"),
+                style(r["dst_tcp"], "green" if r["dst_tcp"] else "red"),
+                style(r["dst_query"], "green" if r["dst_query"] else "red"),
             ]
         )
-        # If any of the connections have failed in this DB, and the flag hasn't been set, set it.
-        if not failed_connection_exists and (r["src"] is False or r["dst"] is False):
+        if not failed_connection_exists and (
+            not r["src_tcp"]
+            or not r["src_query"]
+            or not r["dst_tcp"]
+            or not r["dst_query"]
+        ):
             failed_connection_exists = True
 
     echo(tabulate(table, headers="firstrow"))
@@ -119,64 +128,70 @@ async def _print_connectivity_results(results: list[dict]):
         exit(1)
 
 
+async def _check_tcp(host: str, port: str, logger: Logger) -> bool:
+    try:
+        logger.info("Checking network access to port...")
+        _, writer = await wait_for(open_connection(host, port), timeout=3)
+        logger.debug("Can access network port.")
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except TimeoutError:
+        logger.error("Cannot access network port. timed out.")
+    except socket.gaierror as e:
+        logger.error(f"Socket.gaierror {e}")
+    except ConnectionRefusedError as e:
+        logger.error(f"ConnectionRefusedError {e}")
+    return False
+
+
+async def _check_query(uri: str, logger: Logger) -> bool:
+    try:
+        logger.info("Checking SELECT 1...")
+        conn = await pg_connect(uri, timeout=5)
+        try:
+            await conn.fetchval("SELECT 1")
+            logger.debug("SELECT 1 succeeded.")
+            return True
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.error(f"SELECT 1 failed: {e}")
+    return False
+
+
 @run_with_configs(results_callback=_print_connectivity_results)
 async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Returns exit code 0 if pgbelt can connect to all databases in a datacenter
     (if db is not specified), or to both src and dst of a database.
 
-    This is done by checking network access to the database ports ONLY.
+    First checks TCP connectivity to the database ports, then runs a SELECT 1
+    using the root credentials to validate authentication and end-to-end
+    connectivity.
 
-    If any connection times out, the command will exit 1. It will test ALL connections
-    before returning exit code 1 or 0, and output which connections passed/failed.
+    If any check fails, the command will exit 1. It will test ALL connections
+    before returning exit code 1 or 0, and output which checks passed/failed.
     """
 
     conf = await config_future
 
-    src_future = open_connection(conf.src.ip, conf.src.port)
     src_logger = get_logger(conf.db, conf.dc, "connect.src")
-    dst_future = open_connection(conf.dst.ip, conf.dst.port)
     dst_logger = get_logger(conf.db, conf.dc, "connect.dst")
-    src_connect_ok = False
-    dst_connect_ok = False
 
-    # Source Connection Checks
-    try:
-        src_logger.info("Checking network access to port...")
+    src_tcp = await _check_tcp(conf.src.ip, conf.src.port, src_logger)
+    src_query = await _check_query(conf.src.root_uri, src_logger) if src_tcp else False
 
-        # Wait for 3 seconds, then raise TimeoutError
-        _, writer = await wait_for(src_future, timeout=3)
-        src_logger.debug("Can access network port.")
-        writer.close()
-        await writer.wait_closed()
-        src_connect_ok = True
-    except TimeoutError:
-        src_logger.error("Cannot access network port. timed out.")
-    except socket.gaierror as e:
-        src_logger.error(f"Socket.gaierror {e}")
-    except ConnectionRefusedError as e:
-        src_logger.error(f"ConnectionRefusedError {e}")
+    dst_tcp = await _check_tcp(conf.dst.ip, conf.dst.port, dst_logger)
+    dst_query = await _check_query(conf.dst.root_uri, dst_logger) if dst_tcp else False
 
-    # Destination Connection Checks
-    try:
-        dst_logger.info("Checking network access to port...")
-
-        # Wait for 3 seconds, then raise TimeoutError
-        _, writer = await wait_for(dst_future, timeout=3)
-        dst_logger.debug("Can access network port.")
-        writer.close()
-        await writer.wait_closed()
-        dst_connect_ok = True
-    except TimeoutError:
-        dst_logger.error("Cannot access network port. timed out.")
-    except socket.gaierror as e:
-        dst_logger.error(f"Socket.gaierror {e}")
-    except ConnectionRefusedError as e:
-        dst_logger.error(f"ConnectionRefusedError {e}")
-
-    # TODO: Exit code AFTER all have run
-
-    return {"db": conf.db, "src": src_connect_ok, "dst": dst_connect_ok}
+    return {
+        "db": conf.db,
+        "src_tcp": src_tcp,
+        "src_query": src_query,
+        "dst_tcp": dst_tcp,
+        "dst_query": dst_query,
+    }
 
 
 COMMANDS = [src_dsn, dst_dsn, check_pkeys, check_connectivity]
