@@ -152,10 +152,17 @@ $ belt check-pkeys [OPTIONS] DC DB
 Returns exit code 0 if pgbelt can connect to all databases in a datacenter
 (if db is not specified), or to both src and dst of a database.
 
-This is done by checking network access to the database ports ONLY.
+Runs three checks per side:
+1. TCP connectivity to the database port (from pgbelt).
+2. SELECT 1 via a connection pool (validates credentials from pgbelt).
+3. dblink from src-&gt;dst and dst-&gt;src (validates that the database servers
+themselves can reach each other -- the same network path pglogical uses).
 
-If any connection times out, the command will exit 1. It will test ALL connections
-before returning exit code 1 or 0, and output which connections passed/failed.
+The dblink extension is created if not present and left in place. It is
+removed by belt teardown --full.
+
+If any check fails, the command will exit 1. It will test ALL connections
+before returning exit code 1 or 0, and output which checks passed/failed.
 
 
 Requires both src and dst to be not null in the config file.
@@ -797,7 +804,7 @@ $ belt teardown-forward-replication [OPTIONS] DC [DB]
 Removes all pglogical configuration from both databases. If any replication is
 configured this will stop it. It will also drop the pglogical user.
 
-If run with --full the pglogical extension will be dropped.
+If run with --full the pglogical and dblink extensions will be dropped.
 
 WARNING: running with --full may cause the database to lock up. You should be
 prepared to reboot the database if you do this.
@@ -820,7 +827,7 @@ $ belt teardown [OPTIONS] DC [DB]
 
 **Options**:
 
-* `--full / --no-full`: Remove pglogical extension  [default: no-full]
+* `--full / --no-full`: Remove pglogical and dblink extensions  [default: no-full]
 * `--help`: Show this message and exit.
 
 ## `belt cleanup-previous-config`
