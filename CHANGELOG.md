@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.0](https://github.com/Autodesk/pgbelt/compare/v0.15.0...v0.16.0) (2026-03-10)
+
+
+### Features
+
+* improved connectivity check ([#888](https://github.com/Autodesk/pgbelt/issues/888)) ([b9b6f10](https://github.com/Autodesk/pgbelt/commit/b9b6f10bcbb76d883b456fe4a537cab52b14ac51))
+
+
+### Documentation
+
+* update usage docs ([#889](https://github.com/Autodesk/pgbelt/issues/889)) ([2dbe63f](https://github.com/Autodesk/pgbelt/commit/2dbe63f9aa6cc0efa0e4d5947aac5759242ef735))
+
 ## [0.15.0](https://github.com/Autodesk/pgbelt/compare/v0.14.1...v0.15.0) (2026-02-13)
 
 
