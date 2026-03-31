@@ -16,12 +16,193 @@ from pgbelt.config import get_all_configs_async
 from pgbelt.config import get_config_async
 from pgbelt.models.base import CommandError
 from pgbelt.models.base import CommandResult
+from pgbelt.models.connectivity import ConnectivityCheckResult
+from pgbelt.models.connectivity import ConnectivityCheckRow
+from pgbelt.models.connections import ConnectionsResult
+from pgbelt.models.connections import ConnectionsRow
+from pgbelt.models.connections import ConnectionsSide
+from pgbelt.models.preflight import ExtensionInfo
+from pgbelt.models.preflight import PrecheckResult
+from pgbelt.models.preflight import PrecheckSide
+from pgbelt.models.preflight import RelationInfo
+from pgbelt.models.preflight import RoleInfo
+from pgbelt.models.preflight import TableReplicationInfo
+from pgbelt.models.status import ReplicationLag
+from pgbelt.models.status import StatusResult
+from pgbelt.models.status import StatusRow
 from typer import Argument
 from typer import Option
 from typer import Typer
 
 
 T = TypeVar("T")
+
+
+def _build_connectivity_result(
+    results: list[dict], base_kwargs: dict
+) -> ConnectivityCheckResult:
+    rows = [ConnectivityCheckRow(**r) for r in results if isinstance(r, dict)]
+    return ConnectivityCheckResult(
+        success=all(r.all_ok for r in rows),
+        results=rows,
+        **base_kwargs,
+    )
+
+
+def _build_connections_result(
+    results: list[dict], base_kwargs: dict
+) -> ConnectionsResult:
+    rows = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        rows.append(
+            ConnectionsRow(
+                db=r["db"],
+                source=ConnectionsSide(
+                    total_connections=r["src_count"],
+                    by_user=r.get("src_usernames", {}),
+                ),
+                destination=ConnectionsSide(
+                    total_connections=r["dst_count"],
+                    by_user=r.get("dst_usernames", {}),
+                ),
+            )
+        )
+    return ConnectionsResult(success=True, results=rows, **base_kwargs)
+
+
+def _build_status_result(results: list[dict], base_kwargs: dict) -> StatusResult:
+    rows = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        lag = ReplicationLag(
+            sent_lag=r.get("sent_lag", "unknown"),
+            write_lag=r.get("write_lag", "unknown"),
+            flush_lag=r.get("flush_lag", "unknown"),
+            replay_lag=r.get("replay_lag", "unknown"),
+        )
+        rows.append(
+            StatusRow(
+                db=r.get("db", ""),
+                forward_replication=r.get("pg1_pg2", "unconfigured"),
+                back_replication=r.get("pg2_pg1", "unconfigured"),
+                lag=lag,
+                src_dataset_size=r.get("src_dataset_size"),
+                dst_dataset_size=r.get("dst_dataset_size"),
+                progress=r.get("progress"),
+            )
+        )
+    return StatusResult(success=True, results=rows, **base_kwargs)
+
+
+def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
+    """Convert the raw dict from precheck_info into a PrecheckSide model."""
+    users_raw = raw.get("users", {})
+    root_raw = users_raw.get("root", {})
+    owner_raw = users_raw.get("owner", {})
+
+    tables_raw = raw.get("tables", [])
+    pkey_names = set(pkeys) if pkeys else set()
+
+    tables = []
+    for t in tables_raw:
+        name = t.get("Name", "")
+        schema = t.get("Schema", "")
+        owner = t.get("Owner", "")
+        has_pk = name in pkey_names
+        can_rep = schema == raw.get("schema", "") and owner == owner_raw.get(
+            "rolname", ""
+        )
+        if can_rep:
+            method = "pglogical" if has_pk else "dump_and_load"
+        else:
+            method = "unavailable"
+        tables.append(
+            TableReplicationInfo(
+                name=name,
+                schema_name=schema,
+                owner=owner,
+                has_primary_key=has_pk,
+                replication_method=method,
+            )
+        )
+
+    sequences = [
+        RelationInfo(
+            name=s.get("Name", ""),
+            schema_name=s.get("Schema", ""),
+            owner=s.get("Owner", ""),
+            object_type="sequence",
+        )
+        for s in raw.get("sequences", [])
+    ]
+
+    extensions = [
+        ExtensionInfo(extname=e["extname"] if isinstance(e, dict) else e)
+        for e in raw.get("extensions", [])
+    ]
+
+    return PrecheckSide(
+        db=raw.get("db", ""),
+        schema_name=raw.get("schema", "public"),
+        server_version=raw.get("server_version", "unknown"),
+        max_replication_slots=raw.get("max_replication_slots", "0"),
+        max_worker_processes=raw.get("max_worker_processes", "0"),
+        max_wal_senders=raw.get("max_wal_senders", "0"),
+        shared_preload_libraries=raw.get("shared_preload_libraries", []),
+        rds_logical_replication=raw.get("rds.logical_replication", "unknown"),
+        root_user=RoleInfo(
+            rolname=root_raw.get("rolname", ""),
+            rolcanlogin=root_raw.get("rolcanlogin", False),
+            rolcreaterole=root_raw.get("rolcreaterole", False),
+            rolinherit=root_raw.get("rolinherit", False),
+            rolsuper=root_raw.get("rolsuper", False),
+            memberof=root_raw.get("memberof", []),
+        ),
+        owner_user=RoleInfo(
+            rolname=owner_raw.get("rolname", ""),
+            rolcanlogin=owner_raw.get("rolcanlogin", False),
+            rolcreaterole=owner_raw.get("rolcreaterole", False),
+            rolinherit=owner_raw.get("rolinherit", False),
+            rolsuper=owner_raw.get("rolsuper", False),
+            memberof=owner_raw.get("memberof", []),
+            can_create=owner_raw.get("can_create"),
+        ),
+        tables=tables,
+        sequences=sequences,
+        extensions=extensions,
+    )
+
+
+def _build_precheck_result(results: list[dict], base_kwargs: dict) -> PrecheckResult:
+    if len(results) == 1 and isinstance(results[0], dict):
+        raw = results[0]
+        src_raw = raw.get("src", {})
+        dst_raw = raw.get("dst", {})
+        src_side = _build_precheck_side(src_raw, pkeys=src_raw.get("pkeys"))
+        dst_side = _build_precheck_side(dst_raw)
+
+        src_ext_names = {e.extname for e in src_side.extensions}
+        for ext in dst_side.extensions:
+            ext.in_other_side = ext.extname in src_ext_names
+        dst_ext_names = {e.extname for e in dst_side.extensions}
+        for ext in src_side.extensions:
+            ext.in_other_side = ext.extname in dst_ext_names
+
+        return PrecheckResult(success=True, src=src_side, dst=dst_side, **base_kwargs)
+
+    # Multi-DB: store raw dicts since we get separate src/dst per DB
+    return PrecheckResult(success=True, **base_kwargs)
+
+
+_RICH_MODEL_BUILDERS: dict[str, Callable] = {
+    "check-connectivity": _build_connectivity_result,
+    "connections": _build_connections_result,
+    "status": _build_status_result,
+    "precheck": _build_precheck_result,
+}
 
 
 def _build_json_output(
@@ -41,21 +222,29 @@ def _build_json_output(
             message=str(error),
         )
 
-    detail = {}
-    if results and len(results) == 1 and isinstance(results[0], dict):
-        detail = results[0]
-    elif results and all(isinstance(r, dict) for r in results):
-        detail = {"databases": results}
-
-    result = CommandResult(
+    base_kwargs = dict(
         db=db or dc,
         dc=dc,
-        command=command_name,
-        success=success,
         duration_ms=duration_ms,
         error=cmd_error,
-        detail=detail,
     )
+
+    builder = _RICH_MODEL_BUILDERS.get(command_name)
+    if builder and not cmd_error:
+        result = builder(results, base_kwargs)
+    else:
+        detail = {}
+        if results and len(results) == 1 and isinstance(results[0], dict):
+            detail = results[0]
+        elif results and all(isinstance(r, dict) for r in results):
+            detail = {"databases": results}
+        result = CommandResult(
+            command=command_name,
+            success=success,
+            detail=detail,
+            **base_kwargs,
+        )
+
     return result.model_dump_json(indent=2)
 
 
