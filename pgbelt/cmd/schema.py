@@ -5,14 +5,18 @@ from typer import echo
 from typer import Option
 from typer import style
 
+from typing import Any
+
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import apply_target_schema
-from pgbelt.util.dump import create_target_indexes
+from pgbelt.util.dump import create_target_indexes_with_details
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.dump import remove_dst_not_valid_constraints
 from pgbelt.util.dump import remove_dst_indexes
+from pgbelt.util.dump import schema_file
+from pgbelt.util.dump import ONLY_INDEXES
 from pgbelt.util.dump import validate_schema_dump
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import run_analyze
@@ -86,7 +90,9 @@ async def remove_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
 
 
 @run_with_configs(skip_src=True)
-async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def create_indexes(
+    config_future: Awaitable[DbupgradeConfig],
+) -> dict[str, Any] | None:
     """
     Creates indexes from the file schemas/dc/db/indexes.sql into the destination
     as the owner user. This must only be done after most data is synchronized
@@ -98,9 +104,10 @@ async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
-    await create_target_indexes(conf, logger, during_sync=False)
+    index_details = await create_target_indexes_with_details(
+        conf, logger, during_sync=False
+    )
 
-    # Run ANALYZE after creating indexes (without statement timeout)
     async with create_pool(
         conf.dst.root_uri,
         min_size=1,
@@ -109,6 +116,12 @@ async def create_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
         },
     ) as dst_pool:
         await run_analyze(dst_pool, logger)
+
+    return {
+        "indexes_file": schema_file(conf.db, conf.dc, ONLY_INDEXES),
+        "indexes": index_details,
+        "analyze_ran": True,
+    }
 
 
 async def _print_diff_table(results: list[dict[str, str]]) -> list[list[str]]:
