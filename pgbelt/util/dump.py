@@ -378,7 +378,7 @@ async def validate_schema_dump(
         logger.warning(
             f"Schema diff FAILED: source and destination schemas differ.\n{diff}"
         )
-        return {"db": config.db, "result": "mismatch"}
+        return {"db": config.db, "result": "mismatch", "diff": diff}
 
 
 async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:

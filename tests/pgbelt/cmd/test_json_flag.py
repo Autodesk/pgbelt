@@ -13,6 +13,7 @@ from pgbelt.models.connectivity import ConnectivityCheckResult
 from pgbelt.models.connections import ConnectionsResult
 from pgbelt.models.preflight import PrecheckResult
 from pgbelt.models.schema import CreateIndexesResult
+from pgbelt.models.schema import DiffSchemasResult
 from pgbelt.models.status import StatusResult
 from pgbelt.models.sync import SyncSequencesResult
 from pgbelt.models.sync import SyncTablesResult
@@ -81,25 +82,25 @@ class TestBuildJsonOutput:
 
     def test_simple_command_with_single_dict(self):
         output = _build_json_output(
-            command_name="diff-schemas",
+            command_name="dump-schema",
             dc="dc1",
             db="db1",
-            results=[{"db": "db1", "result": "match"}],
+            results=[{"files_written": 4}],
             success=True,
             duration_ms=200,
         )
         parsed = json.loads(output)
         assert parsed["success"] is True
-        assert parsed["detail"]["result"] == "match"
+        assert parsed["detail"]["files_written"] == 4
 
     def test_simple_command_with_multiple_dicts(self):
         output = _build_json_output(
-            command_name="diff-schemas",
+            command_name="dump-schema",
             dc="dc1",
             db=None,
             results=[
-                {"db": "db1", "result": "match"},
-                {"db": "db2", "result": "mismatch"},
+                {"db": "db1", "files_written": 4},
+                {"db": "db2", "files_written": 4},
             ],
             success=True,
             duration_ms=300,
@@ -634,6 +635,70 @@ class TestBuildJsonOutputRichModels:
         assert result.skipped_count == 1
         assert result.failed_count == 1
         assert result.success is False
+
+    def test_diff_schemas_match(self):
+        output = _build_json_output(
+            command_name="diff-schemas",
+            dc="dc1",
+            db="db1",
+            results=[{"db": "db1", "result": "match"}],
+            success=True,
+            duration_ms=300,
+        )
+        result = DiffSchemasResult.model_validate_json(output)
+        assert result.command == "diff-schemas"
+        assert result.success is True
+        assert result.all_match is True
+        assert len(result.results) == 1
+        assert result.results[0].result == "match"
+        assert result.results[0].diff is None
+
+    def test_diff_schemas_mismatch_with_diff(self):
+        diff_text = "--- source\n+++ destination\n@@ -1 +1 @@\n-old\n+new\n"
+        output = _build_json_output(
+            command_name="diff-schemas",
+            dc="dc1",
+            db="db1",
+            results=[{"db": "db1", "result": "mismatch", "diff": diff_text}],
+            success=True,
+            duration_ms=400,
+        )
+        result = DiffSchemasResult.model_validate_json(output)
+        assert result.success is False
+        assert result.all_match is False
+        assert result.results[0].diff == diff_text
+
+    def test_diff_schemas_skipped(self):
+        output = _build_json_output(
+            command_name="diff-schemas",
+            dc="dc1",
+            db="db1",
+            results=[{"db": "db1", "result": "skipped"}],
+            success=True,
+            duration_ms=10,
+        )
+        result = DiffSchemasResult.model_validate_json(output)
+        assert result.success is True
+        assert result.all_match is True
+        assert result.results[0].result == "skipped"
+
+    def test_diff_schemas_multi_db(self):
+        output = _build_json_output(
+            command_name="diff-schemas",
+            dc="dc1",
+            db=None,
+            results=[
+                {"db": "db1", "result": "match"},
+                {"db": "db2", "result": "mismatch", "diff": "some diff"},
+                {"db": "db3", "result": "skipped"},
+            ],
+            success=True,
+            duration_ms=500,
+        )
+        result = DiffSchemasResult.model_validate_json(output)
+        assert result.success is False
+        assert result.all_match is False
+        assert len(result.results) == 3
 
     def test_error_falls_back_to_generic(self):
         """When an error occurs, even rich commands use generic CommandResult."""

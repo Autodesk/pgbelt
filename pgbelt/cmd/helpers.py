@@ -28,6 +28,8 @@ from pgbelt.models.preflight import RelationInfo
 from pgbelt.models.preflight import RoleInfo
 from pgbelt.models.preflight import TableReplicationInfo
 from pgbelt.models.schema import CreateIndexesResult
+from pgbelt.models.schema import DiffSchemaRow
+from pgbelt.models.schema import DiffSchemasResult
 from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import ReplicationLag
 from pgbelt.models.status import StatusResult
@@ -269,6 +271,26 @@ def _build_create_indexes_result(
     return CreateIndexesResult(success=True, **base_kwargs)
 
 
+def _build_diff_schemas_result(
+    results: list[dict], base_kwargs: dict
+) -> DiffSchemasResult:
+    rows = [
+        DiffSchemaRow(
+            db=r.get("db", ""),
+            result=r.get("result", "skipped"),
+            diff=r.get("diff"),
+        )
+        for r in results
+        if isinstance(r, dict)
+    ]
+    has_mismatch = any(r.result == "mismatch" for r in rows)
+    return DiffSchemasResult(
+        success=not has_mismatch,
+        results=rows,
+        **base_kwargs,
+    )
+
+
 _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "check-connectivity": _build_connectivity_result,
     "connections": _build_connections_result,
@@ -278,6 +300,7 @@ _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "sync-tables": _build_sync_tables_result,
     "validate-data": _build_validate_data_result,
     "create-indexes": _build_create_indexes_result,
+    "diff-schemas": _build_diff_schemas_result,
 }
 
 

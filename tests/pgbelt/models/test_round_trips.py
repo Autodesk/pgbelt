@@ -30,7 +30,12 @@ from pgbelt.models.preflight import (
     RoleInfo,
     TableReplicationInfo,
 )
-from pgbelt.models.schema import CreateIndexesResult, IndexDetail
+from pgbelt.models.schema import (
+    CreateIndexesResult,
+    DiffSchemaRow,
+    DiffSchemasResult,
+    IndexDetail,
+)
 from pgbelt.models.status import ReplicationLag, StatusResult, StatusRow
 from pgbelt.models.sync import (
     SequenceSyncDetail,
@@ -520,6 +525,45 @@ class TestCreateIndexesResult:
         assert restored.created_count == 1
         assert restored.skipped_count == 1
         assert restored.failed_count == 1
+
+
+class TestDiffSchemasResult:
+    def test_all_match(self):
+        result = DiffSchemasResult(
+            success=True,
+            full=False,
+            results=[
+                DiffSchemaRow(db="db1", result="match"),
+                DiffSchemaRow(db="db2", result="match"),
+            ],
+            **BASE_KWARGS,
+        )
+        restored = _round_trip(DiffSchemasResult, result)
+        assert restored.all_match is True
+        assert restored.results[0].diff is None
+
+    def test_mismatch_with_diff(self):
+        diff_text = "--- source\n+++ destination\n@@ -1 +1 @@\n-old\n+new\n"
+        result = DiffSchemasResult(
+            success=False,
+            full=True,
+            results=[
+                DiffSchemaRow(db="db1", result="mismatch", diff=diff_text),
+            ],
+            **BASE_KWARGS,
+        )
+        restored = _round_trip(DiffSchemasResult, result)
+        assert restored.all_match is False
+        assert restored.results[0].diff == diff_text
+
+    def test_skipped_counts_as_match(self):
+        result = DiffSchemasResult(
+            success=True,
+            results=[DiffSchemaRow(db="db1", result="skipped")],
+            **BASE_KWARGS,
+        )
+        restored = _round_trip(DiffSchemasResult, result)
+        assert restored.all_match is True
 
 
 # ---------------------------------------------------------------------------

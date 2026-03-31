@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import BaseModel
+from pydantic import computed_field
 
 from pgbelt.models.base import CommandResult
 
@@ -35,3 +36,24 @@ class CreateIndexesResult(CommandResult):
     @property
     def failed_count(self) -> int:
         return sum(1 for i in self.indexes if i.status == "failed")
+
+
+class DiffSchemaRow(BaseModel):
+    """Schema comparison result for a single database pair."""
+
+    db: str
+    result: str  # "match" | "mismatch" | "skipped"
+    diff: Optional[str] = None
+
+
+class DiffSchemasResult(CommandResult):
+    """JSON output for ``belt diff-schemas``."""
+
+    command: str = "diff-schemas"
+    full: bool = False
+    results: list[DiffSchemaRow] = []
+
+    @computed_field
+    @property
+    def all_match(self) -> bool:
+        return all(r.result == "match" for r in self.results if r.result != "skipped")

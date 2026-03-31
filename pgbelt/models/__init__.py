@@ -31,6 +31,8 @@ from pgbelt.models.connections import ConnectionsSide
 from pgbelt.models.preflight import PrecheckResult
 from pgbelt.models.preflight import PrecheckSide
 from pgbelt.models.schema import CreateIndexesResult
+from pgbelt.models.schema import DiffSchemaRow
+from pgbelt.models.schema import DiffSchemasResult
 from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import StatusResult
 from pgbelt.models.status import StatusRow
@@ -53,6 +55,8 @@ __all__ = [
     "PrecheckResult",
     "PrecheckSide",
     "CreateIndexesResult",
+    "DiffSchemaRow",
+    "DiffSchemasResult",
     "IndexDetail",
     "StatusResult",
     "StatusRow",
