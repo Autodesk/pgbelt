@@ -12,7 +12,11 @@ from pgbelt.models.base import CommandResult
 from pgbelt.models.connectivity import ConnectivityCheckResult
 from pgbelt.models.connections import ConnectionsResult
 from pgbelt.models.preflight import PrecheckResult
+from pgbelt.models.schema import CreateIndexesResult
 from pgbelt.models.status import StatusResult
+from pgbelt.models.sync import SyncSequencesResult
+from pgbelt.models.sync import SyncTablesResult
+from pgbelt.models.sync import ValidateDataResult
 
 
 class TestBuildJsonOutput:
@@ -426,6 +430,210 @@ class TestBuildJsonOutputRichModels:
         assert result.src.tables[0].replication_method == "pglogical"
         assert result.src.tables[0].has_primary_key is True
         assert len(result.src.sequences) == 1
+
+    def test_sync_sequences(self):
+        output = _build_json_output(
+            command_name="sync-sequences",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "schema_name": "public",
+                    "stride": 1000,
+                    "pk_sequences": [
+                        {
+                            "name": "users_id_seq",
+                            "synced": True,
+                            "method": "pk_max",
+                        }
+                    ],
+                    "non_pk_sequences": [
+                        {
+                            "name": "counter_seq",
+                            "source_value": 100,
+                            "destination_value": 1100,
+                            "synced": True,
+                            "method": "source_value_with_stride",
+                        },
+                        {
+                            "name": "old_seq",
+                            "source_value": 5,
+                            "destination_value": 10,
+                            "synced": False,
+                            "method": "source_value",
+                            "skipped_reason": "destination value is ahead of source",
+                        },
+                    ],
+                }
+            ],
+            success=True,
+            duration_ms=200,
+        )
+        result = SyncSequencesResult.model_validate_json(output)
+        assert result.command == "sync-sequences"
+        assert result.schema_name == "public"
+        assert result.stride == 1000
+        assert len(result.pk_sequences) == 1
+        assert result.pk_sequences[0].method == "pk_max"
+        assert len(result.non_pk_sequences) == 2
+        assert result.total_synced == 2
+        assert result.total_skipped == 1
+
+    def test_sync_tables(self):
+        output = _build_json_output(
+            command_name="sync-tables",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "schema_name": "public",
+                    "discovery_mode": "auto",
+                    "tables": [
+                        {
+                            "name": "audit_log",
+                            "loaded": True,
+                            "duration_ms": 3400,
+                        },
+                        {
+                            "name": "temp_data",
+                            "loaded": False,
+                            "skipped_reason": "destination table not empty",
+                        },
+                    ],
+                }
+            ],
+            success=True,
+            duration_ms=5000,
+        )
+        result = SyncTablesResult.model_validate_json(output)
+        assert result.command == "sync-tables"
+        assert result.schema_name == "public"
+        assert result.discovery_mode == "auto"
+        assert result.tables_loaded == ["audit_log"]
+        assert result.tables_skipped == ["temp_data"]
+
+    def test_sync_tables_explicit_mode(self):
+        output = _build_json_output(
+            command_name="sync-tables",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "schema_name": "public",
+                    "discovery_mode": "explicit",
+                    "tables": [
+                        {"name": "my_table", "loaded": True, "duration_ms": 500}
+                    ],
+                }
+            ],
+            success=True,
+            duration_ms=600,
+        )
+        result = SyncTablesResult.model_validate_json(output)
+        assert result.discovery_mode == "explicit"
+        assert len(result.tables) == 1
+
+    def test_validate_data_all_pass(self):
+        output = _build_json_output(
+            command_name="validate-data",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "schema_name": "public",
+                    "tables": [
+                        {
+                            "name": "random_100",
+                            "strategy": "random_100",
+                            "passed": True,
+                        },
+                        {
+                            "name": "latest_100",
+                            "strategy": "latest_100",
+                            "passed": True,
+                        },
+                        {
+                            "name": "no_pkey_presence",
+                            "strategy": "no_pkey_presence",
+                            "passed": True,
+                        },
+                    ],
+                }
+            ],
+            success=True,
+            duration_ms=300,
+        )
+        result = ValidateDataResult.model_validate_json(output)
+        assert result.command == "validate-data"
+        assert result.success is True
+        assert len(result.tables_passed) == 3
+        assert len(result.tables_failed) == 0
+
+    def test_validate_data_with_failure(self):
+        output = _build_json_output(
+            command_name="validate-data",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "schema_name": "public",
+                    "tables": [
+                        {
+                            "name": "random_100",
+                            "strategy": "random_100",
+                            "passed": True,
+                        },
+                        {
+                            "name": "latest_100",
+                            "strategy": "latest_100",
+                            "passed": False,
+                            "mismatch_detail": "Row mismatch found",
+                        },
+                    ],
+                }
+            ],
+            success=True,
+            duration_ms=300,
+        )
+        result = ValidateDataResult.model_validate_json(output)
+        assert result.success is False
+        assert len(result.tables_failed) == 1
+
+    def test_create_indexes(self):
+        output = _build_json_output(
+            command_name="create-indexes",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "indexes_file": "schemas/dc1/db1/indexes.sql",
+                    "indexes": [
+                        {
+                            "name": "idx_users_email",
+                            "status": "created",
+                            "duration_ms": 1200,
+                        },
+                        {"name": "idx_orders_date", "status": "skipped_exists"},
+                        {
+                            "name": "idx_broken",
+                            "status": "failed",
+                            "error": "relation already exists",
+                        },
+                    ],
+                    "analyze_ran": True,
+                }
+            ],
+            success=True,
+            duration_ms=5000,
+        )
+        result = CreateIndexesResult.model_validate_json(output)
+        assert result.command == "create-indexes"
+        assert result.indexes_file == "schemas/dc1/db1/indexes.sql"
+        assert result.analyze_ran is True
+        assert result.created_count == 1
+        assert result.skipped_count == 1
+        assert result.failed_count == 1
+        assert result.success is False
 
     def test_error_falls_back_to_generic(self):
         """When an error occurs, even rich commands use generic CommandResult."""

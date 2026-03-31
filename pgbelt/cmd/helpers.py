@@ -27,9 +27,17 @@ from pgbelt.models.preflight import PrecheckSide
 from pgbelt.models.preflight import RelationInfo
 from pgbelt.models.preflight import RoleInfo
 from pgbelt.models.preflight import TableReplicationInfo
+from pgbelt.models.schema import CreateIndexesResult
+from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import ReplicationLag
 from pgbelt.models.status import StatusResult
 from pgbelt.models.status import StatusRow
+from pgbelt.models.sync import SequenceSyncDetail
+from pgbelt.models.sync import SyncSequencesResult
+from pgbelt.models.sync import SyncTablesResult
+from pgbelt.models.sync import TableSyncDetail
+from pgbelt.models.sync import TableValidationDetail
+from pgbelt.models.sync import ValidateDataResult
 from typer import Argument
 from typer import Option
 from typer import Typer
@@ -197,11 +205,79 @@ def _build_precheck_result(results: list[dict], base_kwargs: dict) -> PrecheckRe
     return PrecheckResult(success=True, **base_kwargs)
 
 
+def _build_sync_sequences_result(
+    results: list[dict], base_kwargs: dict
+) -> SyncSequencesResult:
+    if len(results) == 1 and isinstance(results[0], dict):
+        r = results[0]
+        return SyncSequencesResult(
+            success=True,
+            schema_name=r.get("schema_name"),
+            stride=r.get("stride"),
+            pk_sequences=[SequenceSyncDetail(**s) for s in r.get("pk_sequences", [])],
+            non_pk_sequences=[
+                SequenceSyncDetail(**s) for s in r.get("non_pk_sequences", [])
+            ],
+            **base_kwargs,
+        )
+    return SyncSequencesResult(success=True, **base_kwargs)
+
+
+def _build_sync_tables_result(
+    results: list[dict], base_kwargs: dict
+) -> SyncTablesResult:
+    if len(results) == 1 and isinstance(results[0], dict):
+        r = results[0]
+        return SyncTablesResult(
+            success=True,
+            schema_name=r.get("schema_name"),
+            discovery_mode=r.get("discovery_mode", "auto"),
+            tables=[TableSyncDetail(**t) for t in r.get("tables", [])],
+            **base_kwargs,
+        )
+    return SyncTablesResult(success=True, **base_kwargs)
+
+
+def _build_validate_data_result(
+    results: list[dict], base_kwargs: dict
+) -> ValidateDataResult:
+    if len(results) == 1 and isinstance(results[0], dict):
+        r = results[0]
+        return ValidateDataResult(
+            success=all(t.get("passed", True) for t in r.get("tables", [])),
+            schema_name=r.get("schema_name"),
+            tables=[TableValidationDetail(**t) for t in r.get("tables", [])],
+            **base_kwargs,
+        )
+    return ValidateDataResult(success=True, **base_kwargs)
+
+
+def _build_create_indexes_result(
+    results: list[dict], base_kwargs: dict
+) -> CreateIndexesResult:
+    if len(results) == 1 and isinstance(results[0], dict):
+        r = results[0]
+        indexes = [IndexDetail(**i) for i in r.get("indexes", [])]
+        has_failures = any(i.status == "failed" for i in indexes)
+        return CreateIndexesResult(
+            success=not has_failures,
+            indexes_file=r.get("indexes_file"),
+            indexes=indexes,
+            analyze_ran=r.get("analyze_ran", False),
+            **base_kwargs,
+        )
+    return CreateIndexesResult(success=True, **base_kwargs)
+
+
 _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "check-connectivity": _build_connectivity_result,
     "connections": _build_connections_result,
     "status": _build_status_result,
     "precheck": _build_precheck_result,
+    "sync-sequences": _build_sync_sequences_result,
+    "sync-tables": _build_sync_tables_result,
+    "validate-data": _build_validate_data_result,
+    "create-indexes": _build_create_indexes_result,
 }
 
 

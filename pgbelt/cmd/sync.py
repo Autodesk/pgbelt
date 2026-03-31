@@ -1,6 +1,7 @@
 from asyncio import gather
 from collections.abc import Awaitable
 from logging import Logger
+from typing import Any
 
 from asyncpg import create_pool
 from asyncpg import Pool
@@ -9,6 +10,7 @@ from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import create_target_indexes
 from pgbelt.util.dump import dump_and_load_tables
+from pgbelt.util.dump import dump_and_load_tables_with_details
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import compare_100_random_rows
@@ -30,40 +32,74 @@ async def _sync_sequences(
     src_logger: Logger,
     dst_logger: Logger,
     stride: int | None = None,
-) -> None:
+) -> dict[str, Any]:
 
-    # 1. Detect sequences that back primary key columns on the destination.
+    pk_details: list[dict] = []
+    non_pk_details: list[dict] = []
+
     pk_seqs = await detect_pk_sequences(
         dst_pool, targeted_sequences, schema, dst_logger
     )
 
-    # 2. For non-PK sequences, dump all from the source then pop the non-PK ones
     seq_vals = await dump_sequences(src_pool, targeted_sequences, schema, src_logger)
     src_logger.info(f"Total sequences to sync: {seq_vals.keys()}")
-    for pk_seq_name in pk_seqs:
-        seq_vals.pop(pk_seq_name, None)
 
-    # Log the sequences that were PK vs non-PK
+    non_pk_vals = {k: v for k, v in seq_vals.items() if k not in pk_seqs}
     src_logger.info(f"PK sequences: {list(pk_seqs.keys())}")
-    src_logger.info(f"Non-PK sequences: {list(seq_vals.keys())}")
+    src_logger.info(f"Non-PK sequences: {list(non_pk_vals.keys())}")
 
-    # 3. For PK sequences, set values from max(pk_column) on the destination.
-    #    This is the safest approach because it always reflects the actual data.
     if pk_seqs:
         await set_pk_sequences_from_data(dst_pool, pk_seqs, schema, dst_logger)
+        for name in pk_seqs:
+            pk_details.append(
+                {
+                    "name": name,
+                    "synced": True,
+                    "method": "pk_max",
+                }
+            )
 
-    # 4. For non-PK sequences, load to destination
-    #    load_sequences already guards against regressing values.
-    if seq_vals:
+    if non_pk_vals:
+        original_vals = dict(non_pk_vals)
+
         if stride is not None:
             src_logger.info(
                 f"Applying stride to non-PK sequences: source_value + {stride}"
             )
-            seq_vals = {k: v + stride for k, v in seq_vals.items()}
-        await load_sequences(dst_pool, seq_vals, schema, dst_logger)
+            non_pk_vals = {k: v + stride for k, v in non_pk_vals.items()}
+
+        dst_current: dict[str, int] = {}
+        for seq_name in non_pk_vals:
+            val = await dst_pool.fetchval(
+                f'SELECT last_value FROM {schema}."{seq_name}";'
+            )
+            dst_current[seq_name] = val
+
+        await load_sequences(dst_pool, non_pk_vals, schema, dst_logger)
+
+        for name, target_val in non_pk_vals.items():
+            dst_val = dst_current.get(name, 0)
+            synced = target_val >= dst_val
+            method = "source_value_with_stride" if stride else "source_value"
+            detail: dict[str, Any] = {
+                "name": name,
+                "source_value": original_vals[name],
+                "destination_value": target_val if synced else dst_val,
+                "synced": synced,
+                "method": method,
+            }
+            if not synced:
+                detail["skipped_reason"] = "destination value is ahead of source"
+            non_pk_details.append(detail)
     elif not pk_seqs:
-        # At this point, seq_vals AND pk_seqs are empty, so we have nothing to sync.
         dst_logger.info("No sequences to sync.")
+
+    return {
+        "schema_name": schema,
+        "stride": stride,
+        "pk_sequences": pk_details,
+        "non_pk_sequences": non_pk_details,
+    }
 
 
 @run_with_configs
@@ -78,7 +114,7 @@ async def sync_sequences(
             "Recommended default: --stride 1000."
         ),
     ),
-) -> None:
+) -> dict[str, Any] | None:
     """
     Sync all sequences to the destination database.
 
@@ -98,7 +134,7 @@ async def sync_sequences(
     try:
         src_logger = get_logger(conf.db, conf.dc, "sync.src")
         dst_logger = get_logger(conf.db, conf.dc, "sync.dst")
-        await _sync_sequences(
+        return await _sync_sequences(
             conf.sequences,
             conf.schema_name,
             src_pool,
@@ -115,7 +151,7 @@ async def sync_sequences(
 async def sync_tables(
     config_future: Awaitable[DbupgradeConfig],
     table: list[str] = Option([], help="Specific tables to sync"),
-) -> None:
+) -> dict[str, Any] | None:
     """
     Dump tables without primary keys from the source and pipe them directly
     into the destination database. No intermediate files are used -- data is
@@ -131,19 +167,23 @@ async def sync_tables(
     logger = get_logger(conf.db, conf.dc, "sync")
 
     if table:
-        # Technically I'm just doing this to rename the variable.
-        # From the CLI arg side, saying --tables table1 --tables table2 ...
-        # makes no sense since each arg is a single table, but here all of them
-        # get collected into a list, so a rename really is needed for clarity.
         tables = table
-    elif not table:
+        discovery_mode = "explicit"
+    else:
+        discovery_mode = "auto"
         async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
             _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)
 
         if conf.tables:
             tables = [t for t in tables if t in conf.tables]
 
-    await dump_and_load_tables(conf, tables, logger)
+    table_details = await dump_and_load_tables_with_details(conf, tables, logger)
+
+    return {
+        "schema_name": conf.schema_name,
+        "discovery_mode": discovery_mode,
+        "tables": table_details,
+    }
 
 
 @run_with_configs(skip_src=True)
@@ -165,7 +205,9 @@ async def analyze(config_future: Awaitable[DbupgradeConfig]) -> None:
 
 
 @run_with_configs
-async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def validate_data(
+    config_future: Awaitable[DbupgradeConfig],
+) -> dict[str, Any] | None:
     """
     Compares data in the source and target databases. Both a random sample and a
     sample of the latest rows will be compared for each table. Does not validate
@@ -178,21 +220,51 @@ async def validate_data(config_future: Awaitable[DbupgradeConfig]) -> None:
     )
     src_pool, dst_pool = pools
 
+    validations: list[dict] = []
+
+    async def _run_validation(coro, strategy: str) -> None:
+        try:
+            await coro
+            validations.append({"name": strategy, "strategy": strategy, "passed": True})
+        except Exception as e:
+            validations.append(
+                {
+                    "name": strategy,
+                    "strategy": strategy,
+                    "passed": False,
+                    "mismatch_detail": str(e),
+                }
+            )
+
     try:
         logger = get_logger(conf.db, conf.dc, "sync")
         await gather(
-            compare_100_random_rows(
-                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            _run_validation(
+                compare_100_random_rows(
+                    src_pool, dst_pool, conf.tables, conf.schema_name, logger
+                ),
+                "random_100",
             ),
-            compare_latest_100_rows(
-                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            _run_validation(
+                compare_latest_100_rows(
+                    src_pool, dst_pool, conf.tables, conf.schema_name, logger
+                ),
+                "latest_100",
             ),
-            compare_tables_without_pkeys(
-                src_pool, dst_pool, conf.tables, conf.schema_name, logger
+            _run_validation(
+                compare_tables_without_pkeys(
+                    src_pool, dst_pool, conf.tables, conf.schema_name, logger
+                ),
+                "no_pkey_presence",
             ),
         )
     finally:
         await gather(*[p.close() for p in pools])
+
+    return {
+        "schema_name": conf.schema_name,
+        "tables": validations,
+    }
 
 
 async def _dump_and_load_all_tables(

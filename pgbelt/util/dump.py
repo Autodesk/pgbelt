@@ -244,6 +244,59 @@ async def dump_and_load_tables(
     await asyncio.gather(*loads)
 
 
+async def dump_and_load_tables_with_details(
+    config: DbupgradeConfig, tables: list[str], logger: Logger
+) -> list[dict]:
+    """
+    Like dump_and_load_tables but returns per-table detail dicts suitable for
+    building a SyncTablesResult model.
+    """
+    import time
+
+    details: list[dict] = []
+
+    async with create_pool(config.dst.root_uri, min_size=1) as pool:
+        to_load = []
+        for t in tables:
+            if await table_empty(pool, t, config.schema_name, logger):
+                to_load.append(t)
+            else:
+                logger.warning(
+                    f"Not loading {t}, table not empty. "
+                    f"If this is unexpected please investigate."
+                )
+                details.append(
+                    {
+                        "name": t,
+                        "loaded": False,
+                        "skipped_reason": "destination table not empty",
+                    }
+                )
+
+    logger.info(f"Piping dump and load for tables {to_load}")
+
+    async def _load_one(table: str) -> dict:
+        t0 = time.monotonic()
+        try:
+            await _pipe_dump_and_load_table(config, table, logger)
+            return {
+                "name": table,
+                "loaded": True,
+                "duration_ms": int((time.monotonic() - t0) * 1000),
+            }
+        except Exception as e:
+            return {
+                "name": table,
+                "loaded": False,
+                "duration_ms": int((time.monotonic() - t0) * 1000),
+                "error": str(e),
+            }
+
+    load_results = await asyncio.gather(*[_load_one(t) for t in to_load])
+    details.extend(load_results)
+    return details
+
+
 async def _dump_and_filter_schema(
     dsn: str, schema_name: str, logger: Logger, full: bool = False
 ) -> str:
@@ -612,3 +665,76 @@ async def create_target_indexes(
                 logger.info(f"Index {index} already exist on the target.")
             else:
                 raise Exception(e)
+
+
+async def create_target_indexes_with_details(
+    config: DbupgradeConfig, logger: Logger, during_sync=False
+) -> list[dict]:
+    """
+    Like create_target_indexes but returns per-index detail dicts suitable for
+    building a CreateIndexesResult model.
+    """
+    import time
+
+    if during_sync:
+        logger.warning(
+            "Attempting to create indexes on the target. If indexes were not "
+            "created before the cutover window, this can take a long time."
+        )
+
+    logger.info("Looking for previously dumped CREATE INDEX statements...")
+
+    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+        create_index_statements = await f.read()
+
+    logger.info("Creating indexes on the target...")
+    details: list[dict] = []
+
+    for c in create_index_statements.split(";"):
+        regex_matches = search(
+            r"CREATE [UNIQUE ]*INDEX (?P<index>[a-zA-Z0-9._\"]+)+.*",
+            c,
+        )
+        if not regex_matches:
+            continue
+        index = regex_matches.groupdict()["index"].replace('"', "")
+
+        host_dsn = config.dst.owner_dsn + " options='-c statement_timeout=0'"
+        command = ["psql", host_dsn, "-c", f"{c};"]
+        logger.info(f"Creating index {index} on the target...")
+
+        t0 = time.monotonic()
+        try:
+            await _execute_subprocess(
+                command, f"Finished creating index {index} on the target.", logger
+            )
+            details.append(
+                {
+                    "name": index,
+                    "status": "created",
+                    "duration_ms": int((time.monotonic() - t0) * 1000),
+                }
+            )
+        except Exception as e:
+            elapsed = int((time.monotonic() - t0) * 1000)
+            if f'relation "{index}" already exists' in str(e):
+                logger.info(f"Index {index} already exist on the target.")
+                details.append(
+                    {
+                        "name": index,
+                        "status": "skipped_exists",
+                        "duration_ms": elapsed,
+                    }
+                )
+            else:
+                details.append(
+                    {
+                        "name": index,
+                        "status": "failed",
+                        "duration_ms": elapsed,
+                        "error": str(e),
+                    }
+                )
+                raise
+
+    return details
