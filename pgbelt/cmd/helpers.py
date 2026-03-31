@@ -1,3 +1,5 @@
+import sys
+import time
 from asyncio import gather
 from asyncio import run
 from collections.abc import Awaitable
@@ -12,11 +14,49 @@ from typing import TypeVar
 
 from pgbelt.config import get_all_configs_async
 from pgbelt.config import get_config_async
+from pgbelt.models.base import CommandError
+from pgbelt.models.base import CommandResult
 from typer import Argument
+from typer import Option
 from typer import Typer
 
 
 T = TypeVar("T")
+
+
+def _build_json_output(
+    command_name: str,
+    dc: str,
+    db: str,
+    results: list,
+    success: bool,
+    duration_ms: int,
+    error: Exception | None = None,
+) -> str:
+    """Build a CommandResult JSON string from raw command results."""
+    cmd_error = None
+    if error is not None:
+        cmd_error = CommandError(
+            error_type=type(error).__name__,
+            message=str(error),
+        )
+
+    detail = {}
+    if results and len(results) == 1 and isinstance(results[0], dict):
+        detail = results[0]
+    elif results and all(isinstance(r, dict) for r in results):
+        detail = {"databases": results}
+
+    result = CommandResult(
+        db=db or dc,
+        dc=dc,
+        command=command_name,
+        success=success,
+        duration_ms=duration_ms,
+        error=cmd_error,
+        detail=detail,
+    )
+    return result.model_dump_json(indent=2)
 
 
 def run_with_configs(
@@ -33,6 +73,9 @@ def run_with_configs(
 
     You may also provide a callback that will be called on the results of the command. Useful
     for displaying the output of interrogative commands.
+
+    When the caller passes json_mode=True the results_callback is skipped and structured
+    JSON is printed to stdout instead.
     """
 
     def decorator(func):
@@ -49,36 +92,57 @@ def run_with_configs(
                 "\n\n    Requires both src and dst to be not null in the config file."
             )
 
-        # The name, docstring, and signature of the implementation is preserved. Important for add_command
         @wraps(func)
-        async def wrapper(dc: str, db: Optional[str], **kwargs):
-            # If db is specified we only want to run on one of them
-            if db is not None:
-                results = [
-                    await func(
-                        get_config_async(db, dc, skip_src=skip_src, skip_dst=skip_dst),
-                        **kwargs
-                    )
-                ]
-            else:
-                # if the db is not provided run on all the dbs in the dc
-                results = await gather(
-                    *[
-                        func(fut, **kwargs)
-                        async for fut in get_all_configs_async(
-                            dc, skip_src=skip_src, skip_dst=skip_dst
+        async def wrapper(
+            dc: str, db: Optional[str], json_mode: bool = False, **kwargs
+        ):
+            command_name = func.__name__.replace("_", "-")
+            t0 = time.monotonic()
+
+            try:
+                if db is not None:
+                    results = [
+                        await func(
+                            get_config_async(
+                                db, dc, skip_src=skip_src, skip_dst=skip_dst
+                            ),
+                            **kwargs,
                         )
                     ]
-                )
+                else:
+                    results = await gather(
+                        *[
+                            func(fut, **kwargs)
+                            async for fut in get_all_configs_async(
+                                dc, skip_src=skip_src, skip_dst=skip_dst
+                            )
+                        ]
+                    )
+            except Exception as e:
+                if json_mode:
+                    duration_ms = int((time.monotonic() - t0) * 1000)
+                    print(
+                        _build_json_output(
+                            command_name, dc, db, [], False, duration_ms, e
+                        )
+                    )
+                    sys.exit(1)
+                raise
 
-            # Call the callback if provided.
+            duration_ms = int((time.monotonic() - t0) * 1000)
+
+            if json_mode:
+                print(
+                    _build_json_output(command_name, dc, db, results, True, duration_ms)
+                )
+                return
+
             if results_callback is None:
                 return results
             return await results_callback(results)
 
         return wrapper
 
-    # makes either @decorator or @decorator(...) work to decorate a function
     if decorated_func is None:
         return decorator
     return decorator(decorated_func)
@@ -101,8 +165,17 @@ def add_command(app: Typer, command: Callable):
     if iscoroutinefunction(command):
 
         @app.command(name=name)
-        def cmdwrapper(dc: str, db: Optional[str] = Argument(None), **kwargs):
-            run(command(dc, db, **kwargs))
+        def cmdwrapper(
+            dc: str,
+            db: Optional[str] = Argument(None),
+            json: bool = Option(
+                False,
+                "--json",
+                help="Output structured JSON instead of human-readable tables.",
+            ),
+            **kwargs,
+        ):
+            run(command(dc, db, json_mode=json, **kwargs))
 
     # Synchronous commands can only be run on one db at a time
     else:
@@ -125,6 +198,10 @@ def add_command(app: Typer, command: Callable):
         and cmd_params_copy.popitem(last=False)[1].default is Parameter.empty
     ):
         cmd_params.popitem(last=False)
+
+    # The json_mode kwarg is handled by the wrapper, not the implementation.
+    # Remove it so typer doesn't try to expose it as a duplicate option.
+    cmd_params.pop("json_mode", None)
 
     # merge the arguments from the wrapper with the options from the implementation
     wrap_params.update(cmd_params)
