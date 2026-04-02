@@ -157,6 +157,7 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
     await pgbelt.cmd.login.revoke_logins(
         db=None,
         dc=dc,
+        exclude_users=[],
         exclude_patterns=["%appuser%"],
     )
 
@@ -184,7 +185,9 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
         c.exclude_users = None
 
     # Phase 2: revoke without excludes (original behavior) to continue workflow
-    await pgbelt.cmd.login.revoke_logins(db=None, dc=dc)
+    await pgbelt.cmd.login.revoke_logins(
+        db=None, dc=dc, exclude_users=[], exclude_patterns=[]
+    )
 
     await _check_status(configs, "replicating", "replicating")
 

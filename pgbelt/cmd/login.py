@@ -86,10 +86,15 @@ async def revoke_logins(
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "login.src")
 
-    all_exclude_users = list(conf.exclude_users or []) + list(exclude_users or [])
-    all_exclude_patterns = list(conf.exclude_patterns or []) + list(
-        exclude_patterns or []
-    )
+    # Typer Option defaults are OptionInfo objects when called programmatically;
+    # coerce to plain lists so downstream iteration always works.
+    if not isinstance(exclude_users, list):
+        exclude_users = []
+    if not isinstance(exclude_patterns, list):
+        exclude_patterns = []
+
+    all_exclude_users = list(conf.exclude_users or []) + exclude_users
+    all_exclude_patterns = list(conf.exclude_patterns or []) + exclude_patterns
     compiled_patterns = [_like_to_regex(p) for p in all_exclude_patterns]
     extra_exclude = all_exclude_users
 
