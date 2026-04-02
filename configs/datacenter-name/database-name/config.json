@@ -40,5 +40,7 @@
     "other_users": null
   },
   "tables": null,
-  "sequences": null
+  "sequences": null,
+  "exclude_users": null,
+  "exclude_patterns": null
 }

@@ -118,6 +118,8 @@ class DbupgradeConfig(BaseModel):
     tables: Optional[list[str]] A list of tables to replicate. If not provided all tables in the named schema will be replicated.
     sequences: Optional[list[str]] A list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
     schema_name: Optional[str] The schema to operate on. Defaults to "public".
+    exclude_users: Optional[list[str]] Usernames to exclude from connection counts and login revocation.
+    exclude_patterns: Optional[list[str]] SQL LIKE patterns to exclude usernames (e.g. '%%repuser%%').
     """
 
     db: str
@@ -127,6 +129,8 @@ class DbupgradeConfig(BaseModel):
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
     schema_name: Optional[str] = "public"
+    exclude_users: Optional[list[str]] = None
+    exclude_patterns: Optional[list[str]] = None
 
     _not_empty = field_validator("db", "dc")(not_empty)
 

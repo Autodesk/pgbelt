@@ -83,6 +83,11 @@ async def connections(
     src_logger = get_logger(conf.db, conf.dc, "connections.src")
     dst_logger = get_logger(conf.db, conf.dc, "connections.dst")
 
+    all_exclude_users = list(conf.exclude_users or []) + list(exclude_users or [])
+    all_exclude_patterns = list(conf.exclude_patterns or []) + list(
+        exclude_patterns or []
+    )
+
     pools = await gather(
         create_pool(dsn=conf.src.root_uri, min_size=1),
         create_pool(dsn=conf.dst.root_uri, min_size=1),
@@ -94,14 +99,14 @@ async def connections(
             get_active_connections(
                 src_pool,
                 src_logger,
-                exclude_users=list(exclude_users) if exclude_users else None,
-                exclude_patterns=list(exclude_patterns) if exclude_patterns else None,
+                exclude_users=all_exclude_users or None,
+                exclude_patterns=all_exclude_patterns or None,
             ),
             get_active_connections(
                 dst_pool,
                 dst_logger,
-                exclude_users=list(exclude_users) if exclude_users else None,
-                exclude_patterns=list(exclude_patterns) if exclude_patterns else None,
+                exclude_users=all_exclude_users or None,
+                exclude_patterns=all_exclude_patterns or None,
             ),
         )
 
