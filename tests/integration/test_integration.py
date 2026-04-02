@@ -7,6 +7,8 @@ from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
 
+from asyncpg import create_pool
+
 import pgbelt
 import pytest
 
@@ -140,11 +142,49 @@ async def _test_analyze(configs: dict[str, DbupgradeConfig]):
 
 
 async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
+    dc = configs[list(configs.keys())[0]].dc
+    first_config = configs[list(configs.keys())[0]]
+
+    # Create extra test users to exercise exclude flags
+    async with create_pool(first_config.src.root_uri, min_size=1) as pool:
+        for name in ["appuser_alpha", "appuser_beta", "svc_monitor"]:
+            try:
+                await pool.execute(f"CREATE ROLE {name} LOGIN PASSWORD 'testpw';")
+            except Exception:
+                pass
+
+    # Phase 1: revoke with --exclude-user and --exclude-pattern.
+    # "owner" and users matching "%appuser%" should keep login.
     await pgbelt.cmd.login.revoke_logins(
-        db=None, dc=configs[list(configs.keys())[0]].dc
+        db=None,
+        dc=dc,
+        exclude_users=["owner"],
+        exclude_patterns=["%appuser%"],
     )
 
-    # TODO: test that appropriate login roles were revoked
+    # Verify excluded users still have login
+    async with create_pool(first_config.src.root_uri, min_size=1) as pool:
+        rows = await pool.fetch(
+            "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles "
+            "WHERE rolname IN ('owner', 'appuser_alpha', 'appuser_beta', 'svc_monitor');"
+        )
+        login_map = {r["rolname"]: r["rolcanlogin"] for r in rows}
+        assert login_map.get("owner") is True, "owner should still have login"
+        assert (
+            login_map.get("appuser_alpha") is True
+        ), "appuser_alpha should be excluded by pattern"
+        assert (
+            login_map.get("appuser_beta") is True
+        ), "appuser_beta should be excluded by pattern"
+        assert (
+            login_map.get("svc_monitor") is False
+        ), "svc_monitor should have been revoked"
+
+    # Restore logins so we can proceed
+    await pgbelt.cmd.login.restore_logins(db=None, dc=dc)
+
+    # Phase 2: revoke without excludes (original behavior) to continue workflow
+    await pgbelt.cmd.login.revoke_logins(db=None, dc=dc)
 
     await _check_status(configs, "replicating", "replicating")
 
