@@ -89,8 +89,12 @@ async def revoke_logins(
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "login.src")
 
-    compiled_patterns = [_like_to_regex(p) for p in (exclude_patterns or [])]
-    extra_exclude = list(exclude_users or [])
+    all_exclude_users = list(conf.exclude_users or []) + list(exclude_users or [])
+    all_exclude_patterns = list(conf.exclude_patterns or []) + list(
+        exclude_patterns or []
+    )
+    compiled_patterns = [_like_to_regex(p) for p in all_exclude_patterns]
+    extra_exclude = all_exclude_users
 
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
         save_task = None

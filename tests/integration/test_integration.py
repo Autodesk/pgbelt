@@ -153,12 +153,13 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
             except Exception:
                 pass
 
-    # Phase 1: revoke with --exclude-user and --exclude-pattern.
-    # "owner" and users matching "%appuser%" should keep login.
+    # Phase 1: config-level exclude_users + CLI --exclude-pattern (merged).
+    # "owner" excluded via config, "%appuser%" excluded via CLI flag.
+    for c in configs.values():
+        c.exclude_users = ["owner"]
     await pgbelt.cmd.login.revoke_logins(
         db=None,
         dc=dc,
-        exclude_users=["owner"],
         exclude_patterns=["%appuser%"],
     )
 
@@ -169,19 +170,21 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
             "WHERE rolname IN ('owner', 'appuser_alpha', 'appuser_beta', 'svc_monitor');"
         )
         login_map = {r["rolname"]: r["rolcanlogin"] for r in rows}
-        assert login_map.get("owner") is True, "owner should still have login"
+        assert login_map.get("owner") is True, "owner should be excluded by config"
         assert (
             login_map.get("appuser_alpha") is True
-        ), "appuser_alpha should be excluded by pattern"
+        ), "appuser_alpha should be excluded by CLI pattern"
         assert (
             login_map.get("appuser_beta") is True
-        ), "appuser_beta should be excluded by pattern"
+        ), "appuser_beta should be excluded by CLI pattern"
         assert (
             login_map.get("svc_monitor") is False
         ), "svc_monitor should have been revoked"
 
-    # Restore logins so we can proceed
+    # Restore logins and clear config-level excludes before proceeding
     await pgbelt.cmd.login.restore_logins(db=None, dc=dc)
+    for c in configs.values():
+        c.exclude_users = None
 
     # Phase 2: revoke without excludes (original behavior) to continue workflow
     await pgbelt.cmd.login.revoke_logins(db=None, dc=dc)
