@@ -79,8 +79,13 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
     "other_users": null
   },
   "tables": [],
-  "sequences": []
+  "sequences": [],
+  "exclude_users": null,
+  "exclude_patterns": null
   // Optional key: "schema_name": "<someschema>". If the key isn't specified, the default will be "public". Schema name must be the same in source and destination DBs.
+  // Optional keys: "exclude_users" and "exclude_patterns" let you specify usernames
+  // and SQL LIKE patterns that should be excluded from login revocation and connection
+  // counts. CLI flags --exclude-user / --exclude-pattern are additive to these.
 }
 ```
 
@@ -169,6 +174,10 @@ This would be the beginning of your application downtime. We revoke all login pe
 **NOTE: Do not run this command if the schema owner of your database is the same as your root user.**
 
     $ belt revoke-logins testdatacenter1 database1
+
+You can exclude specific users or patterns from revocation with `--exclude-user` / `--exclude-pattern`, or set `exclude_users` / `exclude_patterns` in config.json (CLI flags are additive to config values):
+
+    $ belt revoke-logins testdatacenter1 database1 --exclude-user datadog --exclude-pattern '%myapp%'
 
 Before proceeding, verify that no application connections remain on the source database. This ensures no writes are happening on the source during the cutover:
 
