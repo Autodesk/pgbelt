@@ -21,11 +21,8 @@ NO_DISABLE = [
     "pglogical",
     "postgres",
     "rdsadmin",
-    "vividcortexsu",
-    "vividcortex",
-    "fivetran",
-    "datadog",
     "rdsrepladmin",
+    "datadog",
     "monitoring",
 ]
 
