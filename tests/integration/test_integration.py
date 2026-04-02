@@ -154,6 +154,7 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
     # "owner" excluded via config, "%appuser%" excluded via CLI flag.
     for c in configs.values():
         c.exclude_users = ["owner"]
+        await c.save()
     await pgbelt.cmd.login.revoke_logins(
         db=None,
         dc=dc,
@@ -183,6 +184,7 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
     await pgbelt.cmd.login.restore_logins(db=None, dc=dc)
     for c in configs.values():
         c.exclude_users = None
+        await c.save()
 
     # Phase 2: revoke without excludes (original behavior) to continue workflow
     await pgbelt.cmd.login.revoke_logins(
