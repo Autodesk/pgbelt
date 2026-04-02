@@ -29,9 +29,15 @@ NO_DISABLE = [
 
 def _like_to_regex(pattern: str) -> re.Pattern:
     """Convert a SQL LIKE pattern (% and _) to a compiled regex."""
-    escaped = re.escape(pattern)
-    escaped = escaped.replace(r"\%", ".*").replace(r"\_", ".")
-    return re.compile(f"^{escaped}$", re.IGNORECASE)
+    parts = []
+    for ch in pattern:
+        if ch == "%":
+            parts.append(".*")
+        elif ch == "_":
+            parts.append(".")
+        else:
+            parts.append(re.escape(ch))
+    return re.compile(f"^{''.join(parts)}$", re.IGNORECASE)
 
 
 def _is_excluded(
