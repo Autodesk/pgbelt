@@ -148,10 +148,7 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
     # Create extra test users to exercise exclude flags
     async with create_pool(first_config.src.root_uri, min_size=1) as pool:
         for name in ["appuser_alpha", "appuser_beta", "svc_monitor"]:
-            try:
-                await pool.execute(f"CREATE ROLE {name} LOGIN PASSWORD 'testpw';")
-            except Exception:
-                pass
+            await pool.execute(f"CREATE ROLE {name} LOGIN PASSWORD 'testpw';")
 
     # Phase 1: config-level exclude_users + CLI --exclude-pattern (merged).
     # "owner" excluded via config, "%appuser%" excluded via CLI flag.
