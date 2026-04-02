@@ -145,16 +145,28 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
     dc = configs[list(configs.keys())[0]].dc
     first_config = configs[list(configs.keys())[0]]
 
-    # Create extra test users to exercise exclude flags
     async with create_pool(first_config.src.root_uri, min_size=1) as pool:
+        # Create extra test users (all start with LOGIN)
         for name in ["appuser_alpha", "appuser_beta", "svc_monitor"]:
             await pool.execute(f"CREATE ROLE {name} LOGIN PASSWORD 'testpw';")
 
-    # Phase 1: config-level exclude_users + CLI --exclude-pattern (merged).
-    # "owner" excluded via config, "%appuser%" excluded via CLI flag.
+        # Snapshot every role's login state before revoke
+        pre_rows = await pool.fetch(
+            "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles;"
+        )
+        pre_login = {r["rolname"]: r["rolcanlogin"] for r in pre_rows}
+
+    # -- Phase 1: revoke with excludes -----------------------------------------
+    # config-level: exclude "owner"
+    # CLI-level:    exclude pattern "%appuser%"
+    # Expected outcome:
+    #   revoked  -> svc_monitor (not excluded, not in NO_DISABLE)
+    #   intact   -> owner (config exclude), appuser_alpha/beta (pattern exclude)
+    #   intact   -> postgres, pglogical, etc. (NO_DISABLE / root / pglogical users)
     for c in configs.values():
         c.exclude_users = ["owner"]
         await c.save()
+
     await pgbelt.cmd.login.revoke_logins(
         db=None,
         dc=dc,
@@ -162,31 +174,52 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
         exclude_patterns=["%appuser%"],
     )
 
-    # Verify excluded users still have login
     async with create_pool(first_config.src.root_uri, min_size=1) as pool:
-        rows = await pool.fetch(
-            "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles "
-            "WHERE rolname IN ('owner', 'appuser_alpha', 'appuser_beta', 'svc_monitor');"
+        post_revoke = await pool.fetch(
+            "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles;"
         )
-        login_map = {r["rolname"]: r["rolcanlogin"] for r in rows}
-        assert login_map.get("owner") is True, "owner should be excluded by config"
-        assert (
-            login_map.get("appuser_alpha") is True
-        ), "appuser_alpha should be excluded by CLI pattern"
-        assert (
-            login_map.get("appuser_beta") is True
-        ), "appuser_beta should be excluded by CLI pattern"
-        assert (
-            login_map.get("svc_monitor") is False
-        ), "svc_monitor should have been revoked"
+        revoked_login = {r["rolname"]: r["rolcanlogin"] for r in post_revoke}
 
-    # Restore logins and clear config-level excludes before proceeding
+    # svc_monitor should have been revoked
+    assert revoked_login["svc_monitor"] is False, "svc_monitor should be revoked"
+
+    # Excluded users must still have login
+    assert revoked_login["owner"] is True, "owner excluded by config, should keep login"
+    assert (
+        revoked_login["appuser_alpha"] is True
+    ), "appuser_alpha excluded by pattern, should keep login"
+    assert (
+        revoked_login["appuser_beta"] is True
+    ), "appuser_beta excluded by pattern, should keep login"
+
+    # Built-in / NO_DISABLE / infrastructure roles must be untouched
+    for role_name in ["postgres", "pglogical"]:
+        assert revoked_login.get(role_name) == pre_login.get(
+            role_name
+        ), f"{role_name} should not have been touched by revoke"
+
+    # -- Phase 2: restore ------------------------------------------------------
+    # restore_logins should re-enable login for every user that revoke discovered
     await pgbelt.cmd.login.restore_logins(db=None, dc=dc)
+
+    async with create_pool(first_config.src.root_uri, min_size=1) as pool:
+        post_restore = await pool.fetch(
+            "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles;"
+        )
+        restored_login = {r["rolname"]: r["rolcanlogin"] for r in post_restore}
+
+    # Every role that had login before should have it again
+    for role_name, had_login in pre_login.items():
+        if had_login:
+            assert (
+                restored_login.get(role_name) is True
+            ), f"{role_name} had login before revoke but not after restore"
+
+    # -- Phase 3: plain revoke for the rest of the workflow ---------------------
     for c in configs.values():
         c.exclude_users = None
         await c.save()
 
-    # Phase 2: revoke without excludes (original behavior) to continue workflow
     await pgbelt.cmd.login.revoke_logins(
         db=None, dc=dc, exclude_users=[], exclude_patterns=[]
     )
