@@ -178,23 +178,23 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
         post_revoke = await pool.fetch(
             "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles;"
         )
-        revoked_login = {r["rolname"]: r["rolcanlogin"] for r in post_revoke}
+        login_status = {r["rolname"]: r["rolcanlogin"] for r in post_revoke}
 
     # svc_monitor should have been revoked
-    assert revoked_login["svc_monitor"] is False, "svc_monitor should be revoked"
+    assert login_status["svc_monitor"] is False, "svc_monitor should be revoked"
 
     # Excluded users must still have login
-    assert revoked_login["owner"] is True, "owner excluded by config, should keep login"
+    assert login_status["owner"] is True, "owner excluded by config, should keep login"
     assert (
-        revoked_login["appuser_alpha"] is True
+        login_status["appuser_alpha"] is True
     ), "appuser_alpha excluded by pattern, should keep login"
     assert (
-        revoked_login["appuser_beta"] is True
+        login_status["appuser_beta"] is True
     ), "appuser_beta excluded by pattern, should keep login"
 
     # Built-in / NO_DISABLE / infrastructure roles must be untouched
     for role_name in ["postgres", "pglogical"]:
-        assert revoked_login.get(role_name) == pre_login.get(
+        assert login_status.get(role_name) == pre_login.get(
             role_name
         ), f"{role_name} should not have been touched by revoke"
 
@@ -206,13 +206,13 @@ async def _test_revoke_logins(configs: dict[str, DbupgradeConfig]):
         post_restore = await pool.fetch(
             "SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles;"
         )
-        restored_login = {r["rolname"]: r["rolcanlogin"] for r in post_restore}
+        login_status = {r["rolname"]: r["rolcanlogin"] for r in post_restore}
 
     # Every role that had login before should have it again
     for role_name, had_login in pre_login.items():
         if had_login:
             assert (
-                restored_login.get(role_name) is True
+                login_status.get(role_name) is True
             ), f"{role_name} had login before revoke but not after restore"
 
     # -- Phase 3: plain revoke for the rest of the workflow ---------------------
