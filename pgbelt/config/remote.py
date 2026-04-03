@@ -121,6 +121,7 @@ class BaseSideResolver(BaseModel):
 
     db: str the database pair name
     dc: str the datacenter / project name
+    side: str "src" or "dst" -- set by the framework, not the user
     logger: Logger your resolver should log through this logger
 
     Your resolver subclass will be a pydantic model. Any attributes you define
@@ -130,6 +131,7 @@ class BaseSideResolver(BaseModel):
 
     db: str
     dc: str
+    side: str
     logger: Logger
 
     class Config:
@@ -186,6 +188,7 @@ async def _resolve_side(
         resolver = cls(
             db=db,
             dc=dc,
+            side=side_label,
             logger=logger.getChild(cls.__name__),
             **resolver_config,
         )
