@@ -1,15 +1,19 @@
 # Remote Configuration & Resolvers
 
-When pgbelt runs as a hosted service (rather than interactively on a developer
-laptop) database credentials and migration settings are not stored in local
-`config.json` files. Instead, a **remote-config JSON** tells pgbelt *how* to
-fetch that information at runtime, and **resolvers** do the actual fetching.
+Database migrations often involve credentials that live in different secret
+stores -- for example, the source database's secrets may be in one system while
+the destination's are in another. Rather than hardcoding credentials in
+`config.json`, a **remote-config JSON** tells pgbelt *how* to fetch that
+information at runtime via pluggable **resolvers**.
+
+This works for both interactive use on a laptop and automated runs in
+containers.
 
 ## How it works
 
-1. An orchestrator (e.g. Step Functions) launches a pgbelt command inside a
-   container and writes a remote-config JSON to
-   `remote-configs/{dc}/{db}/config.json`.
+1. A remote-config JSON is written to
+   `remote-configs/{dc}/{db}/config.json` (by a wrapper script, a CI job,
+   or manually).
 2. `resolve_remote_config(db, dc)` reads that file, dynamically imports the
    resolver class(es) it references, calls `resolve()`, and returns a
    `DbupgradeConfig` that the rest of pgbelt uses.
