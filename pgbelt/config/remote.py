@@ -30,10 +30,13 @@ class RemoteConfigDefinition(BaseModel):
     Pydantic model representing the contents of a remote-config json.
 
     Supports two modes:
-    - Legacy: `resolver_path` points to a BaseResolver that returns DbupgradeConfig
-    - Per-side: `src_resolver_path` and/or `dst_resolver_path` point to BaseSideResolver
-      classes that each return a DbConfig. Resolver-specific config is scoped under
-      `src_resolver_config` / `dst_resolver_config` dicts.
+
+    - Legacy: ``resolver_path`` points to a BaseResolver that returns
+      DbupgradeConfig
+    - Per-side: ``src_resolver_path`` and/or ``dst_resolver_path`` point
+      to BaseSideResolver classes that each return a DbConfig.
+      Resolver-specific config is scoped under
+      ``src_resolver_config`` / ``dst_resolver_config`` dicts.
     """
 
     resolver_path: Optional[str] = None
@@ -290,9 +293,12 @@ async def resolve_remote_config(
     resulting DbupgradeConfig or None if there was an error.
 
     Supports two modes:
-    - Legacy (resolver_path): single BaseResolver returns complete DbupgradeConfig
-    - Per-side (src_resolver_path / dst_resolver_path): two BaseSideResolver classes
-      each return a DbConfig, framework assembles DbupgradeConfig
+
+    - Legacy (``resolver_path``): single BaseResolver returns complete
+      DbupgradeConfig
+    - Per-side (``src_resolver_path`` / ``dst_resolver_path``): two
+      BaseSideResolver classes each return a DbConfig, framework
+      assembles DbupgradeConfig
     """
 
     logger = get_logger(db, dc, "remote-config")
