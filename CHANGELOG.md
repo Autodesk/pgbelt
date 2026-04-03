@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/Autodesk/pgbelt/compare/v0.17.0...v0.18.0) (2026-04-03)
+
+
+### Features
+
+* add BaseSideResolver for per-side remote config resolution ([#912](https://github.com/Autodesk/pgbelt/issues/912)) ([53f8fd0](https://github.com/Autodesk/pgbelt/commit/53f8fd045ea5190f9e73fe82d40f05d3da393f2d))
+
 ## [0.17.0](https://github.com/Autodesk/pgbelt/compare/v0.16.0...v0.17.0) (2026-04-02)
 
 
