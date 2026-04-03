@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.0](https://github.com/Autodesk/pgbelt/compare/v0.18.0...v0.19.0) (2026-04-03)
+
+
+### Features
+
+* add side field to BaseSideResolver, inject in framework ([c597571](https://github.com/Autodesk/pgbelt/commit/c597571e4798534d127c695a0ecf04388bbe614e))
+
+
+### Bug Fixes
+
+* add side field to BaseSideResolver, inject in framework ([#914](https://github.com/Autodesk/pgbelt/issues/914)) ([c597571](https://github.com/Autodesk/pgbelt/commit/c597571e4798534d127c695a0ecf04388bbe614e))
+
 ## [0.18.0](https://github.com/Autodesk/pgbelt/compare/v0.17.0...v0.18.0) (2026-04-03)
 
 
