@@ -107,6 +107,16 @@ def _build_status_result(results: list[dict], base_kwargs: dict) -> StatusResult
     return StatusResult(success=True, results=rows, **base_kwargs)
 
 
+def _as_list(val) -> list:
+    """Coerce a value to a list. Postgres GUC strings come back as
+    comma-separated text, not arrays."""
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        return [s.strip() for s in val.split(",") if s.strip()]
+    return list(val)
+
+
 def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
     """Convert the raw dict from precheck_info into a PrecheckSide model."""
     users_raw = raw.get("users", {})
@@ -161,7 +171,7 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
         max_replication_slots=raw.get("max_replication_slots", "0"),
         max_worker_processes=raw.get("max_worker_processes", "0"),
         max_wal_senders=raw.get("max_wal_senders", "0"),
-        shared_preload_libraries=raw.get("shared_preload_libraries", []),
+        shared_preload_libraries=_as_list(raw.get("shared_preload_libraries", [])),
         rds_logical_replication=raw.get("rds.logical_replication", "unknown"),
         root_user=RoleInfo(
             rolname=root_raw.get("rolname", ""),
