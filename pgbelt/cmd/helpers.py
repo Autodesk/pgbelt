@@ -150,7 +150,7 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
     ]
 
     extensions = [
-        ExtensionInfo(extname=e["extname"] if isinstance(e, dict) else e)
+        ExtensionInfo(extname=e["extname"] if not isinstance(e, str) else e)
         for e in raw.get("extensions", [])
     ]
 
