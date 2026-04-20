@@ -22,6 +22,8 @@ NO_DISABLE = [
     "postgres",
     "rdsadmin",
     "rdsrepladmin",
+    "rdstopmgr",
+    "rdswriteforwarduser",
     "datadog",
     "monitoring",
 ]
