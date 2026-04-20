@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/Autodesk/pgbelt/compare/v0.18.1...v0.18.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle asyncpg.Record in precheck --json extension builder ([#926](https://github.com/Autodesk/pgbelt/issues/926)) ([94b701d](https://github.com/Autodesk/pgbelt/commit/94b701dd5b96012c1d38aaa37557c351bc8f583d))
+
 ## [0.18.1](https://github.com/Autodesk/pgbelt/compare/v0.18.0...v0.18.1) (2026-04-03)
 
 
