@@ -1,14 +1,9 @@
-import asyncio
 import re
 from collections.abc import Awaitable
-from logging import Logger
 
 from asyncpg import create_pool
-from asyncpg import Pool
 from pgbelt.cmd.helpers import run_with_configs
-from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
-from pgbelt.config.models import User
 from pgbelt.util import get_logger
 from pgbelt.util.postgres import disable_login_users
 from pgbelt.util.postgres import enable_login_users
@@ -89,16 +84,6 @@ def _filter_roles(
     ]
 
 
-async def _populate_logins(dbconf: DbConfig, pool: Pool, logger: Logger) -> None:
-    all_logins = await get_login_users(pool, logger)
-    exclude = [
-        dbconf.root_user.name,
-        dbconf.owner_user.name,
-        dbconf.pglogical_user.name,
-    ]
-    dbconf.other_users = [User(name=n) for n in all_logins if n not in exclude]
-
-
 @run_with_configs(skip_dst=True)
 async def revoke_logins(
     config_future: Awaitable[DbupgradeConfig],
@@ -116,10 +101,8 @@ async def revoke_logins(
     ),
 ) -> None:
     """
-    Discovers all users in the db who can log in, saves them in the config file,
-    then revokes their permission to log in. Use this command to ensure that all
-    writes to the source database have been stopped before syncing sequence values
-    and tables without primary keys.
+    Discovers all users who can log in and revokes their permission.
+    Stateless — queries pg_roles each time rather than caching a user list.
 
     Always excludes built-in service accounts (pglogical, rdsadmin, monitoring, etc.).
     Use --exclude-user to exclude additional specific usernames.
@@ -134,41 +117,18 @@ async def revoke_logins(
     merged_users, compiled_patterns = _build_exclusions(
         conf, exclude_users, exclude_patterns
     )
-    skip_set = set(NO_DISABLE)
+    skip_set = set(NO_DISABLE) | {conf.src.root_user.name}
 
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
-        save_task = None
-        if conf.src.other_users is None:
-            await _populate_logins(conf.src, pool, logger)
-            save_task = asyncio.create_task(conf.save())
+        login_roles = await get_login_users(pool, logger)
+        to_disable = _filter_roles(
+            login_roles, skip_set, merged_users, compiled_patterns
+        )
 
-        all_names = []
-        if conf.src.owner_user.name != conf.src.root_user.name:
-            all_names.append(conf.src.owner_user.name)
-        if conf.src.other_users is not None:
-            all_names += [u.name for u in conf.src.other_users]
-
-        to_disable = _filter_roles(all_names, skip_set, merged_users, compiled_patterns)
-
-        if merged_users or compiled_patterns:
-            skipped = [
-                n
-                for n in all_names
-                if n not in skip_set
-                and n not in to_disable
-                and _is_excluded(n, merged_users, compiled_patterns)
-            ]
-            if skipped:
-                logger.info(
-                    f"Excluded from revocation by --exclude-user/--exclude-pattern: "
-                    f"{', '.join(skipped)}"
-                )
-
-        try:
+        if to_disable:
             await disable_login_users(pool, to_disable, logger)
-        finally:
-            if save_task is not None:
-                await save_task
+        else:
+            logger.info("No roles to revoke.")
 
 
 @run_with_configs(skip_dst=True)
