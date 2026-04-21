@@ -16,10 +16,6 @@ from typer import Option
 NO_DISABLE = [
     "pglogical",
     "postgres",
-    "rdsadmin",
-    "rdsrepladmin",
-    "rdstopmgr",
-    "rdswriteforwarduser",
     "datadog",
     "monitoring",
 ]
@@ -77,13 +73,13 @@ def _filter_roles(
 ) -> list[str]:
     """Return candidates that are not in skip_set and not excluded.
 
-    Roles prefixed with ``pg_`` are always skipped — they are reserved
-    PostgreSQL system roles that cannot be altered.
+    Roles prefixed with ``pg_`` or ``rds`` are always skipped — they are
+    reserved system roles that cannot be altered.
     """
     return [
         name
         for name in candidates
-        if not name.startswith("pg_")
+        if not name.startswith(("pg_", "rds"))
         and name not in skip_set
         and not _is_excluded(name, exclude_users, exclude_patterns)
     ]
