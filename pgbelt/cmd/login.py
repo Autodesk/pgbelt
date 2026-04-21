@@ -75,11 +75,16 @@ def _filter_roles(
     exclude_users: list[str],
     exclude_patterns: list[re.Pattern],
 ) -> list[str]:
-    """Return candidates that are not in skip_set and not excluded."""
+    """Return candidates that are not in skip_set and not excluded.
+
+    Roles prefixed with ``pg_`` are always skipped — they are reserved
+    PostgreSQL system roles that cannot be altered.
+    """
     return [
         name
         for name in candidates
-        if name not in skip_set
+        if not name.startswith("pg_")
+        and name not in skip_set
         and not _is_excluded(name, exclude_users, exclude_patterns)
     ]
 
