@@ -13,6 +13,7 @@ from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import get_dataset_size
 from pgbelt.util.pglogical import teardown_subscription
+from typer import Option
 
 
 def _quote_ident(name: str) -> str:
@@ -87,7 +88,19 @@ async def _validate_reset_dataset_sizes(
 
 
 @run_with_configs
-async def reset(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def reset(
+    config_future: Awaitable[DbupgradeConfig],
+    force: bool = Option(
+        False,
+        "--force",
+        help=(
+            "Skip the dataset-size failsafe that normally prevents reset when "
+            "DST >= SRC. Use ONLY after a completed migration when you are "
+            "certain the destination database should be wiped and all its "
+            "up-to-date data discarded."
+        ),
+    ),
+) -> None:
     """
     Reset an in-progress migration before cutover so replication can be started
     again from the beginning.
@@ -101,6 +114,12 @@ async def reset(config_future: Awaitable[DbupgradeConfig]) -> None:
 
     Note: sequence values are intentionally left unchanged. They only need to be
     synchronized after cutover by running sync-sequences.
+
+    WARNING: --force skips the safety check that prevents resetting when the
+    destination is the same size or larger than the source. This is intended for
+    post-migration resets where SRC and DST are identical. Using --force on a
+    live migration where DST is genuinely the primary copy will result in
+    irreversible data loss.
     """
     conf = await config_future
     src_logger = get_logger(conf.db, conf.dc, "reset.src")
@@ -112,16 +131,21 @@ async def reset(config_future: Awaitable[DbupgradeConfig]) -> None:
     )
     src_pool, dst_pool = pools
     try:
-        await _validate_reset_dataset_sizes(
-            conf, src_pool, dst_pool, src_logger, dst_logger
-        )
+        if force:
+            src_logger.warning(
+                "Dataset-size failsafe SKIPPED (--force). "
+                "Destination will be truncated without size validation."
+            )
+        else:
+            await _validate_reset_dataset_sizes(
+                conf, src_pool, dst_pool, src_logger, dst_logger
+            )
         await gather(
             teardown_subscription(dst_pool, "pg1_pg2", dst_logger),
             teardown_subscription(src_pool, "pg2_pg1", src_logger),
         )
         await _truncate_dst_tables(conf, dst_pool, dst_logger)
 
-        # Ensure schema artifacts are present/refreshed for remove_* routines.
         await dump_source_schema(conf, src_logger)
         await remove_dst_indexes(conf, dst_logger)
         await remove_dst_not_valid_constraints(conf, dst_logger)
