@@ -21,8 +21,8 @@ $ belt [OPTIONS] COMMAND [ARGS]...
 * `dst-dsn`: Print a dsn to stdout that you can use to...
 * `check-pkeys`: Print out lists of tables with and without...
 * `check-connectivity`: Returns exit code 0 if pgbelt can connect...
-* `revoke-logins`: Discovers all users in the db who can log...
-* `restore-logins`: Grant permission to log in for any user...
+* `revoke-logins`: Discovers all users who can log in and...
+* `restore-logins`: Discovers all roles that currently have...
 * `precheck`: Report whether your source database meets...
 * `reset`: Reset an in-progress migration before...
 * `dump-schema`: Dumps and sanitizes the schema from the...
@@ -188,10 +188,8 @@ $ belt check-connectivity [OPTIONS] DC [DB]
 
 ## `belt revoke-logins`
 
-Discovers all users in the db who can log in, saves them in the config file,
-then revokes their permission to log in. Use this command to ensure that all
-writes to the source database have been stopped before syncing sequence values
-and tables without primary keys.
+Discovers all users who can log in and revokes their permission.
+Stateless — queries pg_roles each time rather than caching a user list.
 
 Always excludes built-in service accounts (pglogical, rdsadmin, monitoring, etc.).
 Use --exclude-user to exclude additional specific usernames.
@@ -225,10 +223,11 @@ $ belt revoke-logins [OPTIONS] DC [DB]
 
 ## `belt restore-logins`
 
-Grant permission to log in for any user present in the config file. The user
-must already have a password. This will not generate or modify existing
-passwords for users.
+Discovers all roles that currently have NOLOGIN and re-enables login for
+them, excluding built-in service accounts and any roles specified via
+--exclude-user / --exclude-pattern.
 
+This is stateless — it does not rely on a previously saved user list.
 Intended to be used after revoke-logins in case a rollback is required.
 
 
@@ -250,6 +249,8 @@ $ belt restore-logins [OPTIONS] DC [DB]
 **Options**:
 
 * `--json`: Output structured JSON instead of human-readable tables.
+* `-e, --exclude-user TEXT`: Additional usernames to exclude from restoration (can be repeated).
+* `-p, --exclude-pattern TEXT`: SQL LIKE patterns to exclude usernames (e.g. &#x27;%%myapp%%&#x27;). Can be repeated.
 * `--help`: Show this message and exit.
 
 ## `belt precheck`
@@ -299,6 +300,12 @@ This command:
 Note: sequence values are intentionally left unchanged. They only need to be
 synchronized after cutover by running sync-sequences.
 
+WARNING: --force skips the safety check that prevents resetting when the
+destination is the same size or larger than the source. This is intended for
+post-migration resets where SRC and DST are identical. Using --force on a
+live migration where DST is genuinely the primary copy will result in
+irreversible data loss.
+
 
 Requires both src and dst to be not null in the config file.
 
@@ -318,6 +325,7 @@ $ belt reset [OPTIONS] DC [DB]
 **Options**:
 
 * `--json`: Output structured JSON instead of human-readable tables.
+* `--force`: Skip the dataset-size failsafe that normally prevents reset when DST &gt;= SRC. Use ONLY after a completed migration when you are certain the destination database should be wiped and all its up-to-date data discarded.
 * `--help`: Show this message and exit.
 
 ## `belt dump-schema`
