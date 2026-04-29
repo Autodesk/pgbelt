@@ -34,6 +34,9 @@ from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import ReplicationLag
 from pgbelt.models.status import StatusResult
 from pgbelt.models.status import StatusRow
+from pgbelt.models.sync import DiffSequencesResult
+from pgbelt.models.sync import DiffSequencesRow
+from pgbelt.models.sync import SequenceCompareDetail
 from pgbelt.models.sync import SequenceSyncDetail
 from pgbelt.models.sync import SyncSequencesResult
 from pgbelt.models.sync import SyncTablesResult
@@ -301,6 +304,34 @@ def _build_diff_schemas_result(
     )
 
 
+def _build_diff_sequences_result(
+    results: list[dict], base_kwargs: dict
+) -> DiffSequencesResult:
+    db_rows: list[DiffSequencesRow] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        seqs = [
+            SequenceCompareDetail(**s)
+            for s in r.get("sequences", [])
+            if isinstance(s, dict)
+        ]
+        db_rows.append(
+            DiffSequencesRow(
+                db=r.get("db", ""),
+                schema_name=r.get("schema_name"),
+                sequences=seqs,
+                result=r.get("result", "mismatch"),
+            )
+        )
+    all_match = all(row.result == "match" for row in db_rows)
+    return DiffSequencesResult(
+        success=all_match,
+        results=db_rows,
+        **base_kwargs,
+    )
+
+
 _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "check-connectivity": _build_connectivity_result,
     "connections": _build_connections_result,
@@ -311,6 +342,7 @@ _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "validate-data": _build_validate_data_result,
     "create-indexes": _build_create_indexes_result,
     "diff-schemas": _build_diff_schemas_result,
+    "diff-sequences": _build_diff_sequences_result,
 }
 
 

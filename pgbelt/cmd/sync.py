@@ -1,5 +1,6 @@
 from asyncio import gather
 from collections.abc import Awaitable
+from decimal import Decimal
 from logging import Logger
 from typing import Any
 
@@ -21,7 +22,18 @@ from pgbelt.util.postgres import dump_sequences
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
 from pgbelt.util.postgres import set_pk_sequences_from_data
+from tabulate import tabulate
+from typer import echo
 from typer import Option
+from typer import style
+
+
+def _sequence_value_as_int(val: Any) -> int | None:
+    if val is None:
+        return None
+    if isinstance(val, Decimal):
+        return int(val)
+    return int(val)
 
 
 async def _sync_sequences(
@@ -359,10 +371,99 @@ async def sync(
         await gather(*[p.close() for p in pools])
 
 
+async def _print_diff_sequences_table(results: list[dict[str, Any]]) -> None:
+    first_db = True
+    for r in sorted(results, key=lambda d: d.get("db", "")):
+        if not first_db:
+            echo("")
+        first_db = False
+        echo(style(r.get("db", ""), "green"))
+        table: list[list[Any]] = [
+            [
+                style("sequence", "yellow"),
+                style("SRC", "yellow"),
+                style("DST", "yellow"),
+            ]
+        ]
+        for row in sorted(r.get("sequences", []), key=lambda x: x["name"]):
+            src_v = row.get("source_value")
+            dst_v = row.get("destination_value")
+            dst_ok = row.get("destination_ok", False)
+            src_cell = str(src_v) if src_v is not None else "—"
+            if dst_v is None:
+                dst_cell = style("—", "yellow")
+            else:
+                dst_cell = style(str(dst_v), "green" if dst_ok else "red")
+            table.append([row["name"], src_cell, dst_cell])
+        echo(tabulate(table, headers="firstrow"))
+
+
+@run_with_configs(results_callback=_print_diff_sequences_table)
+async def diff_sequences(
+    config_future: Awaitable[DbupgradeConfig],
+) -> dict[str, Any]:
+    """
+    Compare source and destination sequence last_value for each targeted sequence.
+
+    Destination values are highlighted green when they are greater than or equal to
+    source, and red otherwise.
+
+    Requires both src and dst to be not null in the config file.
+
+    If the db name is not given, runs for every database in the datacenter (same
+    pattern as ``diff-schemas``).
+    """
+    conf = await config_future
+    logger = get_logger(conf.db, conf.dc, "sync.diff_sequences")
+    pools = await gather(
+        create_pool(conf.src.pglogical_uri, min_size=1),
+        create_pool(conf.dst.root_uri, min_size=1),
+    )
+    src_pool, dst_pool = pools
+    try:
+        src_map, dst_map = await gather(
+            dump_sequences(src_pool, conf.sequences, conf.schema_name, logger),
+            dump_sequences(dst_pool, conf.sequences, conf.schema_name, logger),
+        )
+    finally:
+        await gather(*[p.close() for p in pools])
+
+    names = sorted(set(src_map.keys()) | set(dst_map.keys()))
+    sequences_out: list[dict[str, Any]] = []
+    for name in names:
+        sv = _sequence_value_as_int(src_map.get(name))
+        dv = _sequence_value_as_int(dst_map.get(name))
+        if sv is not None and dv is not None:
+            dst_ok = dv >= sv
+        elif sv is None and dv is not None:
+            dst_ok = True
+        elif sv is not None and dv is None:
+            dst_ok = False
+        else:
+            dst_ok = True
+        sequences_out.append(
+            {
+                "name": name,
+                "source_value": sv,
+                "destination_value": dv,
+                "destination_ok": dst_ok,
+            }
+        )
+
+    overall = "match" if all(s["destination_ok"] for s in sequences_out) else "mismatch"
+    return {
+        "db": conf.db,
+        "schema_name": conf.schema_name,
+        "sequences": sequences_out,
+        "result": overall,
+    }
+
+
 COMMANDS = [
     sync_sequences,
     sync_tables,
     analyze,
     validate_data,
     sync,
+    diff_sequences,
 ]

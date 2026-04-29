@@ -15,6 +15,7 @@ from pgbelt.models.preflight import PrecheckResult
 from pgbelt.models.schema import CreateIndexesResult
 from pgbelt.models.schema import DiffSchemasResult
 from pgbelt.models.status import StatusResult
+from pgbelt.models.sync import DiffSequencesResult
 from pgbelt.models.sync import SyncSequencesResult
 from pgbelt.models.sync import SyncTablesResult
 from pgbelt.models.sync import ValidateDataResult
@@ -699,6 +700,97 @@ class TestBuildJsonOutputRichModels:
         assert result.success is False
         assert result.all_match is False
         assert len(result.results) == 3
+
+    def test_diff_sequences_match(self):
+        output = _build_json_output(
+            command_name="diff-sequences",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "db": "db1",
+                    "schema_name": "public",
+                    "sequences": [
+                        {
+                            "name": "s1",
+                            "source_value": 10,
+                            "destination_value": 12,
+                            "destination_ok": True,
+                        },
+                        {
+                            "name": "s2",
+                            "source_value": 5,
+                            "destination_value": 5,
+                            "destination_ok": True,
+                        },
+                    ],
+                    "result": "match",
+                }
+            ],
+            success=True,
+            duration_ms=200,
+        )
+        result = DiffSequencesResult.model_validate_json(output)
+        assert result.command == "diff-sequences"
+        assert result.success is True
+        assert result.all_match is True
+        assert result.results[0].result == "match"
+        assert result.results[0].sequences[0].destination_ok is True
+
+    def test_diff_sequences_mismatch(self):
+        output = _build_json_output(
+            command_name="diff-sequences",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "db": "db1",
+                    "schema_name": "app",
+                    "sequences": [
+                        {
+                            "name": "s1",
+                            "source_value": 100,
+                            "destination_value": 50,
+                            "destination_ok": False,
+                        },
+                    ],
+                    "result": "mismatch",
+                }
+            ],
+            success=True,
+            duration_ms=100,
+        )
+        result = DiffSequencesResult.model_validate_json(output)
+        assert result.success is False
+        assert result.all_match is False
+
+    def test_diff_sequences_multi_db(self):
+        output = _build_json_output(
+            command_name="diff-sequences",
+            dc="dc1",
+            db=None,
+            results=[
+                {"db": "db1", "schema_name": "p", "sequences": [], "result": "match"},
+                {
+                    "db": "db2",
+                    "schema_name": "p",
+                    "sequences": [
+                        {
+                            "name": "a",
+                            "source_value": 1,
+                            "destination_value": 0,
+                            "destination_ok": False,
+                        }
+                    ],
+                    "result": "mismatch",
+                },
+            ],
+            success=True,
+            duration_ms=300,
+        )
+        result = DiffSequencesResult.model_validate_json(output)
+        assert result.success is False
+        assert len(result.results) == 2
 
     def test_error_falls_back_to_generic(self):
         """When an error occurs, even rich commands use generic CommandResult."""
