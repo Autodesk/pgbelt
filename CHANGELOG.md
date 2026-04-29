@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/Autodesk/pgbelt/compare/v0.19.0...v0.20.0) (2026-04-29)
+
+
+### Features
+
+* diff-sequences per-DB table, JSON, and root connections ([#936](https://github.com/Autodesk/pgbelt/issues/936)) ([d0445be](https://github.com/Autodesk/pgbelt/commit/d0445bee9191632ada0e979f642f422328c43575))
+
 ## [0.19.0](https://github.com/Autodesk/pgbelt/compare/v0.18.2...v0.19.0) (2026-04-27)
 
 
