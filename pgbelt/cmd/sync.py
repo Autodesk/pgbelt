@@ -405,6 +405,9 @@ async def diff_sequences(
     """
     Compare source and destination sequence last_value for each targeted sequence.
 
+    Uses the **root** database user on both source and destination (same as
+    ``diff-schemas``), not the pglogical user.
+
     Destination values are highlighted green when they are greater than or equal to
     source, and red otherwise.
 
@@ -416,7 +419,7 @@ async def diff_sequences(
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync.diff_sequences")
     pools = await gather(
-        create_pool(conf.src.pglogical_uri, min_size=1),
+        create_pool(conf.src.root_uri, min_size=1),
         create_pool(conf.dst.root_uri, min_size=1),
     )
     src_pool, dst_pool = pools
