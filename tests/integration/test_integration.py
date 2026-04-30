@@ -461,7 +461,7 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                 f"Ensuring {setname} source and destination sequences are the same..."
             )
 
-            _compare_sequences(
+            await _compare_sequences(
                 configs[
                     setname
                 ].sequences,  # In exodus-style migrations, we have our sequences defined in the config
@@ -496,7 +496,7 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                 .split("\n")
             )
 
-            _compare_sequences(
+            await _compare_sequences(
                 sequences,  # In full migrations, we need to get the sequences from the source database
                 configs[setname].src.root_dsn,
                 configs[setname].dst.root_dsn,
