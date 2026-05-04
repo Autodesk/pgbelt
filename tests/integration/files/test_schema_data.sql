@@ -159,16 +159,22 @@ INSERT INTO public."existingSomethingIds" ("thingId", "somethingId")
 
 --
 -- Name: userS_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
+-- Set to MAX(UsersCapital.id)=5 with is_called=true so it represents
+-- a "synced" state. sync-sequences (PK path) bumps dst to MAX(pk)=5,
+-- so leaving src ahead would make diff-sequences report a mismatch.
 --
 
-SELECT pg_catalog.setval('public."userS_id_seq"', 16, false);
+SELECT pg_catalog.setval('public."userS_id_seq"', 5, true);
 
 
 --
 -- Name: users2_id_seq; Type: SEQUENCE SET; Schema: public; Owner: owner
+-- Non-PK sequence -- its value is dump+loaded as-is to dst, so any
+-- value works for parity. We use 5 to keep the seed self-consistent
+-- with the row data (MAX(UsersCapital2.id)=5).
 --
 
-SELECT pg_catalog.setval('public.users2_id_seq', 15, false);
+SELECT pg_catalog.setval('public.users2_id_seq', 5, true);
 
 
 --
