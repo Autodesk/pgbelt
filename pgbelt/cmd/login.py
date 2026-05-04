@@ -1,18 +1,14 @@
-import asyncio
 import re
 from collections.abc import Awaitable
-from logging import Logger
 
 from asyncpg import create_pool
-from asyncpg import Pool
 from pgbelt.cmd.helpers import run_with_configs
-from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
-from pgbelt.config.models import User
 from pgbelt.util import get_logger
 from pgbelt.util.postgres import disable_login_users
 from pgbelt.util.postgres import enable_login_users
 from pgbelt.util.postgres import get_login_users
+from pgbelt.util.postgres import get_nologin_users
 from typer import Option
 
 
@@ -20,8 +16,6 @@ from typer import Option
 NO_DISABLE = [
     "pglogical",
     "postgres",
-    "rdsadmin",
-    "rdsrepladmin",
     "datadog",
     "monitoring",
 ]
@@ -50,14 +44,45 @@ def _is_excluded(
     return any(p.match(username) for p in exclude_patterns)
 
 
-async def _populate_logins(dbconf: DbConfig, pool: Pool, logger: Logger) -> None:
-    all_logins = await get_login_users(pool, logger)
-    exclude = [
-        dbconf.root_user.name,
-        dbconf.owner_user.name,
-        dbconf.pglogical_user.name,
+def _build_exclusions(
+    conf: DbupgradeConfig,
+    exclude_users: list[str],
+    exclude_patterns: list[str],
+) -> tuple[list[str], list[re.Pattern]]:
+    """Merge config-level and CLI-level exclusions into a single filter set.
+
+    Returns (exclude_user_list, compiled_pattern_list).
+    """
+    # Typer Option defaults are OptionInfo objects when called programmatically;
+    # coerce to plain lists so downstream iteration always works.
+    if not isinstance(exclude_users, list):
+        exclude_users = []
+    if not isinstance(exclude_patterns, list):
+        exclude_patterns = []
+
+    merged_users = list(conf.exclude_users or []) + exclude_users
+    merged_patterns = list(conf.exclude_patterns or []) + exclude_patterns
+    return merged_users, [_like_to_regex(p) for p in merged_patterns]
+
+
+def _filter_roles(
+    candidates: list[str],
+    skip_set: set[str],
+    exclude_users: list[str],
+    exclude_patterns: list[re.Pattern],
+) -> list[str]:
+    """Return candidates that are not in skip_set and not excluded.
+
+    Roles prefixed with ``pg_`` or ``rds`` are always skipped — they are
+    reserved system roles that cannot be altered.
+    """
+    return [
+        name
+        for name in candidates
+        if not name.startswith(("pg_", "rds"))
+        and name not in skip_set
+        and not _is_excluded(name, exclude_users, exclude_patterns)
     ]
-    dbconf.other_users = [User(name=n) for n in all_logins if n not in exclude]
 
 
 @run_with_configs(skip_dst=True)
@@ -77,10 +102,8 @@ async def revoke_logins(
     ),
 ) -> None:
     """
-    Discovers all users in the db who can log in, saves them in the config file,
-    then revokes their permission to log in. Use this command to ensure that all
-    writes to the source database have been stopped before syncing sequence values
-    and tables without primary keys.
+    Discovers all users who can log in and revokes their permission.
+    Stateless — queries pg_roles each time rather than caching a user list.
 
     Always excludes built-in service accounts (pglogical, rdsadmin, monitoring, etc.).
     Use --exclude-user to exclude additional specific usernames.
@@ -92,82 +115,65 @@ async def revoke_logins(
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "login.src")
 
-    # Typer Option defaults are OptionInfo objects when called programmatically;
-    # coerce to plain lists so downstream iteration always works.
-    if not isinstance(exclude_users, list):
-        exclude_users = []
-    if not isinstance(exclude_patterns, list):
-        exclude_patterns = []
-
-    all_exclude_users = list(conf.exclude_users or []) + exclude_users
-    all_exclude_patterns = list(conf.exclude_patterns or []) + exclude_patterns
-    compiled_patterns = [_like_to_regex(p) for p in all_exclude_patterns]
-    extra_exclude = all_exclude_users
+    merged_users, compiled_patterns = _build_exclusions(
+        conf, exclude_users, exclude_patterns
+    )
+    skip_set = set(NO_DISABLE) | {conf.src.root_user.name}
 
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
-        save_task = None
-        if conf.src.other_users is None:
-            await _populate_logins(conf.src, pool, logger)
-            save_task = asyncio.create_task(conf.save())
+        login_roles = await get_login_users(pool, logger)
+        to_disable = _filter_roles(
+            login_roles, skip_set, merged_users, compiled_patterns
+        )
 
-        to_disable = []
-        if conf.src.owner_user.name != conf.src.root_user.name:
-            if not _is_excluded(
-                conf.src.owner_user.name, extra_exclude, compiled_patterns
-            ):
-                to_disable.append(conf.src.owner_user.name)
-
-        if conf.src.other_users is not None:
-            to_disable += [
-                u.name
-                for u in conf.src.other_users
-                if u.name not in NO_DISABLE
-                and not _is_excluded(u.name, extra_exclude, compiled_patterns)
-            ]
-
-        if extra_exclude or compiled_patterns:
-            excluded_names = set(NO_DISABLE) | set(extra_exclude)
-            all_names = [conf.src.owner_user.name] + [
-                u.name for u in (conf.src.other_users or [])
-            ]
-            skipped = [
-                n
-                for n in all_names
-                if n not in excluded_names
-                and n not in to_disable
-                and _is_excluded(n, extra_exclude, compiled_patterns)
-            ]
-            if skipped:
-                logger.info(
-                    f"Excluded from revocation by --exclude-user/--exclude-pattern: "
-                    f"{', '.join(skipped)}"
-                )
-
-        try:
+        if to_disable:
             await disable_login_users(pool, to_disable, logger)
-        finally:
-            if save_task is not None:
-                await save_task
+        else:
+            logger.info("No roles to revoke.")
 
 
 @run_with_configs(skip_dst=True)
-async def restore_logins(config_future: Awaitable[DbupgradeConfig]) -> None:
+async def restore_logins(
+    config_future: Awaitable[DbupgradeConfig],
+    exclude_users: list[str] = Option(
+        [],
+        "--exclude-user",
+        "-e",
+        help="Additional usernames to exclude from restoration (can be repeated).",
+    ),
+    exclude_patterns: list[str] = Option(
+        [],
+        "--exclude-pattern",
+        "-p",
+        help="SQL LIKE patterns to exclude usernames (e.g. '%%myapp%%'). Can be repeated.",
+    ),
+) -> None:
     """
-    Grant permission to log in for any user present in the config file. The user
-    must already have a password. This will not generate or modify existing
-    passwords for users.
+    Discovers all roles that currently have NOLOGIN and re-enables login for
+    them, excluding built-in service accounts and any roles specified via
+    --exclude-user / --exclude-pattern.
 
+    This is stateless — it does not rely on a previously saved user list.
     Intended to be used after revoke-logins in case a rollback is required.
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "login.src")
-    to_enable = [conf.src.owner_user.name]
 
-    if conf.src.other_users is not None:
-        to_enable += [u.name for u in conf.src.other_users if u.name not in NO_DISABLE]
+    merged_users, compiled_patterns = _build_exclusions(
+        conf, exclude_users, exclude_patterns
+    )
+    skip_set = set(NO_DISABLE) | {conf.src.root_user.name}
 
     async with create_pool(conf.src.root_uri, min_size=1) as pool:
-        await enable_login_users(pool, to_enable, logger)
+        nologin_roles = await get_nologin_users(pool, logger)
+        to_enable = _filter_roles(
+            nologin_roles, skip_set, merged_users, compiled_patterns
+        )
+
+        if to_enable:
+            await enable_login_users(pool, to_enable, logger)
+        else:
+            logger.info("No roles to restore.")
 
 
 COMMANDS = [

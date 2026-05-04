@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.20.0](https://github.com/Autodesk/pgbelt/compare/v0.19.0...v0.20.0) (2026-04-29)
+
+
+### Features
+
+* diff-sequences per-DB table, JSON, and root connections ([#936](https://github.com/Autodesk/pgbelt/issues/936)) ([d0445be](https://github.com/Autodesk/pgbelt/commit/d0445bee9191632ada0e979f642f422328c43575))
+
+## [0.19.0](https://github.com/Autodesk/pgbelt/compare/v0.18.2...v0.19.0) (2026-04-27)
+
+
+### Features
+
+* make login restore stateless and support forced reset ([#933](https://github.com/Autodesk/pgbelt/issues/933)) ([d011591](https://github.com/Autodesk/pgbelt/commit/d011591820ad66b4a526bb189549a730cd17e3e9))
+
+## [0.18.2](https://github.com/Autodesk/pgbelt/compare/v0.18.1...v0.18.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle asyncpg.Record in precheck --json extension builder ([#926](https://github.com/Autodesk/pgbelt/issues/926)) ([94b701d](https://github.com/Autodesk/pgbelt/commit/94b701dd5b96012c1d38aaa37557c351bc8f583d))
+
+## [0.18.1](https://github.com/Autodesk/pgbelt/compare/v0.18.0...v0.18.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* add side field to BaseSideResolver, inject in framework ([#914](https://github.com/Autodesk/pgbelt/issues/914)) ([b2a88e9](https://github.com/Autodesk/pgbelt/commit/b2a88e90843310ae942f985f61e6d9c60db9bb40))
+
+## [0.18.0](https://github.com/Autodesk/pgbelt/compare/v0.17.0...v0.18.0) (2026-04-03)
+
+
+### Features
+
+* add BaseSideResolver for per-side remote config resolution ([#912](https://github.com/Autodesk/pgbelt/issues/912)) ([53f8fd0](https://github.com/Autodesk/pgbelt/commit/53f8fd045ea5190f9e73fe82d40f05d3da393f2d))
+
+## [0.17.0](https://github.com/Autodesk/pgbelt/compare/v0.16.0...v0.17.0) (2026-04-02)
+
+
+### Features
+
+* add --exclude-user and --exclude-pattern flags to revoke-logins ([#911](https://github.com/Autodesk/pgbelt/issues/911)) ([6788f08](https://github.com/Autodesk/pgbelt/commit/6788f081590733d78bf2c10905f3bff8e54dcc32))
+* add --json flag to all 16 async commands (STOPS-7492) ([#907](https://github.com/Autodesk/pgbelt/issues/907)) ([c1770ab](https://github.com/Autodesk/pgbelt/commit/c1770ab2c6b0482f4c6df1c98c06fa6ee3faf983))
+* add Pydantic V2 models for --json output ([#903](https://github.com/Autodesk/pgbelt/issues/903)) ([49f233c](https://github.com/Autodesk/pgbelt/commit/49f233c651c198fcfa2f4eb1c21f6ab95dc9835b))
+* wire --json output to rich Pydantic models (STOPS-7492) ([#909](https://github.com/Autodesk/pgbelt/issues/909)) ([bcb5f64](https://github.com/Autodesk/pgbelt/commit/bcb5f6497b016a2f815fe22a86b9ac33f0769822))
+
+
+### Documentation
+
+* update usage docs ([#908](https://github.com/Autodesk/pgbelt/issues/908)) ([e0d9254](https://github.com/Autodesk/pgbelt/commit/e0d92540691c2d256eab2c593a6ec99be6badacf))
+
 ## [0.16.0](https://github.com/Autodesk/pgbelt/compare/v0.15.0...v0.16.0) (2026-03-10)
 
 

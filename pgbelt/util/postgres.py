@@ -652,6 +652,17 @@ async def get_login_users(pool: Pool, logger: Logger) -> list[str]:
     return usernames
 
 
+async def get_nologin_users(pool: Pool, logger: Logger) -> list[str]:
+    """
+    Returns a list of all the users who cannot log in.
+    """
+    logger.debug("Finding users who cannot log in...")
+    user_rows = await pool.fetch(
+        "SELECT rolname FROM pg_catalog.pg_roles WHERE NOT rolcanlogin;"
+    )
+    return [r[0] for r in user_rows]
+
+
 async def disable_login_users(pool: Pool, users: list[str], logger: Logger) -> None:
     """
     Revokes login permissions from all users in the given list.

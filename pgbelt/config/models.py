@@ -53,7 +53,6 @@ class DbConfig(BaseModel):
     owner_user: User A user who owns all the data in the your specified schema or who has equivalent permissions. # noqa: RST301
                      This user will end up owning all the data if this is describing the target instance.
     pglogical_user: User A user for use with pglogical. Will be created if it does not exist.
-    other_users: list[User] A list of other users whose passwords we might not know.
     """
 
     host: str
@@ -63,7 +62,6 @@ class DbConfig(BaseModel):
     root_user: User
     owner_user: User
     pglogical_user: User
-    other_users: Optional[list[User]] = None
 
     _not_empty = field_validator("host", "ip", "db", "port")(not_empty)
 

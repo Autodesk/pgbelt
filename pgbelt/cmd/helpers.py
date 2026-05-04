@@ -34,6 +34,9 @@ from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import ReplicationLag
 from pgbelt.models.status import StatusResult
 from pgbelt.models.status import StatusRow
+from pgbelt.models.sync import DiffSequencesResult
+from pgbelt.models.sync import DiffSequencesRow
+from pgbelt.models.sync import SequenceCompareDetail
 from pgbelt.models.sync import SequenceSyncDetail
 from pgbelt.models.sync import SyncSequencesResult
 from pgbelt.models.sync import SyncTablesResult
@@ -107,6 +110,16 @@ def _build_status_result(results: list[dict], base_kwargs: dict) -> StatusResult
     return StatusResult(success=True, results=rows, **base_kwargs)
 
 
+def _as_list(val) -> list:
+    """Coerce a value to a list. Postgres GUC strings come back as
+    comma-separated text, not arrays."""
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        return [s.strip() for s in val.split(",") if s.strip()]
+    return list(val)
+
+
 def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
     """Convert the raw dict from precheck_info into a PrecheckSide model."""
     users_raw = raw.get("users", {})
@@ -150,7 +163,7 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
     ]
 
     extensions = [
-        ExtensionInfo(extname=e["extname"] if isinstance(e, dict) else e)
+        ExtensionInfo(extname=e["extname"] if not isinstance(e, str) else e)
         for e in raw.get("extensions", [])
     ]
 
@@ -161,7 +174,7 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
         max_replication_slots=raw.get("max_replication_slots", "0"),
         max_worker_processes=raw.get("max_worker_processes", "0"),
         max_wal_senders=raw.get("max_wal_senders", "0"),
-        shared_preload_libraries=raw.get("shared_preload_libraries", []),
+        shared_preload_libraries=_as_list(raw.get("shared_preload_libraries", [])),
         rds_logical_replication=raw.get("rds.logical_replication", "unknown"),
         root_user=RoleInfo(
             rolname=root_raw.get("rolname", ""),
@@ -291,6 +304,34 @@ def _build_diff_schemas_result(
     )
 
 
+def _build_diff_sequences_result(
+    results: list[dict], base_kwargs: dict
+) -> DiffSequencesResult:
+    db_rows: list[DiffSequencesRow] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        seqs = [
+            SequenceCompareDetail(**s)
+            for s in r.get("sequences", [])
+            if isinstance(s, dict)
+        ]
+        db_rows.append(
+            DiffSequencesRow(
+                db=r.get("db", ""),
+                schema_name=r.get("schema_name"),
+                sequences=seqs,
+                result=r.get("result", "mismatch"),
+            )
+        )
+    all_match = all(row.result == "match" for row in db_rows)
+    return DiffSequencesResult(
+        success=all_match,
+        results=db_rows,
+        **base_kwargs,
+    )
+
+
 _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "check-connectivity": _build_connectivity_result,
     "connections": _build_connections_result,
@@ -301,6 +342,7 @@ _RICH_MODEL_BUILDERS: dict[str, Callable] = {
     "validate-data": _build_validate_data_result,
     "create-indexes": _build_create_indexes_result,
     "diff-schemas": _build_diff_schemas_result,
+    "diff-sequences": _build_diff_sequences_result,
 }
 
 
