@@ -54,8 +54,7 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
       // PgBelt will use this info to create this user in your database.
       "name": "pglogical", // No need to change this
       "pw": "<fill-your-own-password>" // You can use the following: python3 -c "from string import ascii_letters; from string import digits; from random import choices; print(\"\".join(choices(ascii_letters + digits, k=16)))";
-    },
-    "other_users": null
+    }
   },
   "dst": {
     // Anything in here must match what is in the host
@@ -75,8 +74,7 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
       // PgBelt will use this info to create this user in your database.
       "name": "pglogical", // No need to change this
       "pw": "<fill-your-own-password>" // You can use the following: python3 -c "from string import ascii_letters; from string import digits; from random import choices; print(\"\".join(choices(ascii_letters + digits, k=16)))";
-    },
-    "other_users": null
+    }
   },
   "tables": [],
   "sequences": [],
