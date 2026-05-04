@@ -186,7 +186,7 @@ async def _pipe_dump_and_load_table(
     # Use shell-safe quoting so mixed-case identifiers keep their double quotes
     # when passed through bash.
     table_arg = shlex.quote(f'{config.schema_name}."{table}"')
-    src_dsn = shlex.quote(config.src.pglogical_dsn)
+    src_dsn = shlex.quote(config.src.root_dsn)
     dst_dsn = shlex.quote(config.dst.root_dsn)
 
     cmd = (
@@ -353,12 +353,8 @@ async def validate_schema_dump(
         return {"db": config.db, "result": "skipped"}
 
     src_filtered, dst_filtered = await asyncio.gather(
-        _dump_and_filter_schema(
-            config.src.pglogical_dsn, config.schema_name, logger, full
-        ),
-        _dump_and_filter_schema(
-            config.dst.pglogical_dsn, config.schema_name, logger, full
-        ),
+        _dump_and_filter_schema(config.src.root_dsn, config.schema_name, logger, full),
+        _dump_and_filter_schema(config.dst.root_dsn, config.schema_name, logger, full),
     )
 
     if src_filtered == dst_filtered:
@@ -396,7 +392,7 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "--no-owner",
         "-n",
         config.schema_name,
-        config.src.pglogical_dsn,
+        config.src.root_dsn,
     ]
 
     # TODO: We should exclude the creation of a schema in the schema dump and load, and made that the responsibility of the user.
@@ -483,7 +479,7 @@ async def dump_dst_not_valid_constraints(
         "--no-owner",
         "-n",
         config.schema_name,
-        config.dst.pglogical_dsn,
+        config.dst.root_dsn,
     ]
 
     out = await _execute_subprocess(command, "Retrieved target schema", logger)

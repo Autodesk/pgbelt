@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0](https://github.com/Autodesk/pgbelt/compare/v0.19.0...v0.20.0) (2026-04-29)
+
+
+### Features
+
+* diff-sequences per-DB table, JSON, and root connections ([#936](https://github.com/Autodesk/pgbelt/issues/936)) ([d0445be](https://github.com/Autodesk/pgbelt/commit/d0445bee9191632ada0e979f642f422328c43575))
+
+## [0.19.0](https://github.com/Autodesk/pgbelt/compare/v0.18.2...v0.19.0) (2026-04-27)
+
+
+### Features
+
+* make login restore stateless and support forced reset ([#933](https://github.com/Autodesk/pgbelt/issues/933)) ([d011591](https://github.com/Autodesk/pgbelt/commit/d011591820ad66b4a526bb189549a730cd17e3e9))
+
 ## [0.18.2](https://github.com/Autodesk/pgbelt/compare/v0.18.1...v0.18.2) (2026-04-20)
 
 

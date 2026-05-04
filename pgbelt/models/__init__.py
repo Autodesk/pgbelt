@@ -36,9 +36,12 @@ from pgbelt.models.schema import DiffSchemasResult
 from pgbelt.models.schema import IndexDetail
 from pgbelt.models.status import StatusResult
 from pgbelt.models.status import StatusRow
+from pgbelt.models.sync import SequenceCompareDetail
 from pgbelt.models.sync import SyncSequencesResult
 from pgbelt.models.sync import SyncTablesResult
 from pgbelt.models.sync import ValidateDataResult
+from pgbelt.models.sync import DiffSequencesResult
+from pgbelt.models.sync import DiffSequencesRow
 
 __all__ = [
     # Base -- used directly by simple commands (setup, teardown, analyze, etc.)
@@ -60,6 +63,9 @@ __all__ = [
     "IndexDetail",
     "StatusResult",
     "StatusRow",
+    "SequenceCompareDetail",
+    "DiffSequencesResult",
+    "DiffSequencesRow",
     "SyncSequencesResult",
     "SyncTablesResult",
     "ValidateDataResult",

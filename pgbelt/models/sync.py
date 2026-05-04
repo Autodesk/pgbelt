@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import BaseModel
+from pydantic import computed_field
 
 from pgbelt.models.base import CommandResult
 
@@ -16,6 +17,36 @@ class SequenceSyncDetail(BaseModel):
     synced: bool
     method: str  # "pk_max" | "source_value" | "source_value_with_stride"
     skipped_reason: Optional[str] = None
+
+
+class SequenceCompareDetail(BaseModel):
+    """One sequence row in ``belt diff-sequences`` output."""
+
+    name: str
+    source_value: Optional[int] = None
+    destination_value: Optional[int] = None
+    destination_ok: bool = False
+
+
+class DiffSequencesRow(BaseModel):
+    """Per-database sequence comparison summary."""
+
+    db: str
+    schema_name: Optional[str] = None
+    sequences: list[SequenceCompareDetail] = []
+    result: str = "mismatch"  # "match" | "mismatch"
+
+
+class DiffSequencesResult(CommandResult):
+    """JSON output for ``belt diff-sequences``."""
+
+    command: str = "diff-sequences"
+    results: list[DiffSequencesRow] = []
+
+    @computed_field
+    @property
+    def all_match(self) -> bool:
+        return all(r.result == "match" for r in self.results)
 
 
 class SyncSequencesResult(CommandResult):
