@@ -3,6 +3,8 @@ import subprocess
 from time import sleep
 from unittest.mock import Mock
 from pgbelt.util.dump import _parse_dump_commands
+from pgbelt.util.logs import get_logger
+from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
@@ -562,3 +564,71 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
 async def test_main_workflow(setup_db_upgrade_configs):
 
     await _test_main_workflow(setup_db_upgrade_configs)
+
+
+# Regression test for the bug where analyze_table_pkeys would return views
+# (and other non-base relations) in `no_pkeys`, causing TRUNCATE-on-reset
+# and other downstream operations to fail with WrongObjectTypeError.
+# Original real-world trigger: pg_stat_statements is in
+# shared_preload_libraries on most production Postgres deployments and
+# creates two views (pg_stat_statements, pg_stat_statements_info) in the
+# public schema. Any pgbelt run that targets schema_name='public' would
+# hit this in cmd.reset._truncate_dst_tables.
+@pytest.mark.asyncio
+async def test_analyze_table_pkeys_excludes_non_base_tables(
+    setup_db_upgrade_configs,
+):
+    config = setup_db_upgrade_configs["public-full"]
+    logger = get_logger(config.db, config.dc, "test_analyze_pkeys_excludes_views")
+
+    async with create_pool(config.src.root_uri, min_size=1) as pool:
+        # Recreate the production-shaped trigger: pg_stat_statements
+        # extension installed in public, plus a hand-rolled view that
+        # exists on every Postgres version (pg_stat_statements_info only
+        # exists on pg14+).
+        await pool.execute("CREATE EXTENSION IF NOT EXISTS pg_stat_statements")
+        await pool.execute(
+            "CREATE OR REPLACE VIEW public.pgbelt_regression_view AS "
+            "SELECT 1 AS x, 'two'::text AS y"
+        )
+
+        # Sanity: the views actually landed in information_schema.tables.
+        view_rows = await pool.fetch(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_type = 'VIEW' "
+            "ORDER BY table_name"
+        )
+        view_names = {r["table_name"] for r in view_rows}
+        assert "pgbelt_regression_view" in view_names, (
+            f"setup precondition failed -- view not created. saw: {view_names}"
+        )
+        assert "pg_stat_statements" in view_names, (
+            "setup precondition failed -- pg_stat_statements view missing. "
+            f"saw: {view_names}"
+        )
+
+        pkeys, no_pkeys, _ = await analyze_table_pkeys(pool, "public", logger)
+
+    found = set(pkeys) | set(no_pkeys)
+
+    # No view may leak into either bucket.
+    leaked = view_names & found
+    assert not leaked, (
+        f"analyze_table_pkeys leaked views into table results: {leaked}"
+    )
+
+    # The actual base tables from the seed must still be present (otherwise
+    # we've over-filtered).
+    expected_base_tables = {
+        "fruits",
+        "UsersCapital",
+        "UsersCapital2",
+        "another_test_table",
+        "existingSomethingIds",
+        "fk_unique_parent",
+        "fk_unique_child",
+    }
+    missing = expected_base_tables - found
+    assert not missing, (
+        f"analyze_table_pkeys dropped real base tables: {missing}"
+    )
