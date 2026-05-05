@@ -1,3 +1,6 @@
+import contextlib
+import io
+import json
 import re
 import subprocess
 from time import sleep
@@ -243,6 +246,33 @@ async def _test_sync(configs: dict[str, DbupgradeConfig]):
     # TODO: test that the appropriate sync steps were run
 
     await _check_status(configs, "unconfigured", "replicating")
+
+
+async def _test_diff_sequences(configs: dict[str, DbupgradeConfig]):
+    """
+    Invoke ``belt diff-sequences --json`` programmatically and assert it
+    reports success (every targeted sequence has dst_last_value >=
+    src_last_value). This guards against silent regressions in
+    sync-sequences -- without this check the integration test would
+    happily pass when sync-sequences left destination sequences behind
+    the source.
+    """
+    dc = configs[list(configs.keys())[0]].dc
+
+    # diff_sequences in --json mode prints CommandResult JSON to stdout;
+    # capture it so we can assert structurally.
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        await pgbelt.cmd.sync.diff_sequences(dc=dc, db=None, json_mode=True)
+
+    payload = json.loads(buf.getvalue())
+    assert payload["success"] is True, (
+        f"diff-sequences reported mismatch for dc={dc}: {payload}"
+    )
+    for row in payload.get("results", []):
+        assert row.get("result") == "match", (
+            f"diff-sequences mismatch for db {row.get('db')}: {row}"
+        )
 
 
 async def _get_dumps(
@@ -549,6 +579,7 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
     await _test_revoke_logins(configs)
     await _test_teardown_forward_replication(configs)
     await _test_sync(configs)
+    await _test_diff_sequences(configs)
 
     # Check if the data is the same before testing teardown
     await _ensure_same_data(configs)
