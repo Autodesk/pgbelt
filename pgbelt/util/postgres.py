@@ -617,13 +617,21 @@ async def analyze_table_pkeys(
     )
     pkeys = [r[0] for r in pkeys_raw]
 
+    # NOTE: information_schema.tables includes views and foreign tables.
+    # We only want real, truncatable / replicatable relations -- every caller
+    # of this function (truncate-on-reset, pglogical replication-set wiring,
+    # validate-data row sampling, precheck) operates on BASE TABLEs only.
+    # Without this filter, schemas that host pg_stat_statements (the default
+    # in many production Postgres setups) leak the pg_stat_statements and
+    # pg_stat_statements_info VIEWs into ``no_pkeys``, which then explodes
+    # at TRUNCATE time with ``WrongObjectTypeError: ... is not a table``.
     all_tables = await pool.fetch(
         f"""SELECT table_name
         FROM
             information_schema.tables
         WHERE
             table_schema = '{schema}'
-            AND table_name != 'pg_stat_statements'
+            AND table_type = 'BASE TABLE'
         ORDER BY 1;"""
     )
     no_pkeys = [r[0] for r in all_tables if r[0] not in pkeys]

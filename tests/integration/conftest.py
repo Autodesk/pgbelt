@@ -235,9 +235,12 @@ async def setup_db_upgrade_configs():
     # Clear out all data and stuff in the database containers :shrug:
     await _empty_out_databases(test_configs)
 
-    # Delete the config that was saved to disk by the setup
-    rmtree("configs/testdc")
-    rmtree("schemas/")
+    # Delete the config that was saved to disk by the setup. Use ignore_errors
+    # so tests that don't run any pgbelt command that materializes ``schemas/``
+    # (e.g. tests that exercise pure utilities like analyze_table_pkeys
+    # directly) don't trip the teardown.
+    rmtree("configs/testdc", ignore_errors=True)
+    rmtree("schemas/", ignore_errors=True)
 
 
 # This is a hacky way of doing it, but I don't want to duplicate code.
