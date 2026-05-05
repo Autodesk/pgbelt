@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.1](https://github.com/Autodesk/pgbelt/compare/v0.20.0...v0.20.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* **reset:** exclude views from analyze_table_pkeys ([#942](https://github.com/Autodesk/pgbelt/issues/942)) ([a82cbb0](https://github.com/Autodesk/pgbelt/commit/a82cbb050ab949d9ccdbec1837a0dfb0edc4e98e))
+* **tests:** await _compare_sequences in integration test ([#938](https://github.com/Autodesk/pgbelt/issues/938)) ([2962989](https://github.com/Autodesk/pgbelt/commit/296298943126af3a4b925342f0e2bbe7c049ee06))
+
+
+### Documentation
+
+* update usage docs ([#934](https://github.com/Autodesk/pgbelt/issues/934)) ([c9983e8](https://github.com/Autodesk/pgbelt/commit/c9983e8c49edd73b283f83088d59cbb1a1b1e2ed))
+
 ## [0.20.0](https://github.com/Autodesk/pgbelt/compare/v0.19.0...v0.20.0) (2026-04-29)
 
 
