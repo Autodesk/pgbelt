@@ -255,9 +255,11 @@ class TestConnectivityCheckResult:
             db=db,
             src_tcp=all_pass,
             src_query=all_pass,
+            src_owner_query=all_pass,
             src_to_dst_dblink=all_pass,
             dst_tcp=all_pass,
             dst_query=all_pass,
+            dst_owner_query=all_pass,
             dst_to_src_dblink=all_pass,
         )
 
@@ -277,9 +279,11 @@ class TestConnectivityCheckResult:
             db="db2",
             src_tcp=True,
             src_query=True,
+            src_owner_query=True,
             src_to_dst_dblink=False,
             dst_tcp=True,
             dst_query=False,
+            dst_owner_query=False,
             dst_to_src_dblink=False,
         )
         result = ConnectivityCheckResult(
@@ -289,9 +293,15 @@ class TestConnectivityCheckResult:
         )
         restored = _round_trip(ConnectivityCheckResult, result)
         assert restored.overall_ok is False
+        # ``dst_owner_query`` is False here because owner is gated on
+        # the matching root SELECT 1 -- if root can't query, the owner
+        # probe is presumed False (the underlying network/RDS failure
+        # surfaces on ``dst_query`` and we don't double-flag it as a
+        # credential issue).
         assert set(restored.results[0].failed_checks) == {
             "src_to_dst_dblink",
             "dst_query",
+            "dst_owner_query",
             "dst_to_src_dblink",
         }
 

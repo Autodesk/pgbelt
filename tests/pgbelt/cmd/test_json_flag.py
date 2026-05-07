@@ -124,9 +124,11 @@ class TestBuildJsonOutputRichModels:
                     "db": "db1",
                     "src_tcp": True,
                     "src_query": True,
+                    "src_owner_query": True,
                     "src_to_dst_dblink": True,
                     "dst_tcp": True,
                     "dst_query": True,
+                    "dst_owner_query": True,
                     "dst_to_src_dblink": True,
                 }
             ],
@@ -150,9 +152,12 @@ class TestBuildJsonOutputRichModels:
                     "db": "db1",
                     "src_tcp": True,
                     "src_query": True,
+                    "src_owner_query": True,
                     "src_to_dst_dblink": False,
                     "dst_tcp": True,
                     "dst_query": False,
+                    # owner gated on root SELECT 1 -> False when dst_query=False
+                    "dst_owner_query": False,
                     "dst_to_src_dblink": False,
                 }
             ],
@@ -165,8 +170,38 @@ class TestBuildJsonOutputRichModels:
         assert set(result.results[0].failed_checks) == {
             "src_to_dst_dblink",
             "dst_query",
+            "dst_owner_query",
             "dst_to_src_dblink",
         }
+
+    def test_check_connectivity_owner_only_failure(self):
+        """Wrong/stale owner password -- the rest of the grid is green
+        but ``src_owner_query`` is False so the operator can pinpoint
+        the credential issue instead of waiting 60s for a bare
+        TimeoutError out of ``belt precheck``."""
+        output = _build_json_output(
+            command_name="check-connectivity",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "db": "db1",
+                    "src_tcp": True,
+                    "src_query": True,
+                    "src_owner_query": False,
+                    "src_to_dst_dblink": True,
+                    "dst_tcp": True,
+                    "dst_query": True,
+                    "dst_owner_query": True,
+                    "dst_to_src_dblink": True,
+                }
+            ],
+            success=False,
+            duration_ms=10500,
+        )
+        result = ConnectivityCheckResult.model_validate_json(output)
+        assert result.overall_ok is False
+        assert result.results[0].failed_checks == ["src_owner_query"]
 
     def test_check_connectivity_multi_db(self):
         output = _build_json_output(
@@ -178,18 +213,22 @@ class TestBuildJsonOutputRichModels:
                     "db": "db1",
                     "src_tcp": True,
                     "src_query": True,
+                    "src_owner_query": True,
                     "src_to_dst_dblink": True,
                     "dst_tcp": True,
                     "dst_query": True,
+                    "dst_owner_query": True,
                     "dst_to_src_dblink": True,
                 },
                 {
                     "db": "db2",
                     "src_tcp": True,
                     "src_query": True,
+                    "src_owner_query": True,
                     "src_to_dst_dblink": True,
                     "dst_tcp": True,
                     "dst_query": True,
+                    "dst_owner_query": True,
                     "dst_to_src_dblink": True,
                 },
             ],
