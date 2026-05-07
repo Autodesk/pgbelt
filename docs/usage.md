@@ -154,10 +154,14 @@ $ belt check-pkeys [OPTIONS] DC DB
 Returns exit code 0 if pgbelt can connect to all databases in a datacenter
 (if db is not specified), or to both src and dst of a database.
 
-Runs three checks per side:
+Runs four checks per side:
 1. TCP connectivity to the database port (from pgbelt).
-2. SELECT 1 via a connection pool (validates credentials from pgbelt).
-3. dblink from src-&gt;dst and dst-&gt;src (validates that the database servers
+2. SELECT 1 via a root-credentials connection pool (validates root creds
+from pgbelt).
+3. SELECT 1 via the owner-credentials URI with a 10s timeout (validates
+owner creds; without this, a wrong/stale owner password would be caught
+much later inside ``belt precheck`` as a 60s asyncpg pool-creation hang).
+4. dblink from src-&gt;dst and dst-&gt;src (validates that the database servers
 themselves can reach each other -- the same network path pglogical uses).
 
 The dblink extension is created if not present and left in place. It is
