@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.2](https://github.com/Autodesk/pgbelt/compare/v0.20.1...v0.20.2) (2026-05-07)
+
+
+### Bug Fixes
+
+* **check-connectivity:** probe owner credentials with a 10s SELECT 1 ([#946](https://github.com/Autodesk/pgbelt/issues/946)) ([92886c2](https://github.com/Autodesk/pgbelt/commit/92886c2604952f4231c7b8300392fc9799078a56))
+
+
+### Documentation
+
+* update usage docs ([#947](https://github.com/Autodesk/pgbelt/issues/947)) ([3755984](https://github.com/Autodesk/pgbelt/commit/37559843b71df800b7f20d5ca3f8868fd53b9b91))
+
 ## [0.20.1](https://github.com/Autodesk/pgbelt/compare/v0.20.0...v0.20.1) (2026-05-05)
 
 
