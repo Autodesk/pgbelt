@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.3](https://github.com/Autodesk/pgbelt/compare/v0.20.2...v0.20.3) (2026-05-26)
+
+
+### Bug Fixes
+
+* when dropping NOT VALID contraints, need IF EXISTS ([#959](https://github.com/Autodesk/pgbelt/issues/959)) ([cf148e5](https://github.com/Autodesk/pgbelt/commit/cf148e5c04e4a241954b3424d965278e2e73083d))
+
 ## [0.20.2](https://github.com/Autodesk/pgbelt/compare/v0.20.1...v0.20.2) (2026-05-07)
 
 
