@@ -5,7 +5,7 @@ from os.path import join
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.asyncfuncs import makedirs
 from pgbelt.util.postgres import table_empty
-from re import finditer, IGNORECASE, search
+from re import finditer, IGNORECASE, search, sub as re_sub
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
@@ -665,12 +665,44 @@ async def create_target_indexes(
                 raise Exception(e)
 
 
+def _inject_concurrently(statement: str) -> str:
+    """Rewrite a single ``CREATE [UNIQUE] INDEX ...`` statement so the build
+    runs with ``CONCURRENTLY``.
+
+    ``CONCURRENTLY`` slots in after the ``INDEX`` keyword and before either an
+    optional ``IF NOT EXISTS`` clause or the index name. Returns the input
+    unchanged if it doesn't contain a CREATE INDEX, or if CONCURRENTLY is
+    already present (so calling this twice is a no-op).
+    """
+    return re_sub(
+        r"(\bCREATE\s+(?:UNIQUE\s+)?INDEX)\b(?!\s+CONCURRENTLY)",
+        r"\1 CONCURRENTLY",
+        statement,
+        flags=IGNORECASE,
+    )
+
+
 async def create_target_indexes_with_details(
-    config: DbupgradeConfig, logger: Logger, during_sync=False
+    config: DbupgradeConfig,
+    logger: Logger,
+    during_sync: bool = False,
+    concurrently: bool = False,
 ) -> list[dict]:
     """
     Like create_target_indexes but returns per-index detail dicts suitable for
     building a CreateIndexesResult model.
+
+    When ``concurrently`` is True, each ``CREATE INDEX`` is rewritten to
+    ``CREATE INDEX CONCURRENTLY`` so the build doesn't take a ``ShareLock``
+    on the table. This is the safe choice when the destination is already
+    serving live traffic (e.g. post-cutover re-runs), and the only correct
+    choice when concurrent writers must not be blocked. The tradeoff: a
+    CONCURRENTLY build runs two heap passes plus a ``WaitForOlderSnapshots``
+    barrier, so wall-clock is roughly 1.5-2x the non-CONCURRENT build under
+    active write load. Note that if a CONCURRENTLY build fails midway the
+    index is left ``indisvalid = false`` and must be dropped before retry --
+    this function still surfaces a ``status: failed`` entry but does not
+    auto-drop the invalid index.
     """
     import time
 
@@ -685,7 +717,10 @@ async def create_target_indexes_with_details(
     async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
         create_index_statements = await f.read()
 
-    logger.info("Creating indexes on the target...")
+    logger.info(
+        "Creating indexes on the target%s...",
+        " (CONCURRENTLY)" if concurrently else "",
+    )
     details: list[dict] = []
 
     for c in create_index_statements.split(";"):
@@ -696,6 +731,9 @@ async def create_target_indexes_with_details(
         if not regex_matches:
             continue
         index = regex_matches.groupdict()["index"].replace('"', "")
+
+        if concurrently:
+            c = _inject_concurrently(c)
 
         host_dsn = config.dst.owner_dsn + " options='-c statement_timeout=0'"
         command = ["psql", host_dsn, "-c", f"{c};"]
