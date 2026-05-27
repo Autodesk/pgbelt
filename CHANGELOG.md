@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/Autodesk/pgbelt/compare/v0.20.3...v0.21.0) (2026-05-27)
+
+
+### Features
+
+* **create-indexes:** add --concurrently flag ([#964](https://github.com/Autodesk/pgbelt/issues/964)) ([50cb3ea](https://github.com/Autodesk/pgbelt/commit/50cb3ea2c933e1bc7d9e9f9db33862012c649ed8))
+
 ## [0.20.3](https://github.com/Autodesk/pgbelt/compare/v0.20.2...v0.20.3) (2026-05-26)
 
 
