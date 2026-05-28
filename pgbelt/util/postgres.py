@@ -608,7 +608,9 @@ async def analyze_table_pkeys(
         JOIN information_schema.key_column_usage kcu
             ON kcu.constraint_name = tco.constraint_name
             AND kcu.constraint_schema = tco.constraint_schema
-            AND kcu.constraint_name = tco.constraint_name
+        JOIN information_schema.tables tbl
+            ON tbl.table_schema = kcu.table_schema
+            AND tbl.table_name = kcu.table_name
         WHERE tco.constraint_type = 'PRIMARY KEY'
             AND kcu.table_schema = '{schema}'
             AND tbl.table_type = 'BASE TABLE'
