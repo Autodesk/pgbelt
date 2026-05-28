@@ -611,6 +611,7 @@ async def analyze_table_pkeys(
             AND kcu.constraint_name = tco.constraint_name
         WHERE tco.constraint_type = 'PRIMARY KEY'
             AND kcu.table_schema = '{schema}'
+            AND tbl.table_type = 'BASE TABLE'
         ORDER BY kcu.table_name,
                 position;
         """
