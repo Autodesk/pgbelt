@@ -57,15 +57,26 @@ async def _sync_sequences(
     src_logger.info(f"Total sequences to sync: {seq_vals.keys()}")
 
     non_pk_vals = {k: v for k, v in seq_vals.items() if k not in pk_seqs}
+    # Source last_values for the PK subset. Passed into
+    # set_pk_sequences_from_data so each PK sequence is bumped to
+    # GREATEST(max(dst.pk_col), src.last_value) -- matching what
+    # diff-sequences subsequently checks. Without this, rolled-back
+    # inserts / deletes / nextval cache on the source leave
+    # max(pk_col) strictly below src.last_value, so a healthy
+    # cutover with caught-up replication still flunks diff-sequences.
+    src_pk_vals = {k: v for k, v in seq_vals.items() if k in pk_seqs}
     src_logger.info(f"PK sequences: {list(pk_seqs.keys())}")
     src_logger.info(f"Non-PK sequences: {list(non_pk_vals.keys())}")
 
     if pk_seqs:
-        await set_pk_sequences_from_data(dst_pool, pk_seqs, schema, dst_logger)
+        await set_pk_sequences_from_data(
+            dst_pool, pk_seqs, schema, dst_logger, src_pk_vals=src_pk_vals
+        )
         for name in pk_seqs:
             pk_details.append(
                 {
                     "name": name,
+                    "source_value": src_pk_vals.get(name),
                     "synced": True,
                     "method": "pk_max",
                 }
