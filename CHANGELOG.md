@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.21.1](https://github.com/Autodesk/pgbelt/compare/v0.21.0...v0.21.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* analyze table pkeys needs to filter BASE TABLEs not just for no pkeys ([#968](https://github.com/Autodesk/pgbelt/issues/968)) ([50bf685](https://github.com/Autodesk/pgbelt/commit/50bf6853487a7a751b4fc5819e664874ead482b8))
+
+
+### Documentation
+
+* update usage docs ([#965](https://github.com/Autodesk/pgbelt/issues/965)) ([266b4d9](https://github.com/Autodesk/pgbelt/commit/266b4d9238f76a3a2bdad72c12c859af2ef512c9))
+
+## [0.21.0](https://github.com/Autodesk/pgbelt/compare/v0.20.3...v0.21.0) (2026-05-27)
+
+
+### Features
+
+* **create-indexes:** add --concurrently flag ([#964](https://github.com/Autodesk/pgbelt/issues/964)) ([50cb3ea](https://github.com/Autodesk/pgbelt/commit/50cb3ea2c933e1bc7d9e9f9db33862012c649ed8))
+
+## [0.20.3](https://github.com/Autodesk/pgbelt/compare/v0.20.2...v0.20.3) (2026-05-26)
+
+
+### Bug Fixes
+
+* when dropping NOT VALID contraints, need IF EXISTS ([#959](https://github.com/Autodesk/pgbelt/issues/959)) ([cf148e5](https://github.com/Autodesk/pgbelt/commit/cf148e5c04e4a241954b3424d965278e2e73083d))
+
 ## [0.20.2](https://github.com/Autodesk/pgbelt/compare/v0.20.1...v0.20.2) (2026-05-07)
 
 

@@ -150,50 +150,89 @@ async def detect_pk_sequences(
     return pk_seqs
 
 
+def _build_pk_setval_sql(
+    pk_seqs: dict[str, tuple[str, str]],
+    schema: str,
+    src_pk_vals: dict[str, int] | None = None,
+) -> str:
+    """Render the multi-statement ``setval`` block for PK sequences.
+
+    Split out from ``set_pk_sequences_from_data`` so the SQL shape can be
+    unit-tested without a live asyncpg pool. See the function it serves
+    for the rationale behind the GREATEST(max(pk_col), src.last_value)
+    expression.
+    """
+    src_pk_vals = src_pk_vals or {}
+    parts: list[str] = []
+    for seq_name, (table_name, col_name) in pk_seqs.items():
+        # asyncpg's prepared-statement parameter binding doesn't span
+        # multiple statements concatenated into a single ``execute``
+        # call, so we render ``src_last`` inline. It's an integer we
+        # read from pg_sequence, never operator input, which keeps
+        # this injection-safe.
+        src_last = int(src_pk_vals.get(seq_name) or 0)
+        parts.append(
+            f"SELECT setval('{schema}.\"{seq_name}\"', "
+            f'GREATEST(coalesce(max("{col_name}"), 1), {src_last}), '
+            f'(max("{col_name}") IS NOT null) OR ({src_last} > 1)) '
+            f'FROM {schema}."{table_name}";'
+        )
+    return "\n".join(parts)
+
+
 async def set_pk_sequences_from_data(
     pool: Pool,
     pk_seqs: dict[str, tuple[str, str]],
     schema: str,
     logger: Logger,
+    src_pk_vals: dict[str, int] | None = None,
 ) -> None:
     """
     For sequences that back primary key columns, set each sequence value to the
-    maximum value currently present in the corresponding table column.
+    greater of ``max(<pk_col>)`` on the destination table and the source
+    sequence's ``last_value``.
 
-    Uses the standard PostgreSQL idiom::
+    Uses the standard PostgreSQL ``setval`` idiom, with ``GREATEST`` to take
+    whichever of the two baselines is larger::
 
         SELECT setval('<schema>."<seq>"',
-                      coalesce(max("<col>"), 1),
-                      max("<col>") IS NOT null)
+                      GREATEST(coalesce(max("<col>"), 1), <src_last>),
+                      (max("<col>") IS NOT null) OR (<src_last> > 1))
         FROM <schema>."<table>";
 
-    This ensures the sequence is always at or above the highest existing primary
-    key value, which is the safest baseline regardless of whether we are reading
-    from source or destination.
+    Why both?
+
+    * ``max(<pk_col>)`` on the destination is the safest *minimum* — the next
+      ``nextval()`` must not collide with an existing row.
+    * The source sequence's ``last_value`` is what the source database would
+      have produced on its next ``INSERT``, and is what ``belt diff-sequences``
+      compares against post-sync. Rolled-back inserts, ``ON CONFLICT DO
+      NOTHING`` losers, ``DELETE`` of the highest id, and ``nextval()`` caches
+      all leave ``seq.last_value`` ahead of ``max(pk_col)``, so syncing only
+      from the column max under-shoots the source on every realistic dataset.
+
+    ``src_pk_vals`` maps sequence name to the source's ``last_value`` for that
+    sequence (typically produced by ``dump_sequences`` on the source pool). It
+    is optional for backwards compatibility; when not provided or missing a
+    key, the function falls back to the DST-max-only behavior.
     """
     if not pk_seqs:
         return
+
+    src_pk_vals = src_pk_vals or {}
 
     logger.info(
         f"Setting primary key sequences from table data: {list(pk_seqs.keys())}..."
     )
 
-    sql_parts = []
-    for seq_name, (table_name, col_name) in pk_seqs.items():
-        sql_parts.append(
-            f"SELECT setval('{schema}.\"{seq_name}\"', "
-            f'coalesce(max("{col_name}"), 1), '
-            f'max("{col_name}") IS NOT null) '
-            f'FROM {schema}."{table_name}";'
-        )
-
-    sql = "\n".join(sql_parts)
+    sql = _build_pk_setval_sql(pk_seqs, schema, src_pk_vals)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(sql)
 
     logger.debug(
-        f"Set primary key sequences to max of table data via max(column): {pk_seqs}"
+        "Set primary key sequences via GREATEST(max(pk_col), src.last_value): "
+        f"{pk_seqs} (src_pk_vals={src_pk_vals})"
     )
 
 
@@ -608,9 +647,12 @@ async def analyze_table_pkeys(
         JOIN information_schema.key_column_usage kcu
             ON kcu.constraint_name = tco.constraint_name
             AND kcu.constraint_schema = tco.constraint_schema
-            AND kcu.constraint_name = tco.constraint_name
+        JOIN information_schema.tables tbl
+            ON tbl.table_schema = kcu.table_schema
+            AND tbl.table_name = kcu.table_name
         WHERE tco.constraint_type = 'PRIMARY KEY'
             AND kcu.table_schema = '{schema}'
+            AND tbl.table_type = 'BASE TABLE'
         ORDER BY kcu.table_name,
                 position;
         """

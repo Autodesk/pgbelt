@@ -92,6 +92,20 @@ async def remove_indexes(config_future: Awaitable[DbupgradeConfig]) -> None:
 @run_with_configs(skip_src=True)
 async def create_indexes(
     config_future: Awaitable[DbupgradeConfig],
+    concurrently: bool = Option(
+        False,
+        "--concurrently",
+        help=(
+            "Build each index with CREATE INDEX CONCURRENTLY so the build "
+            "does not take a ShareLock on the table. Use this when the "
+            "destination is already serving live traffic (e.g. a post-cutover "
+            "re-run) or when concurrent writers/replication must not be "
+            "blocked. Wall-clock is roughly 1.5-2x slower than the default "
+            "non-CONCURRENT build under active write load; if a CONCURRENTLY "
+            "build fails midway the index is left invalid and must be dropped "
+            "before retry."
+        ),
+    ),
 ) -> dict[str, Any] | None:
     """
     Creates indexes from the file schemas/dc/db/indexes.sql into the destination
@@ -105,7 +119,7 @@ async def create_indexes(
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "schema.dst")
     index_details = await create_target_indexes_with_details(
-        conf, logger, during_sync=False
+        conf, logger, during_sync=False, concurrently=concurrently
     )
 
     async with create_pool(

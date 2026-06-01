@@ -504,6 +504,7 @@ $ belt create-indexes [OPTIONS] DC [DB]
 **Options**:
 
 * `--json`: Output structured JSON instead of human-readable tables.
+* `--concurrently`: Build each index with CREATE INDEX CONCURRENTLY so the build does not take a ShareLock on the table. Use this when the destination is already serving live traffic (e.g. a post-cutover re-run) or when concurrent writers/replication must not be blocked. Wall-clock is roughly 1.5-2x slower than the default non-CONCURRENT build under active write load; if a CONCURRENTLY build fails midway the index is left invalid and must be dropped before retry.
 * `--help`: Show this message and exit.
 
 ## `belt diff-schemas`
