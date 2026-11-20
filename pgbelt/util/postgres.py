@@ -784,6 +784,7 @@ async def precheck_info(
         WHERE c.relkind IN ('r','p','')
               AND n.nspname <> 'pg_catalog'
               AND n.nspname !~ '^pg_toast'
+              AND n.nspname !~ '^pg_temp_'
               AND n.nspname <> 'information_schema'
               AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
@@ -810,6 +811,7 @@ async def precheck_info(
         WHERE c.relkind IN ('S','')
               AND n.nspname <> 'pg_catalog'
               AND n.nspname !~ '^pg_toast'
+              AND n.nspname !~ '^pg_temp_'
               AND n.nspname <> 'information_schema'
               AND n.nspname <> 'pglogical'
         ORDER BY 1,2;"""
