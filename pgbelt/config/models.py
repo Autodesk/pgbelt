@@ -86,21 +86,21 @@ class DbConfig(BaseModel):
     @property
     def root_uri(self) -> str:
         password = quote(
-            self.root_user.pw
+            self.root_user.pw, safe=""
         )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
         return f"postgresql://{self.root_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
     @property
     def owner_uri(self) -> str:
         password = quote(
-            self.owner_user.pw
+            self.owner_user.pw, safe=""
         )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
         return f"postgresql://{self.owner_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
     @property
     def pglogical_uri(self) -> str:
         password = quote(
-            self.pglogical_user.pw
+            self.pglogical_user.pw, safe=""
         )  # https://github.com/encode/databases/issues/145#issuecomment-1303792343 need this to handle special characters
         return f"postgresql://{self.pglogical_user.name}:{password}@{self.ip}:{self.port}/{self.db}"
 
