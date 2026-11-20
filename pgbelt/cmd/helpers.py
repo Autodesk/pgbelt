@@ -14,6 +14,7 @@ from typing import TypeVar
 
 from pgbelt.config import get_all_configs_async
 from pgbelt.config import get_config_async
+from pgbelt.config.models import DbupgradeConfig
 from pgbelt.models.base import CommandError
 from pgbelt.models.base import CommandResult
 from pgbelt.models.connectivity import ConnectivityCheckResult
@@ -100,6 +101,7 @@ def _build_status_result(results: list[dict], base_kwargs: dict) -> StatusResult
         rows.append(
             StatusRow(
                 db=r.get("db", ""),
+                schema_name=r.get("schema"),
                 forward_replication=r.get("pg1_pg2", "unconfigured"),
                 back_replication=r.get("pg2_pg1", "unconfigured"),
                 lag=lag,
@@ -454,11 +456,32 @@ def _build_json_output(
     return result.model_dump_json(indent=2)
 
 
+async def _ready(config: Optional[DbupgradeConfig]) -> Optional[DbupgradeConfig]:
+    return config
+
+
+async def _run_per_schema(
+    func: Callable[..., Awaitable[T]],
+    config_future: Awaitable[Optional[DbupgradeConfig]],
+    expand_schemas: bool,
+    kwargs: dict,
+) -> list[T]:
+    """
+    Run func once, or once per schema in parallel when the config lists schema_names.
+    """
+    config = await config_future
+    configs = (
+        config.expand_schemas() if expand_schemas and config is not None else [config]
+    )
+    return await gather(*[func(_ready(c), **kwargs) for c in configs])
+
+
 def run_with_configs(
     decorated_func: Callable[..., Awaitable[Optional[T]]] = None,
     skip_src: bool = False,
     skip_dst: bool = False,
     results_callback: Optional[Callable[[list[T]], Awaitable[Optional[Any]]]] = None,
+    expand_schemas: bool = True,
 ) -> Callable:
     """
     Decorator for async commands. Implementations should take one Awaitable[DbupgradeConfig] arg
@@ -468,6 +491,9 @@ def run_with_configs(
 
     You may also provide a callback that will be called on the results of the command. Useful
     for displaying the output of interrogative commands.
+
+    A config with schema_names is run once per schema, in parallel. Commands that act on
+    the whole database rather than a schema should pass expand_schemas=False.
 
     When the caller passes json_mode=True the results_callback is skipped and structured
     JSON is printed to stdout instead.
@@ -496,23 +522,26 @@ def run_with_configs(
 
             try:
                 if db is not None:
-                    results = [
-                        await func(
+                    per_config = [
+                        await _run_per_schema(
+                            func,
                             get_config_async(
                                 db, dc, skip_src=skip_src, skip_dst=skip_dst
                             ),
-                            **kwargs,
+                            expand_schemas,
+                            kwargs,
                         )
                     ]
                 else:
-                    results = await gather(
+                    per_config = await gather(
                         *[
-                            func(fut, **kwargs)
+                            _run_per_schema(func, fut, expand_schemas, kwargs)
                             async for fut in get_all_configs_async(
                                 dc, skip_src=skip_src, skip_dst=skip_dst
                             )
                         ]
                     )
+                results = [r for rs in per_config for r in rs]
             except Exception as e:
                 if json_mode:
                     duration_ms = int((time.monotonic() - t0) * 1000)

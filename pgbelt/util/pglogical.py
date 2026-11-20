@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from logging import Logger
 
 from asyncpg import Pool
@@ -8,7 +10,28 @@ from asyncpg.exceptions import InvalidSchemaNameError
 from asyncpg.exceptions import ObjectNotInPrerequisiteStateError
 from asyncpg.exceptions import UndefinedFunctionError
 from asyncpg.exceptions import UndefinedObjectError
+from asyncpg.exceptions import UndefinedTableError
 from asyncpg.exceptions import UniqueViolationError
+
+# Key for the advisory lock that serializes changes to the objects every pgbelt
+# migration in a database shares: the pglogical role, extension and node.
+SHARED_OBJECTS_LOCK_KEY = 7_406_171_123
+
+
+@asynccontextmanager
+async def shared_objects_lock(pool: Pool) -> AsyncIterator[None]:
+    """
+    Hold a session advisory lock while changing shared pglogical objects, so
+    migrations for different schemas in the same database can run in parallel.
+    """
+    async with pool.acquire() as conn:
+        await conn.execute("SELECT pg_advisory_lock($1);", SHARED_OBJECTS_LOCK_KEY)
+        try:
+            yield
+        finally:
+            await conn.execute(
+                "SELECT pg_advisory_unlock($1);", SHARED_OBJECTS_LOCK_KEY
+            )
 
 
 async def configure_pgl(
@@ -18,6 +41,13 @@ async def configure_pgl(
     Set up the pglogical role, grant it superuser and replication, create
     the extension and grant USAGE to its schema to the owner user.
     """
+    async with shared_objects_lock(pool):
+        await _configure_pgl(pool, pgl_pw, logger, owner_user)
+
+
+async def _configure_pgl(
+    pool: Pool, pgl_pw: str, logger: Logger, owner_user: str
+) -> None:
     logger.info("Creating pglogical user and extension...")
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -93,62 +123,90 @@ async def grant_pgl(pool: Pool, tables: list[str], schema: str, logger: Logger) 
 
 
 async def configure_replication_set(
-    pool: Pool, tables: list[str], schema: str, logger: Logger
+    pool: Pool,
+    tables: list[str],
+    schema: str,
+    logger: Logger,
+    set_name: str = "pgbelt",
 ) -> None:
     """
-    Add each table in the given list to the default replication set
+    Add each table in the given list to the named replication set
     """
-    logger.info("Creating new replication set 'pgbelt'")
+    logger.info(f"Creating new replication set '{set_name}'")
     async with pool.acquire() as conn:
         try:
-            await conn.execute("SELECT pglogical.create_replication_set('pgbelt');")
-            logger.debug("Created the 'pgbelt' replication set")
+            await conn.execute(
+                f"SELECT pglogical.create_replication_set('{set_name}');"
+            )
+            logger.debug(f"Created the '{set_name}' replication set")
         except Exception as e:
-            logger.debug(f"Could not create replication set 'pgbelt': {e}")
+            logger.debug(f"Could not create replication set '{set_name}': {e}")
 
     logger.info(
-        f"Configuring 'pgbelt' replication set with tables from schema {schema}: {tables}"
+        f"Configuring '{set_name}' replication set with tables from schema {schema}: {tables}"
     )
     for table in tables:
         async with pool.acquire() as conn:
             async with conn.transaction():
                 try:
                     await conn.execute(
-                        f"SELECT pglogical.replication_set_add_table('pgbelt', '\"{schema}\".\"{table}\"');"
+                        f"SELECT pglogical.replication_set_add_table('{set_name}', '\"{schema}\".\"{table}\"');"
                     )
                     logger.debug(
-                        f"Table '{table}' added to 'pgbelt' replication set from schema {schema}"
+                        f"Table '{table}' added to '{set_name}' replication set from schema {schema}"
                     )
                 except UniqueViolationError:
                     logger.debug(
-                        f"Table '{table}' already in 'pgbelt' replication set from schema {schema}"
+                        f"Table '{table}' already in '{set_name}' replication set from schema {schema}"
                     )
 
 
 async def configure_node(pool: Pool, name: str, dsn: str, logger: Logger) -> None:
     """
-    Set up a pglogical node
+    Set up a pglogical node. pglogical allows one node per database, so every
+    migration in a database shares it.
     """
     logger.info(f"Configuring node {name}...")
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            try:
-                await conn.execute(
-                    f"""SELECT pglogical.create_node(
-                        node_name:='{name}',
-                        dsn:='{dsn}'
-                    );"""
-                )
-                logger.debug(f"Node {name} created")
-            except InternalServerError as e:
-                if f"node {name} already exists" in str(e):
-                    logger.debug(f"Node {name} already exists")
-                else:
-                    raise e
+    async with shared_objects_lock(pool):
+        if await local_node_name(pool) == name:
+            logger.debug(f"Node {name} already exists")
+            return
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                try:
+                    await conn.execute(
+                        f"""SELECT pglogical.create_node(
+                            node_name:='{name}',
+                            dsn:='{dsn}'
+                        );"""
+                    )
+                    logger.debug(f"Node {name} created")
+                except InternalServerError as e:
+                    if f"node {name} already exists" in str(e):
+                        logger.debug(f"Node {name} already exists")
+                    else:
+                        raise e
+
+
+async def local_node_name(pool: Pool) -> str | None:
+    """
+    Name of this database's pglogical node, or None if it has none.
+    """
+    try:
+        return await pool.fetchval(
+            """SELECT n.node_name FROM pglogical.local_node l
+            JOIN pglogical.node n ON n.node_id = l.node_id;"""
+        )
+    except (InvalidSchemaNameError, UndefinedTableError):
+        return None
 
 
 async def configure_subscription(
-    pool: Pool, name: str, provider_dsn: str, logger: Logger
+    pool: Pool,
+    name: str,
+    provider_dsn: str,
+    logger: Logger,
+    replication_set: str = "pgbelt",
 ) -> None:
     """
     Set up a subscription
@@ -160,7 +218,7 @@ async def configure_subscription(
                 await conn.execute(
                     f"""SELECT pglogical.create_subscription(
                         subscription_name:='{name}',
-                        replication_sets:='{{pgbelt}}',
+                        replication_sets:='{{{replication_set}}}',
                         provider_dsn:='{provider_dsn}',
                         synchronize_structure:=false,
                         synchronize_data:={'true' if name.startswith('pg1') else 'false'},
@@ -205,22 +263,26 @@ async def teardown_node(pool: Pool, name: str, logger: Logger) -> None:
                 logger.debug(f"Node {name} does not exist")
 
 
-async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
+async def teardown_replication_set(
+    pool: Pool, logger: Logger, set_name: str = "pgbelt"
+) -> None:
     """
     Tear down the replication_set
     """
-    logger.info("Dropping replication set 'pgbelt'...")
+    logger.info(f"Dropping replication set '{set_name}'...")
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
-                await conn.execute("SELECT pglogical.drop_replication_set('pgbelt');")
-                logger.debug("Replication set 'pgbelt' dropped")
+                await conn.execute(
+                    f"SELECT pglogical.drop_replication_set('{set_name}');"
+                )
+                logger.debug(f"Replication set '{set_name}' dropped")
             except (
                 InvalidSchemaNameError,
                 UndefinedFunctionError,
                 InternalServerError,
             ):
-                logger.debug("Replication set 'pgbelt' does not exist")
+                logger.debug(f"Replication set '{set_name}' does not exist")
             except ObjectNotInPrerequisiteStateError:
                 logger.debug(
                     "pglogical node was already dropped, so we can't drop the replication set. This is okay, keep going."
@@ -228,10 +290,15 @@ async def teardown_replication_set(pool: Pool, logger: Logger) -> None:
 
 
 async def revoke_pgl(
-    pool: Pool, tables: list[str], schema: str, logger: Logger
+    pool: Pool,
+    tables: list[str],
+    schema: str,
+    logger: Logger,
+    drop_role: bool = True,
 ) -> None:
     """
     Revoke data access permissions from pglogical, and drop the pglogical role
+    unless drop_role is False
     """
     logger.info("Revoking data access permissions from pglogical...")
     async with pool.acquire() as conn:
@@ -249,6 +316,9 @@ async def revoke_pgl(
                     logger.debug("pglogical does not exist")
                 else:
                     raise e
+
+    if not drop_role:
+        return
 
     logger.info("Dropping pglogical role...")
     async with pool.acquire() as conn:
@@ -292,19 +362,58 @@ async def cleanup_all_pglogical(
     await revoke_pgl(pool, tables, schema, logger)
 
 
-async def subscription_status(pool: Pool, logger: Logger) -> str:
+async def cleanup_leftover_pglogical(
+    pool: Pool, node_name: str, tables: list[str], schema: str, logger: Logger
+) -> None:
     """
-    Get the status of a subscription. Assumes one subscription in a db.
+    Cleanup for a migration that may share its database with other migrations.
+    Removes everything only if the node was left by a previous migration where this
+    database played the other role. Otherwise the shared node and the objects of
+    migrations already running are left alone, and setup reuses them.
+    """
+    async with shared_objects_lock(pool):
+        leftover = await local_node_name(pool)
+        if leftover is not None and leftover != node_name:
+            logger.info(f"Found node {leftover} from a previous migration")
+            await cleanup_all_pglogical(pool, tables, schema, logger)
+
+
+async def teardown_shared_pglogical(
+    pool: Pool, node_name: str, tables: list[str], schema: str, logger: Logger
+) -> bool:
+    """
+    Revoke this migration's grants, then drop the node and the pglogical role once
+    no pgbelt replication set, subscription or pglogical grant is left in the
+    database. Migrations torn down in parallel take turns under the lock, so the
+    last one drops them. Returns True if they were dropped.
+    """
+    async with shared_objects_lock(pool):
+        await revoke_pgl(pool, tables, schema, logger, drop_role=False)
+        if await pgbelt_objects_remaining(pool) or await pglogical_grants_remaining(
+            pool
+        ):
+            logger.info(
+                f"Other pgbelt migrations still use node {node_name}, keeping it"
+            )
+            return False
+        await teardown_node(pool, node_name, logger)
+        await revoke_pgl(pool, tables, schema, logger)
+        return True
+
+
+async def subscription_status(pool: Pool, logger: Logger, name: str) -> str:
+    """
+    Get the status of the named subscription.
     Status can be initializing, replicating, down, or unconfigured.
     """
-    logger.debug("checking subscription status")
+    logger.debug(f"checking subscription {name} status")
     try:
-        subscription_data = await pool.fetchval(
-            "SELECT pglogical.show_subscription_status();"
+        status = await pool.fetchval(
+            """SELECT status FROM pglogical.show_subscription_status()
+            WHERE subscription_name = $1;""",
+            name,
         )
-        if not subscription_data:
-            return "unconfigured"
-        return subscription_data[1]
+        return status or "unconfigured"
     except (
         InvalidSchemaNameError,
         UndefinedFunctionError,
@@ -313,12 +422,43 @@ async def subscription_status(pool: Pool, logger: Logger) -> str:
         return "unconfigured"
 
 
-async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
+async def pgbelt_objects_remaining(pool: Pool) -> int:
+    """
+    Count the pgbelt replication sets and subscriptions left in a database. The
+    shared node, role and extension should only be dropped once this is zero.
+    """
+    try:
+        return await pool.fetchval("""SELECT
+                (SELECT count(*) FROM pglogical.replication_set
+                    WHERE set_name LIKE 'pgbelt%')
+                + (SELECT count(*) FROM pglogical.subscription
+                    WHERE sub_name LIKE 'pg1\\_pg2%' OR sub_name LIKE 'pg2\\_pg1%');""")
+    except (InvalidSchemaNameError, UndefinedTableError):
+        return 0
+
+
+async def pglogical_grants_remaining(pool: Pool) -> int:
+    """
+    Count the tables and sequences in this database the pglogical role still has
+    privileges on, for example from other schemas still being migrated.
+    """
+    return await pool.fetchval(
+        """SELECT count(*) FROM pg_class c, aclexplode(c.relacl) a
+        WHERE a.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'pglogical');"""
+    )
+
+
+async def src_status(
+    pool: Pool,
+    logger: Logger,
+    forward_subscription: str = "pg1_pg2",
+    back_subscription: str = "pg2_pg1",
+) -> dict[str, str]:
     """
     Get the status of the back replication subscription and the forward replication lag
     """
     logger.info("checking source status...")
-    status = {"pg2_pg1": await subscription_status(pool, logger)}
+    status = {"pg2_pg1": await subscription_status(pool, logger, back_subscription)}
 
     server_version = await pool.fetchval("SHOW server_version;")
 
@@ -331,7 +471,8 @@ async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
                 pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.write_location) AS write_location_lag,
                 pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.flush_location) AS flush_location_lag,
                 pg_xlog_location_diff(pg_current_xlog_location(), pg_stat_replication.replay_location) AS replay_location_lag
-                FROM pg_stat_replication WHERE application_name = 'pg1_pg2';"""
+                FROM pg_stat_replication WHERE application_name = $1;""",
+            forward_subscription,
         )
     else:
         lag_data = await pool.fetchrow(
@@ -341,7 +482,8 @@ async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
                 pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.write_lsn) AS write_location_lag,
                 pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.flush_lsn) AS flush_location_lag,
                 pg_wal_lsn_diff(pg_current_wal_lsn(), pg_stat_replication.replay_lsn) AS replay_location_lag
-                FROM pg_stat_replication WHERE application_name = 'pg1_pg2';"""
+                FROM pg_stat_replication WHERE application_name = $1;""",
+            forward_subscription,
         )
 
     status["sent_lag"] = str(lag_data[2]) if lag_data else "unknown"
@@ -352,9 +494,11 @@ async def src_status(pool: Pool, logger: Logger) -> dict[str, str]:
     return status
 
 
-async def dst_status(pool: Pool, logger: Logger) -> dict[str, str]:
+async def dst_status(
+    pool: Pool, logger: Logger, forward_subscription: str = "pg1_pg2"
+) -> dict[str, str]:
     """
     Get the status of the forward replication subscription
     """
     logger.info("checking target status...")
-    return {"pg1_pg2": await subscription_status(pool, logger)}
+    return {"pg1_pg2": await subscription_status(pool, logger, forward_subscription)}

@@ -6,6 +6,7 @@ from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is f
 from aiofiles import open as aopen
 from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
+from pgbelt.config.models import reject_schema_name
 from pgbelt.util.logs import get_logger
 from pydantic import BaseModel
 from pydantic import ValidationError
@@ -47,12 +48,14 @@ class RemoteConfigDefinition(BaseModel):
 
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
-    schema_name: Optional[str] = "public"
+    schema_names: list[str] = ["public"]
     exclude_users: Optional[list[str]] = None
     exclude_patterns: Optional[list[str]] = None
 
     class Config:
         extra = "allow"
+
+    _reject_schema_name = model_validator(mode="before")(reject_schema_name)
 
     @model_validator(mode="after")
     def validate_resolver_paths(self):
@@ -258,7 +261,7 @@ async def _resolve_per_side(
             dst=dst,
             tables=definition.tables,
             sequences=definition.sequences,
-            schema_name=definition.schema_name,
+            schema_names=definition.schema_names,
             exclude_users=definition.exclude_users,
             exclude_patterns=definition.exclude_patterns,
         )

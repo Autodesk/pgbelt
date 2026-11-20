@@ -190,8 +190,14 @@ async def _discover_extension_tables(
     Return the extension-owned tables to copy, for example spatial_ref_sys
     (PostGIS) or apg_plan_mgmt.plans (Aurora QPM). They're found in every
     schema, not only the migration's. When the config has a table list, only
-    the extension tables named in it are returned.
+    the extension tables named in it are returned. Of the migrations expanded
+    from schema_names, only the first schema's copies them.
     """
+    if not conf.copies_extension_tables:
+        logger.info(
+            "Skipping extension tables: the first schema's migration copies them."
+        )
+        return []
     ext_tables = await get_extension_tables(src_pool, logger)
     if conf.tables:
         ext_tables = _filter_extension_tables(ext_tables, conf.tables)
@@ -233,6 +239,8 @@ async def sync_tables(
                 f"{t['schema']}.{t['name']}" for t in ext_tables
             }
             tables = [t for t in table if t not in ext_names]
+            if not conf.copies_extension_tables:
+                ext_tables = []
         else:
             discovery_mode = "auto"
             _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)

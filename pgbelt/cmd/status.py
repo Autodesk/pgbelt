@@ -30,12 +30,13 @@ async def _print_status_table(results: list[dict[str, str]]) -> list[list[str]]:
         ]
     ]
 
-    results.sort(key=lambda d: d["db"])
+    results.sort(key=lambda d: (d["db"], d.get("schema", "")))
 
     for r in results:
+        db = f"{r['db']} ({r['schema']})" if r.get("schema") else r["db"]
         table.append(
             [
-                style(r["db"], "green"),
+                style(db, "green"),
                 style(
                     r["pg1_pg2"], "green" if r["pg1_pg2"] == "replicating" else "red"
                 ),
@@ -101,8 +102,13 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
 
     try:
         result = await gather(
-            src_status(src_pool, src_logger),
-            dst_status(dst_pool, dst_logger),
+            src_status(
+                src_pool,
+                src_logger,
+                conf.forward_subscription,
+                conf.back_subscription,
+            ),
+            dst_status(dst_pool, dst_logger, conf.forward_subscription),
             initialization_progress(
                 target_tables,
                 conf.schema_name,
@@ -116,6 +122,8 @@ async def status(conf_future: Awaitable[DbupgradeConfig]) -> dict[str, str]:
 
         result[0].update(result[1])
         result[0]["db"] = conf.db
+        if conf.migration_id:
+            result[0]["schema"] = conf.schema_name
 
         # We should hide the progress in the following cases:
         # 1. When src -> dst is replicating and dst -> src is any state (replicating, unconfigured, down)

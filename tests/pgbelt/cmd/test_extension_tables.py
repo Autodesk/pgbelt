@@ -462,6 +462,50 @@ class TestSyncDiscovery:
         assert found == [SPATIAL_REF_SYS, QPM_PLANS]
 
     @pytest.mark.asyncio
+    async def test_schema_names_copy_extension_tables_once(self, config, logger):
+        config.schema_names = ["app", "audit", "reports"]
+        with patch(
+            "pgbelt.cmd.sync.get_extension_tables",
+            new=AsyncMock(return_value=[SPATIAL_REF_SYS, QPM_PLANS]),
+        ):
+            found = [
+                await sync_cmd._discover_extension_tables(m, None, logger)
+                for m in config.expand_schemas()
+            ]
+        assert found == [[SPATIAL_REF_SYS, QPM_PLANS], [], []]
+
+    @pytest.mark.asyncio
+    async def test_sync_tables_explicit_skips_extension_tables_after_first_schema(
+        self, config
+    ):
+        config.schema_names = ["app", "audit"]
+        _, second = config.expand_schemas()
+
+        async def _config_future():
+            return second
+
+        pool = _FakePool("src")
+        dump_regular = AsyncMock(return_value=[])
+        load_ext = AsyncMock(return_value=[])
+        with (
+            patch("pgbelt.cmd.sync.create_pool", new=lambda *a, **k: pool),
+            patch(
+                "pgbelt.cmd.sync.get_extension_tables",
+                new=AsyncMock(return_value=[SPATIAL_REF_SYS, QPM_PLANS]),
+            ),
+            patch(
+                "pgbelt.cmd.sync.dump_and_load_tables_with_details", new=dump_regular
+            ),
+            patch("pgbelt.cmd.sync.load_extension_tables_with_details", new=load_ext),
+        ):
+            await sync_cmd.sync_tables.__wrapped__(
+                _config_future(), table=["nopk", "apg_plan_mgmt.plans"]
+            )
+
+        assert dump_regular.await_args.args[1] == ["nopk"]
+        assert load_ext.await_args.args[1] == []
+
+    @pytest.mark.asyncio
     async def test_sync_tables_auto_includes_extension_tables(self, config):
         async def _config_future():
             return config

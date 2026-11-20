@@ -56,6 +56,18 @@ services:
       datacenter:
         ipv4_address: 10.5.0.12
 
+  db-src-set-multi-schema-full:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.13
+
+  db-dst-set-multi-schema-full:
+    <<: *db
+    networks:
+      datacenter:
+        ipv4_address: 10.5.0.14
+
   flake8:
     image: autodesk/pgbelt:latest
     command: poetry run flake8
@@ -79,6 +91,8 @@ services:
       PUBLIC_EXODUS_DST_IP: 10.5.0.10
       NONPUBLIC_EXODUS_SRC_IP: 10.5.0.11
       NONPUBLIC_EXODUS_DST_IP: 10.5.0.12
+      MULTISCHEMA_FULL_SRC_IP: 10.5.0.13
+      MULTISCHEMA_FULL_DST_IP: 10.5.0.14
     command: poetry run pytest -v --cov=pgbelt tests/
     depends_on:
       db-src-set-public-schema-full:
@@ -97,6 +111,10 @@ services:
         condition: service_healthy
       db-dst-set-non-public-schema-exodus:
         condition: service_healthy
+      db-src-set-multi-schema-full:
+        condition: service_healthy
+      db-dst-set-multi-schema-full:
+        condition: service_healthy
     networks:
       - datacenter
 
@@ -111,6 +129,8 @@ services:
       PUBLIC_EXODUS_DST_IP: 10.5.0.10
       NONPUBLIC_EXODUS_SRC_IP: 10.5.0.11
       NONPUBLIC_EXODUS_DST_IP: 10.5.0.12
+      MULTISCHEMA_FULL_SRC_IP: 10.5.0.13
+      MULTISCHEMA_FULL_DST_IP: 10.5.0.14
     command: bash -c "cd /pgbelt-volume/ && poetry run python3 tests/integration/conftest.py --non-public-schema && pip3 install -e . && bash"
     depends_on:
       db-src-set-public-schema-full:
@@ -128,6 +148,10 @@ services:
       db-src-set-non-public-schema-exodus:
         condition: service_healthy
       db-dst-set-non-public-schema-exodus:
+        condition: service_healthy
+      db-src-set-multi-schema-full:
+        condition: service_healthy
+      db-dst-set-multi-schema-full:
         condition: service_healthy
     networks:
       - datacenter

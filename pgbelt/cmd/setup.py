@@ -11,6 +11,7 @@ from pgbelt.util.dump import apply_target_schema
 from pgbelt.util.dump import dump_source_schema
 from pgbelt.util.logs import get_logger
 from pgbelt.util.pglogical import cleanup_all_pglogical
+from pgbelt.util.pglogical import cleanup_leftover_pglogical
 from pgbelt.util.pglogical import configure_node
 from pgbelt.util.pglogical import configure_pgl
 from pgbelt.util.pglogical import configure_replication_set
@@ -54,7 +55,11 @@ async def _setup_src_node(
         )
 
     await configure_replication_set(
-        src_root_pool, pglogical_tables, conf.schema_name, src_logger
+        src_root_pool,
+        pglogical_tables,
+        conf.schema_name,
+        src_logger,
+        conf.replication_set,
     )
 
 
@@ -87,9 +92,16 @@ async def setup(
         # Clean up any pglogical artifacts from a previous migration on the source.
         # This handles the case where the source was previously a destination in an
         # earlier migration and still has leftover pglogical configuration.
-        await cleanup_all_pglogical(
-            src_root_pool, conf.tables, conf.schema_name, src_logger
-        )
+        # Per-schema migrations share the database with each other, so they keep
+        # the shared node.
+        if conf.migration_id:
+            await cleanup_leftover_pglogical(
+                src_root_pool, "pg1", conf.tables, conf.schema_name, src_logger
+            )
+        else:
+            await cleanup_all_pglogical(
+                src_root_pool, conf.tables, conf.schema_name, src_logger
+            )
 
         # Configure Source for pglogical (before we can configure the plugin)
         await configure_pgl(
@@ -129,7 +141,11 @@ async def setup(
         # The source node must be set up before we create a subscription
         await src_node_task
         await configure_subscription(
-            dst_root_pool, "pg1_pg2", conf.src.pglogical_dsn, dst_logger
+            dst_root_pool,
+            conf.forward_subscription,
+            conf.src.pglogical_dsn,
+            dst_logger,
+            conf.replication_set,
         )
     finally:
         await gather(*[p.close() for p in pools])
@@ -165,10 +181,18 @@ async def setup_back_replication(config_future: Awaitable[DbupgradeConfig]) -> N
             pglogical_tables = [t for t in pkeys if t in conf.tables]
 
         await configure_replication_set(
-            dst_root_pool, pglogical_tables, conf.schema_name, dst_logger
+            dst_root_pool,
+            pglogical_tables,
+            conf.schema_name,
+            dst_logger,
+            conf.replication_set,
         )
         await configure_subscription(
-            src_root_pool, "pg2_pg1", conf.dst.pglogical_dsn, src_logger
+            src_root_pool,
+            conf.back_subscription,
+            conf.dst.pglogical_dsn,
+            src_logger,
+            conf.replication_set,
         )
     finally:
         await gather(*[p.close() for p in pools])

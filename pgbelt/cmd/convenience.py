@@ -90,13 +90,14 @@ def check_pkeys(db: str, dc: str) -> None:
     """
     conf = get_config(db, dc, skip_src=True)
     logger = get_logger(db, dc, "convenience.src")
-    pkeys, no_pkeys = run(_check_pkeys(conf, logger))
-    echo(
-        f"""Analyzed table pkeys for {db} in {dc}:
+    for schema_conf in conf.expand_schemas():
+        pkeys, no_pkeys = run(_check_pkeys(schema_conf, logger))
+        echo(
+            f"""Analyzed table pkeys for {db} ({schema_conf.schema_name}) in {dc}:
         has pkey: {pkeys}
         no pkey: {no_pkeys}
         """
-    )
+        )
 
 
 _CHECK_COLUMNS = [
@@ -339,7 +340,7 @@ def _fill_skipped(checks: dict[str, bool], errors: dict[str, str]) -> None:
             errors[check] = f"skipped: {' and '.join(failed)} failed"
 
 
-@run_with_configs(results_callback=_print_connectivity_results)
+@run_with_configs(results_callback=_print_connectivity_results, expand_schemas=False)
 async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     """
     Returns exit code 0 if pgbelt can connect to all databases in a datacenter

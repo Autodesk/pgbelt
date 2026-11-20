@@ -51,7 +51,7 @@ async def _print_connections_table(results: list[dict[str, str]]) -> list[list[s
     return table
 
 
-@run_with_configs(results_callback=_print_connections_table)
+@run_with_configs(results_callback=_print_connections_table, expand_schemas=False)
 async def connections(
     conf_future: Awaitable[DbupgradeConfig],
     exclude_users: list[str] = Option(
