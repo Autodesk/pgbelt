@@ -81,6 +81,9 @@ Fill in config.json with the required info (marked in `<>`), referring to this e
   "exclude_users": null,
   "exclude_patterns": null
   // Optional key: "schema_name": "<someschema>". If the key isn't specified, the default will be "public". Schema name must be the same in source and destination DBs.
+  // Optional key: "schema_names": ["<schema1>", "<schema2>"] migrates several schemas in parallel, one migration per schema. It replaces
+  // "schema_name" and can't be combined with "tables" or "sequences". The schemas share the database's pglogical node, and each gets
+  // its own replication set and subscriptions. Commands that act on the whole database, like revoke-logins, still run once.
   // Optional keys: "exclude_users" and "exclude_patterns" let you specify usernames
   // and SQL LIKE patterns that should be excluded from login revocation and connection
   // counts. CLI flags --exclude-user / --exclude-pattern are additive to these.

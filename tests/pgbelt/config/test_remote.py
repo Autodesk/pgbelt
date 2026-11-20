@@ -245,6 +245,20 @@ class TestResolvePerSide:
         assert config.exclude_users == ["dd"]
         assert config.exclude_patterns == ["%rep%"]
 
+    def test_schema_names_pass_through(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        self._write_config(tmp_path, "mydb", "mydc", {
+            "src_resolver_path": f"{__name__}.FakeSrcResolver",
+            "src_resolver_config": {"app": "a", "pgrs_path": "/p"},
+            "dst_resolver_path": f"{__name__}.FakeDstResolver",
+            "dst_resolver_config": {"secret_arn": "arn:x"},
+            "schema_names": ["app", "audit"],
+        })
+
+        config = asyncio.run(resolve_remote_config("mydb", "mydc"))
+        assert config.schema_names == ["app", "audit"]
+        assert [m.schema_name for m in config.expand_schemas()] == ["app", "audit"]
+
 
 class TestLegacyBackwardCompat:
     def _write_config(self, tmp_path, db, dc, config_dict):

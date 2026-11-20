@@ -20,6 +20,7 @@ class StatusRow(BaseModel):
     """Replication status for a single database pair."""
 
     db: str
+    schema_name: Optional[str] = None  # set for migrations expanded from schema_names
     forward_replication: str  # "unconfigured" | "initializing" | "replicating" | "down"
     back_replication: str  # "unconfigured" | "initializing" | "replicating" | "down"
     lag: Optional[ReplicationLag] = None
