@@ -32,3 +32,6 @@ RUN echo "wal_level = 'logical'" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "max_wal_senders = 20" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "max_replication_slots = 20" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "max_worker_processes = 20" >> /usr/share/postgresql/postgresql.conf.sample
+# PostgreSQL 16.15+ (CVE-2026-6471) only allows trusted logical output plugins,
+# defaulting to 'pgoutput, test_decoding'. pglogical needs pglogical_output.
+RUN echo "output_plugin_libraries = 'pgoutput, test_decoding, pglogical_output'" >> /usr/share/postgresql/postgresql.conf.sample

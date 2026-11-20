@@ -12,6 +12,8 @@ from pgbelt.config.models import DbupgradeConfig
 
 import asyncio
 
+STATUS_TIMEOUT_SECONDS = 120
+
 from asyncpg import create_pool
 
 import pgbelt
@@ -27,28 +29,55 @@ async def _check_status(
     dc = list(configs.values())[0].dc
     num_configs = len(configs.keys())
 
-    # Sleep 1, repeat until target status is seen.
+    # Sleep 1, repeat until target status is seen or we time out.
+    # Previously this loop only ever looked at the first row and then exited
+    # silently, so the test never really waited on replication state.
     pgbelt.cmd.status.echo = Mock()
-    status_reached = False
-    i = 4
-    while not status_reached and i > 0:
+    status_echo_call_arg = ""
+    for _ in range(STATUS_TIMEOUT_SECONDS):
         sleep(1)
         await pgbelt.cmd.status.status(db=None, dc=dc)
 
         status_echo_call_arg = pgbelt.cmd.status.echo.call_args[0][0]
 
-        # Regex for the two columns to be in the correct state
+        # Regex for the two columns to be in the correct state, matched against
+        # every row of the table (one row per config).
         matches = re.findall(
             rf"^\S+\s+\S+{src_dst_status}\S+\s+\S+{dst_src_status}.*",
-            status_echo_call_arg.split("\n")[2],
+            status_echo_call_arg,
+            re.MULTILINE,
         )
         if len(matches) == num_configs:
-            status_reached = True
-        elif i > 0:
-            i = i - 1
+            return
+
+    raise AssertionError(
+        f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_configs} configs. Ended with: {status_echo_call_arg}"
+    )
+
+
+async def _wait_for_initial_sync(configs: dict[str, DbupgradeConfig]):
+    """
+    pglogical reports a subscription as "replicating" as soon as the apply worker
+    runs, while individual tables may still be in their initial copy. Wait until
+    every table in pglogical.local_sync_status on the destination is ready ('r'),
+    so later steps (e.g. tearing down forward replication) don't race the copy.
+    """
+    for setname, conf in configs.items():
+        assert conf.dst is not None, f"{setname} has no destination config"
+        pending: list = []
+        for _ in range(STATUS_TIMEOUT_SECONDS):
+            async with create_pool(conf.dst.root_uri, min_size=1) as pool:
+                pending = await pool.fetch(
+                    "SELECT sync_nspname, sync_relname, sync_status "
+                    "FROM pglogical.local_sync_status WHERE sync_status <> 'r';"
+                )
+            if not pending:
+                break
+            await asyncio.sleep(1)
         else:
             raise AssertionError(
-                f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_configs} configs. Ended with: {status_echo_call_arg}"
+                f"Timed out waiting for pglogical initial sync on {setname}. "
+                f"Not ready: {[tuple(r) for r in pending]}"
             )
 
 
@@ -99,6 +128,7 @@ async def _test_setup(configs: dict[str, DbupgradeConfig]):
                 ), f"Non-unique index found in destination after setup for {setname}: {c}"
 
     await _check_status(configs, "replicating", "unconfigured")
+    await _wait_for_initial_sync(configs)
 
 
 async def _test_setup_back_replication(configs: dict[str, DbupgradeConfig]):
