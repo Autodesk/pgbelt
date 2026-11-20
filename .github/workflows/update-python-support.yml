@@ -2,8 +2,25 @@ name: Update Python support
 
 on:
   schedule:
-    - cron: "0 10 * * 1"
+    # Daily, so the PR branch is regularly rebuilt on top of the latest main.
+    - cron: "0 10 * * *"
+  push:
+    # Rebuild the PR right away when files it touches change on main,
+    # so it never sits with merge conflicts.
+    branches:
+      - main
+    paths:
+      - pyproject.toml
+      - poetry.lock
+      - Makefile
+      - .github/workflows/ci.yml
+      - .github/workflows/update-python-support.yml
+      - .github/scripts/update_python_support.py
   workflow_dispatch:
+
+concurrency:
+  group: update-python-support
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -17,6 +34,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
+        with:
+          # create-pull-request can't authenticate ("could not read Username")
+          # with checkout's default GITHUB_TOKEN credentials since checkout v6.
+          token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v7.0.0
