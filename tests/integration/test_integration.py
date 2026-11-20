@@ -30,8 +30,8 @@ async def _check_status(
     num_configs = len(configs.keys())
 
     # Sleep 1, repeat until target status is seen or we time out.
-    # Previously this loop exited silently after 4 tries, so a slow pglogical
-    # start let the test continue (and tear down replication) too early.
+    # Previously this loop only ever looked at the first row and then exited
+    # silently, so the test never really waited on replication state.
     pgbelt.cmd.status.echo = Mock()
     status_echo_call_arg = ""
     for _ in range(STATUS_TIMEOUT_SECONDS):
@@ -40,10 +40,12 @@ async def _check_status(
 
         status_echo_call_arg = pgbelt.cmd.status.echo.call_args[0][0]
 
-        # Regex for the two columns to be in the correct state
+        # Regex for the two columns to be in the correct state, matched against
+        # every row of the table (one row per config).
         matches = re.findall(
             rf"^\S+\s+\S+{src_dst_status}\S+\s+\S+{dst_src_status}.*",
-            status_echo_call_arg.split("\n")[2],
+            status_echo_call_arg,
+            re.MULTILINE,
         )
         if len(matches) == num_configs:
             return
