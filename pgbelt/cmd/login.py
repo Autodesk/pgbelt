@@ -85,7 +85,7 @@ def _filter_roles(
     ]
 
 
-@run_with_configs(skip_dst=True)
+@run_with_configs(skip_dst=True, expand_schemas=False)
 async def revoke_logins(
     config_future: Awaitable[DbupgradeConfig],
     exclude_users: list[str] = Option(
@@ -132,7 +132,7 @@ async def revoke_logins(
             logger.info("No roles to revoke.")
 
 
-@run_with_configs(skip_dst=True)
+@run_with_configs(skip_dst=True, expand_schemas=False)
 async def restore_logins(
     config_future: Awaitable[DbupgradeConfig],
     exclude_users: list[str] = Option(

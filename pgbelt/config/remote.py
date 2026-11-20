@@ -48,6 +48,7 @@ class RemoteConfigDefinition(BaseModel):
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
     schema_name: Optional[str] = "public"
+    schema_names: Optional[list[str]] = None
     exclude_users: Optional[list[str]] = None
     exclude_patterns: Optional[list[str]] = None
 
@@ -259,6 +260,7 @@ async def _resolve_per_side(
             tables=definition.tables,
             sequences=definition.sequences,
             schema_name=definition.schema_name,
+            schema_names=definition.schema_names,
             exclude_users=definition.exclude_users,
             exclude_patterns=definition.exclude_patterns,
         )

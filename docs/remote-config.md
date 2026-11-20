@@ -78,6 +78,7 @@ framework, not by individual resolvers:
 | `tables` | `list[str]` | `null` | Subset of tables to migrate |
 | `sequences` | `list[str]` | `null` | Subset of sequences to sync |
 | `schema_name` | `str` | `"public"` | Schema to operate on |
+| `schema_names` | `list[str]` | `null` | Schemas to migrate in parallel, one migration per schema. Replaces `schema_name` and can't be combined with `tables` or `sequences` |
 | `exclude_users` | `list[str]` | `null` | Users to exclude from login revocation |
 | `exclude_patterns` | `list[str]` | `null` | LIKE patterns to exclude from login revocation |
 

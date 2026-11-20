@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from os.path import join
 from typing import Optional  # noqa: F401 # Needed until tiangolo/typer#522 is fixed)
 
@@ -10,6 +11,7 @@ from pgbelt.util.asyncfuncs import makedirs
 from pydantic import BaseModel
 from pydantic import ValidationError
 from pydantic import field_validator
+from pydantic import model_validator
 from urllib.parse import quote
 
 
@@ -25,6 +27,17 @@ def not_empty(v) -> Optional[str]:
     if v == "":
         raise ValueError
     return v
+
+
+def migration_id(
+    dc: str, db: str, schema: str, tables: Optional[list[str]] = None
+) -> str:
+    """
+    A short hash unique to the properties of a migration: the database pair, the
+    schema and the targeted tables.
+    """
+    key = "/".join([dc, db, schema, ",".join(sorted(tables or []))])
+    return sha256(key.encode()).hexdigest()[:8]
 
 
 class User(BaseModel):
@@ -116,6 +129,8 @@ class DbupgradeConfig(BaseModel):
     tables: Optional[list[str]] A list of tables to replicate. If not provided all tables in the named schema will be replicated.
     sequences: Optional[list[str]] A list of sequences to replicate. If not provided all sequences in the named schema will be replicated.
     schema_name: Optional[str] The schema to operate on. Defaults to "public".
+    schema_names: Optional[list[str]] Several schemas to migrate in parallel, one migration per schema. Replaces schema_name, and can't be combined with tables or sequences.
+    migration_id: Optional[str] Set by pgbelt on each per-schema migration expanded from schema_names. Used to give its pglogical objects unique names.
     exclude_users: Optional[list[str]] Usernames to exclude from connection counts and login revocation.
     exclude_patterns: Optional[list[str]] SQL LIKE patterns to exclude usernames (e.g. '%%repuser%%').
     """
@@ -127,10 +142,68 @@ class DbupgradeConfig(BaseModel):
     tables: Optional[list[str]] = None
     sequences: Optional[list[str]] = None
     schema_name: Optional[str] = "public"
+    schema_names: Optional[list[str]] = None
+    migration_id: Optional[str] = None
     exclude_users: Optional[list[str]] = None
     exclude_patterns: Optional[list[str]] = None
 
     _not_empty = field_validator("db", "dc")(not_empty)
+
+    @model_validator(mode="after")
+    def check_schema_names(self) -> DbupgradeConfig:
+        if self.schema_names is None:
+            return self
+        if not self.schema_names or "" in self.schema_names:
+            raise ValueError("schema_names must list at least one non-empty schema")
+        if len(set(self.schema_names)) != len(self.schema_names):
+            raise ValueError("schema_names must not contain duplicates")
+        if self.tables or self.sequences:
+            raise ValueError(
+                "tables and sequences can't be combined with schema_names yet"
+            )
+        return self
+
+    def expand_schemas(self) -> list[DbupgradeConfig]:
+        """
+        Split a config with schema_names into one migration per schema. Each one gets a
+        migration_id so its pglogical objects don't collide with the others in the same
+        database. A config without schema_names is returned unchanged.
+        """
+        if not self.schema_names:
+            return [self]
+        return [
+            self.model_copy(
+                update={
+                    "schema_name": schema,
+                    "schema_names": None,
+                    "migration_id": migration_id(self.dc, self.db, schema, self.tables),
+                }
+            )
+            for schema in self.schema_names
+        ]
+
+    def _pglogical_name(self, base: str) -> str:
+        return f"{base}_{self.migration_id}" if self.migration_id else base
+
+    @property
+    def replication_set(self) -> str:
+        return self._pglogical_name("pgbelt")
+
+    @property
+    def forward_subscription(self) -> str:
+        return self._pglogical_name("pg1_pg2")
+
+    @property
+    def back_subscription(self) -> str:
+        return self._pglogical_name("pg2_pg1")
+
+    @property
+    def schema_dump_key(self) -> str:
+        """
+        Directory key for schema dump files. Per-schema migrations get their own
+        subdirectory so parallel dumps don't overwrite each other.
+        """
+        return f"{self.db}/{self.schema_name}" if self.migration_id else self.db
 
     @property
     def file(self) -> str:

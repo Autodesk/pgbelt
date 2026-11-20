@@ -1,7 +1,6 @@
 import contextlib
 import io
 import json
-import re
 import subprocess
 from time import sleep
 from unittest.mock import Mock
@@ -19,37 +18,40 @@ import pytest
 
 
 async def _check_status(
-    configs: dict[str, DbupgradeConfig], src_dst_status: str, dst_src_status: str
+    configs: dict[str, DbupgradeConfig],
+    src_dst_status: str,
+    dst_src_status: str,
+    db: str = None,
 ):
     # Check status and make sure all are in the correct state
-    # ALL sets must match the src_dst_status and dst_src_status
+    # ALL sets (or only the given db) must match the src_dst_status and dst_src_status
 
     dc = list(configs.values())[0].dc
-    num_configs = len(configs.keys())
+    checked = [c for c in configs.values() if db is None or c.db == db]
+    # A schema_names config runs one migration, with its own status row, per schema.
+    num_migrations = sum(len(c.expand_schemas()) for c in checked)
 
     # Sleep 1, repeat until target status is seen.
-    pgbelt.cmd.status.echo = Mock()
-    status_reached = False
-    i = 4
-    while not status_reached and i > 0:
+    rows = []
+    for _ in range(30):
         sleep(1)
-        await pgbelt.cmd.status.status(db=None, dc=dc)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            await pgbelt.cmd.status.status(db=db, dc=dc, json_mode=True)
+        rows = json.loads(buf.getvalue())["results"]
 
-        status_echo_call_arg = pgbelt.cmd.status.echo.call_args[0][0]
+        matches = [
+            r
+            for r in rows
+            if r["forward_replication"] == src_dst_status
+            and r["back_replication"] == dst_src_status
+        ]
+        if len(matches) == num_migrations:
+            return
 
-        # Regex for the two columns to be in the correct state
-        matches = re.findall(
-            rf"^\S+\s+\S+{src_dst_status}\S+\s+\S+{dst_src_status}.*",
-            status_echo_call_arg.split("\n")[2],
-        )
-        if len(matches) == num_configs:
-            status_reached = True
-        elif i > 0:
-            i = i - 1
-        else:
-            raise AssertionError(
-                f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_configs} configs. Ended with: {status_echo_call_arg}"
-            )
+    raise AssertionError(
+        f"Timed out waiting for src->dst: {src_dst_status}, dst->src: {dst_src_status} state across {num_migrations} migrations. Ended with: {rows}"
+    )
 
 
 async def _test_check_connectivity(configs: dict[str, DbupgradeConfig]):
@@ -99,6 +101,55 @@ async def _test_setup(configs: dict[str, DbupgradeConfig]):
                 ), f"Non-unique index found in destination after setup for {setname}: {c}"
 
     await _check_status(configs, "replicating", "unconfigured")
+    await _check_multi_schema_pglogical_objects(configs)
+
+
+async def _check_multi_schema_pglogical_objects(configs: dict[str, DbupgradeConfig]):
+    """
+    Migrations expanded from schema_names must share the database's one pglogical node
+    and each have their own replication set and forward subscription.
+    """
+    for config in configs.values():
+        if not config.schema_names:
+            continue
+        migrations = config.expand_schemas()
+        async with create_pool(config.src.root_uri, min_size=1) as pool:
+            nodes = await pool.fetch("SELECT node_name FROM pglogical.node;")
+            sets = await pool.fetch(
+                "SELECT set_name FROM pglogical.replication_set WHERE set_name LIKE 'pgbelt%';"
+            )
+        async with create_pool(config.dst.root_uri, min_size=1) as pool:
+            subs = await pool.fetch("SELECT sub_name FROM pglogical.subscription;")
+
+        assert [n["node_name"] for n in nodes] == ["pg1"]
+        assert sorted(r["set_name"] for r in sets) == sorted(
+            m.replication_set for m in migrations
+        )
+        assert sorted(r["sub_name"] for r in subs) == sorted(
+            m.forward_subscription for m in migrations
+        )
+
+
+async def _test_multi_schema_rerun_and_reset(configs: dict[str, DbupgradeConfig]):
+    """
+    For schema_names configs: re-running setup while the schemas replicate must not
+    disturb them, and reset followed by setup must bring them back to replicating,
+    without touching the other database pairs.
+    """
+    for config in configs.values():
+        if not config.schema_names:
+            continue
+
+        await pgbelt.cmd.setup.setup(db=config.db, dc=config.dc, schema=False)
+        await _check_status(configs, "replicating", "unconfigured")
+        await _check_multi_schema_pglogical_objects(configs)
+
+        await pgbelt.cmd.reset.reset(db=config.db, dc=config.dc, force=True)
+        await _check_status(configs, "unconfigured", "unconfigured", db=config.db)
+
+        await pgbelt.cmd.setup.setup(db=config.db, dc=config.dc, schema=False)
+        await _check_status(configs, "replicating", "unconfigured")
+        await _check_multi_schema_pglogical_objects(configs)
 
 
 async def _test_setup_back_replication(configs: dict[str, DbupgradeConfig]):
@@ -510,29 +561,77 @@ async def _ensure_same_data(configs: dict[str, DbupgradeConfig]):
                 f"Ensuring {setname} source and destination sequences are the same..."
             )
 
-            # First, get a list of all sequences in the source database in the specified schema
-            # Synchronous because we need to run it once before the next commands anyways.
-            sequences = (
-                subprocess.run(
-                    [
-                        "psql",
-                        f'"{configs[setname].src.root_dsn}"',
-                        "-c",
-                        f"'SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = \"{configs[setname].schema_name}\";'",
-                        "-t",
-                    ],
-                    capture_output=True,
+            for schema_name in configs[setname].schema_names or [
+                configs[setname].schema_name
+            ]:
+                # First, get a list of all sequences in the source database in the specified schema
+                # Synchronous because we need to run it once before the next commands anyways.
+                sequences = (
+                    subprocess.run(
+                        [
+                            "psql",
+                            f'"{configs[setname].src.root_dsn}"',
+                            "-c",
+                            f"'SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = \"{schema_name}\";'",
+                            "-t",
+                        ],
+                        capture_output=True,
+                    )
+                    .stdout.decode("utf-8")
+                    .strip()
+                    .split("\n")
                 )
-                .stdout.decode("utf-8")
-                .strip()
-                .split("\n")
-            )
 
-            await _compare_sequences(
-                sequences,  # In full migrations, we need to get the sequences from the source database
-                configs[setname].src.root_dsn,
-                configs[setname].dst.root_dsn,
-                configs[setname].schema_name,
+                await _compare_sequences(
+                    sequences,  # In full migrations, we need to get the sequences from the source database
+                    configs[setname].src.root_dsn,
+                    configs[setname].dst.root_dsn,
+                    schema_name,
+                )
+
+
+async def _test_teardown_one_schema(configs: dict[str, DbupgradeConfig]):
+    """
+    Tearing down one schema's migration must leave the other schemas in the same
+    database replicating, along with the shared node and pglogical role.
+    """
+    for config in configs.values():
+        if not config.schema_names:
+            continue
+        first, *others = config.expand_schemas()
+
+        async def _ready(c=first):
+            return c
+
+        await pgbelt.cmd.teardown.teardown.__wrapped__(_ready(), full=True)
+
+        async with create_pool(config.src.root_uri, min_size=1) as pool:
+            assert (
+                await pool.fetchval(
+                    "SELECT count(*) FROM pglogical.node WHERE node_name = 'pg1';"
+                )
+                == 1
+            )
+            assert (
+                await pool.fetchval(
+                    "SELECT count(*) FROM pg_roles WHERE rolname = 'pglogical';"
+                )
+                == 1
+            )
+            for other in others:
+                assert (
+                    await pool.fetchval(
+                        "SELECT status FROM pglogical.show_subscription_status() WHERE subscription_name = $1;",
+                        other.back_subscription,
+                    )
+                    == "replicating"
+                )
+            assert (
+                await pool.fetchval(
+                    "SELECT count(*) FROM pglogical.subscription WHERE sub_name = $1;",
+                    first.back_subscription,
+                )
+                == 0
             )
 
 
@@ -573,6 +672,7 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
     await _test_check_connectivity(configs)
     await _test_precheck(configs)
     await _test_setup(configs)
+    await _test_multi_schema_rerun_and_reset(configs)
     await _test_setup_back_replication(configs)
     await _test_create_indexes(configs)
     await _test_analyze(configs)
@@ -584,12 +684,14 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
     # Check if the data is the same before testing teardown
     await _ensure_same_data(configs)
 
+    await _test_teardown_one_schema(configs)
     await _test_teardown_not_full(configs)
     await _test_teardown_full(configs)
 
 
 # Run the main integration test.
-# 4 sets of DBs are created: public vs non-public schema, and exodus-style vs full migration.
+# 5 sets of DBs are created: public vs non-public schema, exodus-style vs full migration,
+# and a full migration of three schemas in parallel from one schema_names config.
 # Use pgbelt's native async parallelization to run the main workflow on the total set of DBs.
 @pytest.mark.asyncio
 async def test_main_workflow(setup_db_upgrade_configs):

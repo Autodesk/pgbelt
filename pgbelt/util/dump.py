@@ -409,15 +409,17 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
             commands.append(c)
 
     try:
-        await makedirs(schema_dir(config.db, config.dc))
+        await makedirs(schema_dir(config.schema_dump_key, config.dc))
     except FileExistsError:
         pass
 
-    async with aopen(schema_file(config.db, config.dc, RAW), "w") as out:
+    async with aopen(schema_file(config.schema_dump_key, config.dc, RAW), "w") as out:
         for command in commands:
             await out.write(command)
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INVALID), "w") as out:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INVALID), "w"
+    ) as out:
         for command in commands:
             if "NOT VALID" in command:
                 await out.write(command)
@@ -426,14 +428,16 @@ async def dump_source_schema(config: DbupgradeConfig, logger: Logger) -> None:
     # can be loaded with the base schema instead of being deferred.
     fk_required_indexes = _find_fk_required_unique_indexes(commands, logger)
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "w") as out:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INDEXES), "w"
+    ) as out:
         for i, command in enumerate(commands):
             is_index = "CREATE" in command and "INDEX" in command
             if is_index and i not in fk_required_indexes:
                 await out.write(command)
 
     async with aopen(
-        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX), "w"
+        schema_file(config.schema_dump_key, config.dc, NO_INVALID_NO_INDEX), "w"
     ) as out:
         for i, command in enumerate(commands):
             is_index = "CREATE" in command and "INDEX" in command
@@ -457,7 +461,7 @@ async def apply_target_schema(config: DbupgradeConfig, logger: Logger) -> None:
         "psql",
         config.dst.owner_dsn,
         "-f",
-        schema_file(config.db, config.dc, NO_INVALID_NO_INDEX),
+        schema_file(config.schema_dump_key, config.dc, NO_INVALID_NO_INDEX),
     ]
 
     await _execute_subprocess(command, "Finished loading schema.", logger)
@@ -506,11 +510,13 @@ async def dump_dst_not_valid_constraints(
                 commands.append(c)
 
     try:
-        await makedirs(schema_dir(config.db, config.dc))
+        await makedirs(schema_dir(config.schema_dump_key, config.dc))
     except FileExistsError:
         pass
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INVALID), "w") as out:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INVALID), "w"
+    ) as out:
         for command in commands:
             await out.write(command)
 
@@ -526,7 +532,9 @@ async def remove_dst_not_valid_constraints(
     """
     logger.info("Looking for previously dumped NOT VALID constraints...")
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INVALID), "r") as f:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INVALID), "r"
+    ) as f:
         not_valid_constraints = await f.read()
 
     logger.info("Removing NOT VALID constraints from the target...")
@@ -568,7 +576,7 @@ async def apply_target_constraints(config: DbupgradeConfig, logger: Logger) -> N
         "psql",
         config.dst.owner_dsn,
         "-f",
-        schema_file(config.db, config.dc, ONLY_INVALID),
+        schema_file(config.schema_dump_key, config.dc, ONLY_INVALID),
     ]
 
     await _execute_subprocess(
@@ -583,7 +591,9 @@ async def remove_dst_indexes(config: DbupgradeConfig, logger: Logger) -> None:
     """
     logger.info("Looking for previously dumped CREATE INDEX statements...")
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INDEXES), "r"
+    ) as f:
         create_index_statements = await f.read()
 
     logger.info("Removing Indexes from the target...")
@@ -630,7 +640,9 @@ async def create_target_indexes(
 
     logger.info("Looking for previously dumped CREATE INDEX statements...")
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INDEXES), "r"
+    ) as f:
         create_index_statements = await f.read()
 
     logger.info("Creating indexes on the target...")
@@ -714,7 +726,9 @@ async def create_target_indexes_with_details(
 
     logger.info("Looking for previously dumped CREATE INDEX statements...")
 
-    async with aopen(schema_file(config.db, config.dc, ONLY_INDEXES), "r") as f:
+    async with aopen(
+        schema_file(config.schema_dump_key, config.dc, ONLY_INDEXES), "r"
+    ) as f:
         create_index_statements = await f.read()
 
     logger.info(

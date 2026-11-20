@@ -141,8 +141,8 @@ async def reset(
                 conf, src_pool, dst_pool, src_logger, dst_logger
             )
         await gather(
-            teardown_subscription(dst_pool, "pg1_pg2", dst_logger),
-            teardown_subscription(src_pool, "pg2_pg1", src_logger),
+            teardown_subscription(dst_pool, conf.forward_subscription, dst_logger),
+            teardown_subscription(src_pool, conf.back_subscription, src_logger),
         )
         await _truncate_dst_tables(conf, dst_pool, dst_logger)
 
