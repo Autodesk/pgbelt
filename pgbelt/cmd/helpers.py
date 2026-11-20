@@ -43,6 +43,7 @@ from pgbelt.models.sync import SyncTablesResult
 from pgbelt.models.sync import TableSyncDetail
 from pgbelt.models.sync import TableValidationDetail
 from pgbelt.models.sync import ValidateDataResult
+from pgbelt.util.postgres import EXCLUDED_EXTENSIONS
 from typer import Argument
 from typer import Option
 from typer import Typer
@@ -120,8 +121,52 @@ def _as_list(val) -> list:
     return list(val)
 
 
-def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
-    """Convert the raw dict from precheck_info into a PrecheckSide model."""
+def _extension_table_note(
+    table: dict, other_side_tables: list | None, is_src: bool
+) -> str | None:
+    """Return why an extension-owned table can't be loaded, or None if it can.
+
+    On the source, root must be able to read the table and, when the
+    destination's tables are known, the table must exist there and root must
+    be able to write it. On the destination, root must be able to write it.
+    """
+    if is_src:
+        if table.get("RootCanSelect") is False:
+            return "root user cannot read this extension table on the source"
+        if other_side_tables is None:
+            return None
+        match = next(
+            (
+                t
+                for t in other_side_tables
+                if t.get("Schema") == table.get("Schema")
+                and t.get("Name") == table.get("Name")
+            ),
+            None,
+        )
+        if match is None:
+            return (
+                "extension table not found in the destination "
+                f"(is the {table.get('Extension')} extension installed there?)"
+            )
+        table = match
+    if table.get("RootCanInsert") is False:
+        return "root user cannot write this extension table on the destination"
+    return None
+
+
+def _build_precheck_side(
+    raw: dict,
+    pkeys: list | None = None,
+    other_side_tables: list | None = None,
+    is_src: bool = True,
+) -> PrecheckSide:
+    """Convert the raw dict from precheck_info into a PrecheckSide model.
+
+    ``other_side_tables`` is the destination's raw table list when building
+    the source side. It's used to check that each extension-owned table can
+    be loaded into the destination.
+    """
     users_raw = raw.get("users", {})
     root_raw = users_raw.get("root", {})
     owner_raw = users_raw.get("owner", {})
@@ -134,14 +179,27 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
         name = t.get("Name", "")
         schema = t.get("Schema", "")
         owner = t.get("Owner", "")
-        has_pk = name in pkey_names
-        can_rep = schema == raw.get("schema", "") and owner == owner_raw.get(
-            "rolname", ""
-        )
-        if can_rep:
-            method = "pglogical" if has_pk else "dump_and_load"
+        extension = t.get("Extension")
+        if extension in EXCLUDED_EXTENSIONS:
+            extension = None
+        note = None
+        if extension:
+            # The extension creates the table on both sides, so its schema
+            # and owner don't need to match the migration config.
+            # analyze_table_pkeys leaves extension tables out, so the
+            # primary key comes from the catalog.
+            has_pk = bool(t.get("HasPrimaryKey", False))
+            note = _extension_table_note(t, other_side_tables, is_src)
+            method = "unavailable" if note else "dump_and_load"
         else:
-            method = "unavailable"
+            has_pk = name in pkey_names
+            can_rep = schema == raw.get("schema", "") and owner == owner_raw.get(
+                "rolname", ""
+            )
+            if can_rep:
+                method = "pglogical" if has_pk else "dump_and_load"
+            else:
+                method = "unavailable"
         tables.append(
             TableReplicationInfo(
                 name=name,
@@ -149,6 +207,8 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
                 owner=owner,
                 has_primary_key=has_pk,
                 replication_method=method,
+                extension=extension,
+                note=note,
             )
         )
 
@@ -196,6 +256,7 @@ def _build_precheck_side(raw: dict, pkeys: list | None = None) -> PrecheckSide:
         tables=tables,
         sequences=sequences,
         extensions=extensions,
+        qpm_plan_counts=raw.get("qpm_plan_counts"),
     )
 
 
@@ -204,8 +265,12 @@ def _build_precheck_result(results: list[dict], base_kwargs: dict) -> PrecheckRe
         raw = results[0]
         src_raw = raw.get("src", {})
         dst_raw = raw.get("dst", {})
-        src_side = _build_precheck_side(src_raw, pkeys=src_raw.get("pkeys"))
-        dst_side = _build_precheck_side(dst_raw)
+        src_side = _build_precheck_side(
+            src_raw,
+            pkeys=src_raw.get("pkeys"),
+            other_side_tables=dst_raw.get("tables", []),
+        )
+        dst_side = _build_precheck_side(dst_raw, is_src=False)
 
         src_ext_names = {e.extname for e in src_side.extensions}
         for ext in dst_side.extensions:
