@@ -24,6 +24,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
+          # create-pull-request can't authenticate ("could not read Username")
+          # with checkout's default GITHUB_TOKEN credentials since checkout v6.
+          token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v7.1.0
@@ -41,6 +44,12 @@ jobs:
       - name: Create PR with docs changes
         uses: peter-evans/create-pull-request@v8
         with:
+          # Push and open the PR with the PAT, not GITHUB_TOKEN. Events from
+          # GITHUB_TOKEN don't trigger workflows, and pushes by the
+          # github-actions bot need a maintainer to approve each CI run, so
+          # the docs PR sat with no CI. Same setup as update-python-support.yml.
+          token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
+          branch-token: ${{ secrets.PGBELT_GHA_VJEEVA_PAT }}
           commit-message: "docs: update usage docs"
           title: "docs: update usage docs"
           body: "Auto-generated usage docs update."
