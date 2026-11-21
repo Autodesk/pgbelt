@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.22.0](https://github.com/Autodesk/pgbelt/compare/v0.21.2...v0.22.0) (2026-11-21)
+
+
+### Features
+
+* dump and load extension-owned tables instead of failing precheck ([#994](https://github.com/Autodesk/pgbelt/issues/994)) ([8dac519](https://github.com/Autodesk/pgbelt/commit/8dac519f33fda465c7d45e8f7d229f7e860968de))
+
+
+### Bug Fixes
+
+* **check-connectivity:** report which side rejected a connection ([#993](https://github.com/Autodesk/pgbelt/issues/993)) ([4c8c04b](https://github.com/Autodesk/pgbelt/commit/4c8c04bbc9becf7f24b08ce138b3afe3da1bbcb5))
+
+
+### Documentation
+
+* update usage docs ([#995](https://github.com/Autodesk/pgbelt/issues/995)) ([d762b1e](https://github.com/Autodesk/pgbelt/commit/d762b1e27763aa6b2546aa684cff0e482c501dc0))
+
 ## [0.21.2](https://github.com/Autodesk/pgbelt/compare/v0.21.1...v0.21.2) (2026-06-01)
 
 
