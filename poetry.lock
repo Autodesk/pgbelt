@@ -2231,14 +2231,14 @@ oldlibyaml = ["ruamel.yaml.clib ; platform_python_implementation == \"CPython\""
 
 [[package]]
 name = "safety"
-version = "3.8.0"
+version = "3.8.1"
 description = "Scan dependencies for known vulnerabilities and licenses."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "safety-3.8.0-py3-none-any.whl", hash = "sha256:76f38519e34c5dfb728e9324b128b54b452c69b2accb9594f29fcb0d4d3fee2f"},
-    {file = "safety-3.8.0.tar.gz", hash = "sha256:24b2cd7b873ee0dd4bc7f4f65933d2bfaf7041741f371449c12b5c8572ccb727"},
+    {file = "safety-3.8.1-py3-none-any.whl", hash = "sha256:953c1c3c60c873f53a6cc250b2a9c4b38bb6ef45f0625990e43f20bff916c965"},
+    {file = "safety-3.8.1.tar.gz", hash = "sha256:e646123b976bbb6707cfaacae8c926e2f886b744a60e0f410e8610a3a4eaf7be"},
 ]
 
 [package.dependencies]
@@ -2511,4 +2511,4 @@ tests-strict = ["pytest (==4.6.0) ; python_version < \"3.10.0\" and python_versi
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.16"
-content-hash = "a06e71b32f271f475928e7ac580896eee3fba6263aca55ef7fbf8989a11b781a"
+content-hash = "d01b4e7f7050797c0125c01a8dc5c72f171858f5cd2bc91ffc319ca793de0025"
