@@ -276,6 +276,74 @@ async def _test_sync(configs: dict[str, DbupgradeConfig]):
     # TODO: test that the appropriate sync steps were run
 
     await _check_status(configs, "unconfigured", "replicating")
+    await _check_extension_tables_synced(configs)
+
+
+async def _test_precheck_extension_tables(configs: dict[str, DbupgradeConfig]):
+    """
+    Single-DB precheck JSON: tables owned by pgbelt_test_ext are dump_and_load
+    even though the superuser owns them and pgbelt_ext_data.plans is in
+    another schema, so no source table is unavailable.
+    """
+    for setname, conf in configs.items():
+        if "exodus" in setname:
+            continue
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            await pgbelt.cmd.preflight.precheck(dc=conf.dc, db=conf.db, json_mode=True)
+        payload = json.loads(buf.getvalue())
+        src_tables = {
+            (t["schema_name"], t["name"]): t for t in payload["src"]["tables"]
+        }
+        for key in [
+            (conf.schema_name, "pgbelt_ext_config"),
+            ("pgbelt_ext_data", "plans"),
+        ]:
+            assert (
+                src_tables[key]["replication_method"] == "dump_and_load"
+            ), f"{setname}: {key} not dump_and_load: {src_tables[key]}"
+            assert src_tables[key]["extension"] == "pgbelt_test_ext"
+        unavailable = [
+            t
+            for t in payload["src"]["tables"]
+            if t["replication_method"] == "unavailable"
+        ]
+        assert not unavailable, f"{setname}: unavailable tables: {unavailable}"
+
+
+async def _check_extension_tables_synced(configs: dict[str, DbupgradeConfig]):
+    """
+    ``sync`` copies the rows of extension-owned tables: only the rows matching
+    the config table's filter, and all rows of the non-config table. Exodus
+    migrations have a table list, so no extension table is copied.
+    """
+    from tests.integration.conftest import EXT_CONFIG_CUSTOM_ROWS
+    from tests.integration.conftest import EXT_PLANS_ROWS
+
+    stock = [(1, "stock"), (2, "stock")]
+    for setname, conf in configs.items():
+        async with create_pool(conf.dst.root_uri, min_size=1) as pool:
+            config_rows = [
+                tuple(r)
+                for r in await pool.fetch(
+                    f"SELECT id, val FROM {conf.schema_name}.pgbelt_ext_config "
+                    "ORDER BY id"
+                )
+            ]
+            plans_rows = [
+                tuple(r)
+                for r in await pool.fetch(
+                    "SELECT plan_id, status FROM pgbelt_ext_data.plans ORDER BY 1"
+                )
+            ]
+        if "exodus" in setname:
+            assert config_rows == stock, f"{setname}: {config_rows}"
+            assert plans_rows == [], f"{setname}: {plans_rows}"
+        else:
+            assert (
+                config_rows == stock + EXT_CONFIG_CUSTOM_ROWS
+            ), f"{setname}: {config_rows}"
+            assert plans_rows == EXT_PLANS_ROWS, f"{setname}: {plans_rows}"
 
 
 async def _test_diff_sequences(configs: dict[str, DbupgradeConfig]):
@@ -602,6 +670,7 @@ async def _test_main_workflow(configs: dict[str, DbupgradeConfig]):
 
     await _test_check_connectivity(configs)
     await _test_precheck(configs)
+    await _test_precheck_extension_tables(configs)
     await _test_setup(configs)
     await _test_setup_back_replication(configs)
     await _test_create_indexes(configs)
@@ -693,3 +762,9 @@ async def test_analyze_table_pkeys_excludes_non_base_tables(
     assert not missing, (
         f"analyze_table_pkeys dropped real base tables: {missing}"
     )
+
+    # Extension-owned tables (installed by conftest, like PostGIS's
+    # spatial_ref_sys) are never replicated, truncated or validated.
+    assert (
+        "pgbelt_ext_config" not in found
+    ), f"analyze_table_pkeys returned an extension-owned table: {found}"

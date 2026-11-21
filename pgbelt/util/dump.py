@@ -4,8 +4,10 @@ from logging import Logger
 from os.path import join
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.asyncfuncs import makedirs
+from pgbelt.util.postgres import get_table_columns
+from pgbelt.util.postgres import quote_ident
 from pgbelt.util.postgres import table_empty
-from re import finditer, IGNORECASE, search, sub as re_sub
+from re import finditer, IGNORECASE, MULTILINE, search, sub as re_sub
 
 from aiofiles import open as aopen
 from asyncpg import create_pool
@@ -294,6 +296,210 @@ async def dump_and_load_tables_with_details(
 
     load_results = await asyncio.gather(*[_load_one(t) for t in to_load])
     details.extend(load_results)
+    return details
+
+
+# Extension tables that need a function call after their rows are loaded,
+# keyed on (extension, schema, table). apg_plan_mgmt keeps managed plans in
+# shared memory, and reload() refreshes it from apg_plan_mgmt.plans.
+_POST_LOAD_SQL = {
+    ("apg_plan_mgmt", "apg_plan_mgmt", "plans"): "SELECT apg_plan_mgmt.reload();",
+}
+
+
+def _extension_table_label(ext_table: dict) -> str:
+    return f"{ext_table['schema']}.{ext_table['name']}"
+
+
+async def _pipe_copy_extension_table(
+    config: DbupgradeConfig, ext_table: dict, columns: list[str], logger: Logger
+) -> int | None:
+    """
+    Copy one extension-owned table's rows from the source into the
+    destination through a shell pipeline:
+
+        psql (COPY (SELECT ...) TO STDOUT) | psql (\\copy ... FROM pstdin)
+
+    ``pg_dump --table`` can't be used here: for an extension member table it
+    only writes rows if the extension registered the table as a config table,
+    and otherwise writes nothing and still exits 0.
+
+    Only the rows matching the extension's config filter are copied, for
+    example PostGIS's filter excludes the SRIDs it inserts itself. Only
+    ``columns`` are copied, because the table can differ between extension
+    versions on the source and destination.
+
+    Like the pg_dump path, the load runs in one transaction with
+    session_replication_role = replica, so triggers don't fire.
+
+    Returns the number of rows loaded, if psql reported it.
+    """
+    table = f"{quote_ident(ext_table['schema'])}.{quote_ident(ext_table['name'])}"
+    cols = ", ".join(quote_ident(c) for c in columns)
+    condition = ext_table.get("condition") or ""
+
+    src_sql = f"COPY (SELECT {cols} FROM {table} {condition}) TO STDOUT"
+    dst_copy = f"\\copy {table} ({cols}) FROM pstdin"
+    src_dsn = shlex.quote(config.src.root_dsn)
+    dst_dsn = shlex.quote(config.dst.root_dsn)
+
+    # -q on the source so psql doesn't append a "COPY n" status line to the
+    # data stream.
+    cmd = (
+        f"psql -X -q {src_dsn} -v ON_ERROR_STOP=1 -c {shlex.quote(src_sql)}"
+        f" | psql -X {dst_dsn} -v ON_ERROR_STOP=1"
+        f" -c 'BEGIN; SET LOCAL session_replication_role = replica;'"
+        f" -c {shlex.quote(dst_copy)}"
+        f" -c 'COMMIT;'"
+    )
+
+    p = await asyncio.create_subprocess_exec(
+        "bash",
+        "-c",
+        f"set -o pipefail; {cmd}",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await p.communicate()
+
+    label = _extension_table_label(ext_table)
+    if p.returncode != 0:
+        raise Exception(
+            f"Copy of extension table '{label}' failed with code {p.returncode}.\n"
+            f"  out: {out.decode('utf-8')}\n  err: {err.decode('utf-8')}"
+        )
+
+    match = search(r"^COPY (\d+)$", out.decode("utf-8"), MULTILINE)
+    rows = int(match.group(1)) if match else None
+    logger.info(f"Copied {rows} rows into extension table {label}.")
+    return rows
+
+
+async def load_extension_tables_with_details(
+    config: DbupgradeConfig, ext_tables: list[dict], logger: Logger
+) -> list[dict]:
+    """
+    Copy the rows of extension-owned tables (from ``get_extension_tables``)
+    from the source into the destination. Returns per-table detail dicts
+    suitable for building a SyncTablesResult model.
+
+    A table is skipped if the destination already has rows that match the
+    extension's config filter, for example custom SRIDs in spatial_ref_sys or
+    plans that QPM captured on the destination. The rows the extension inserts
+    itself don't count.
+
+    After apg_plan_mgmt.plans is loaded, ``apg_plan_mgmt.reload()`` runs on the
+    destination so the plans take effect.
+    """
+    import time
+
+    if not ext_tables:
+        return []
+
+    details: list[dict] = []
+    to_load: list[tuple[dict, list[str]]] = []
+
+    async with create_pool(config.src.root_uri, min_size=1) as src_pool, create_pool(
+        config.dst.root_uri, min_size=1
+    ) as dst_pool:
+        for t in ext_tables:
+            label = _extension_table_label(t)
+            base = {
+                "name": t["name"],
+                "schema_name": t["schema"],
+                "extension": t["extension"],
+            }
+            src_cols, dst_cols = await asyncio.gather(
+                get_table_columns(src_pool, t["schema"], t["name"]),
+                get_table_columns(dst_pool, t["schema"], t["name"]),
+            )
+            if not dst_cols:
+                details.append(
+                    {
+                        **base,
+                        "loaded": False,
+                        "error": (
+                            f"extension table {label} not found in the destination "
+                            f"(is the {t['extension']} extension installed there?)"
+                        ),
+                    }
+                )
+                continue
+            columns = [c for c in src_cols if c in dst_cols]
+            dropped = [c for c in src_cols if c not in dst_cols]
+            if dropped:
+                logger.warning(
+                    f"Columns {dropped} of {label} don't exist in the destination "
+                    "and won't be copied."
+                )
+            if not columns:
+                details.append(
+                    {
+                        **base,
+                        "loaded": False,
+                        "error": f"no columns of {label} exist in the destination",
+                    }
+                )
+                continue
+            condition = t.get("condition") or ""
+            if not await table_empty(
+                dst_pool, t["name"], quote_ident(t["schema"]), logger, condition
+            ):
+                logger.warning(
+                    f"Not loading {label}, destination already has rows"
+                    f"{' matching ' + repr(condition) if condition else ''}. "
+                    "If this is unexpected please investigate."
+                )
+                details.append(
+                    {
+                        **base,
+                        "loaded": False,
+                        "skipped_reason": "destination table not empty",
+                    }
+                )
+                continue
+            to_load.append((t, columns))
+
+    logger.info(
+        "Copying extension tables " f"{[_extension_table_label(t) for t, _ in to_load]}"
+    )
+
+    async def _load_one(ext_table: dict, columns: list[str]) -> dict:
+        t0 = time.monotonic()
+        detail = {
+            "name": ext_table["name"],
+            "schema_name": ext_table["schema"],
+            "extension": ext_table["extension"],
+        }
+        try:
+            detail["row_count"] = await _pipe_copy_extension_table(
+                config, ext_table, columns, logger
+            )
+            detail["loaded"] = True
+        except Exception as e:
+            detail["loaded"] = False
+            detail["error"] = str(e)
+            detail["duration_ms"] = int((time.monotonic() - t0) * 1000)
+            return detail
+
+        post_load = _POST_LOAD_SQL.get(
+            (ext_table["extension"], ext_table["schema"], ext_table["name"])
+        )
+        if post_load:
+            try:
+                async with create_pool(config.dst.root_uri, min_size=1) as pool:
+                    await pool.execute(post_load)
+                logger.info(f"Ran {post_load} on the destination.")
+            except Exception as e:
+                # The rows are committed, so the table is loaded; surface the
+                # failed refresh so it can be rerun by hand.
+                detail["error"] = (
+                    f"rows loaded, but {post_load} failed on the destination: {e}"
+                )
+        detail["duration_ms"] = int((time.monotonic() - t0) * 1000)
+        return detail
+
+    details.extend(await asyncio.gather(*[_load_one(t, cols) for t, cols in to_load]))
     return details
 
 

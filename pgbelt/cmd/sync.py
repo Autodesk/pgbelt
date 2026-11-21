@@ -12,6 +12,7 @@ from pgbelt.util.dump import apply_target_constraints
 from pgbelt.util.dump import create_target_indexes
 from pgbelt.util.dump import dump_and_load_tables
 from pgbelt.util.dump import dump_and_load_tables_with_details
+from pgbelt.util.dump import load_extension_tables_with_details
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
 from pgbelt.util.postgres import compare_100_random_rows
@@ -19,6 +20,7 @@ from pgbelt.util.postgres import compare_latest_100_rows
 from pgbelt.util.postgres import compare_tables_without_pkeys
 from pgbelt.util.postgres import detect_pk_sequences
 from pgbelt.util.postgres import dump_sequences
+from pgbelt.util.postgres import get_extension_tables
 from pgbelt.util.postgres import load_sequences
 from pgbelt.util.postgres import run_analyze
 from pgbelt.util.postgres import set_pk_sequences_from_data
@@ -170,6 +172,32 @@ async def sync_sequences(
         await gather(*[p.close() for p in pools])
 
 
+def _filter_extension_tables(ext_tables: list[dict], names: list[str]) -> list[dict]:
+    """Keep the extension tables named in ``names``, either as ``table`` or
+    ``schema.table``."""
+    wanted = set(names)
+    return [
+        t
+        for t in ext_tables
+        if t["name"] in wanted or f"{t['schema']}.{t['name']}" in wanted
+    ]
+
+
+async def _discover_extension_tables(
+    conf: DbupgradeConfig, src_pool: Pool, logger: Logger
+) -> list[dict]:
+    """
+    Return the extension-owned tables to copy, for example spatial_ref_sys
+    (PostGIS) or apg_plan_mgmt.plans (Aurora QPM). They're found in every
+    schema, not only the migration's. When the config has a table list, only
+    the extension tables named in it are returned.
+    """
+    ext_tables = await get_extension_tables(src_pool, logger)
+    if conf.tables:
+        ext_tables = _filter_extension_tables(ext_tables, conf.tables)
+    return ext_tables
+
+
 @run_with_configs
 async def sync_tables(
     config_future: Awaitable[DbupgradeConfig],
@@ -180,27 +208,43 @@ async def sync_tables(
     into the destination database. No intermediate files are used -- data is
     streamed via pg_dump | psql.
 
-    A table will only be loaded into the destination if it currently contains
-    no rows.
+    Tables that belong to an extension, in any schema (for example PostGIS's
+    spatial_ref_sys or Aurora's apg_plan_mgmt.plans), are copied too. Only the
+    rows that match the extension's config filter are copied, so rows the
+    extension inserts itself are left alone. After apg_plan_mgmt.plans is
+    loaded, apg_plan_mgmt.reload() runs on the destination.
 
-    You may also provide specific PK-less tables to sync with the --table option.
-    Need to run like --table table1 --table table2 ...
+    A table will only be loaded into the destination if it currently contains
+    no rows (for extension tables, no rows matching the filter).
+
+    You may also provide specific PK-less or extension tables to sync with the
+    --table option. Need to run like --table table1 --table table2 ...
     """
     conf = await config_future
     logger = get_logger(conf.db, conf.dc, "sync")
 
-    if table:
-        tables = table
-        discovery_mode = "explicit"
-    else:
-        discovery_mode = "auto"
-        async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
+    async with create_pool(conf.src.pglogical_uri, min_size=1) as src_pool:
+        if table:
+            discovery_mode = "explicit"
+            ext_tables = _filter_extension_tables(
+                await get_extension_tables(src_pool, logger), table
+            )
+            ext_names = {t["name"] for t in ext_tables} | {
+                f"{t['schema']}.{t['name']}" for t in ext_tables
+            }
+            tables = [t for t in table if t not in ext_names]
+        else:
+            discovery_mode = "auto"
             _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, logger)
+            if conf.tables:
+                tables = [t for t in tables if t in conf.tables]
+            ext_tables = await _discover_extension_tables(conf, src_pool, logger)
 
-        if conf.tables:
-            tables = [t for t in tables if t in conf.tables]
-
-    table_details = await dump_and_load_tables_with_details(conf, tables, logger)
+    table_details, ext_details = await gather(
+        dump_and_load_tables_with_details(conf, tables, logger),
+        load_extension_tables_with_details(conf, ext_tables, logger),
+    )
+    table_details = table_details + ext_details
 
     return {
         "schema_name": conf.schema_name,
@@ -296,7 +340,18 @@ async def _dump_and_load_all_tables(
     _, tables, _ = await analyze_table_pkeys(src_pool, conf.schema_name, src_logger)
     if conf.tables:
         tables = [t for t in tables if t in conf.tables]
-    await dump_and_load_tables(conf, tables, dst_logger)
+    ext_tables = await _discover_extension_tables(conf, src_pool, src_logger)
+    _, ext_details = await gather(
+        dump_and_load_tables(conf, tables, dst_logger),
+        load_extension_tables_with_details(conf, ext_tables, dst_logger),
+    )
+    failed = [
+        f"{d['schema_name']}.{d['name']}: {d['error']}"
+        for d in ext_details
+        if d.get("error")
+    ]
+    if failed:
+        raise Exception("Loading extension tables failed:\n" + "\n".join(failed))
 
 
 @run_with_configs

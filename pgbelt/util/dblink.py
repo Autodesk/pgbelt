@@ -31,11 +31,15 @@ async def teardown_dblink(pool: Pool, logger: Logger) -> None:
 
 async def check_connectivity_via_dblink(
     pool: Pool, remote_dsn: str, logger: Logger
-) -> bool:
+) -> tuple[bool, str | None]:
     """
     From the database behind `pool`, attempt a dblink connection to `remote_dsn`
     and run SELECT 1. This validates that the database server itself can reach
     the remote host over the network and authenticate.
+
+    Returns ``(ok, error)``. ``error`` is None on success. dblink reports the
+    remote server's actual error (for example, a pg_hba.conf rejection) in the
+    Postgres DETAIL field, so it's included in the error text.
     """
     logger.info("Checking cross-host connectivity via dblink...")
     async with pool.acquire() as conn:
@@ -46,9 +50,14 @@ async def check_connectivity_via_dblink(
             if result == "OK":
                 logger.debug("dblink connection succeeded")
                 await conn.execute("SELECT dblink_disconnect('connectivity_check');")
-                return True
-            logger.error(f"dblink_connect returned unexpected result: {result}")
-            return False
+                return True, None
+            error = f"dblink_connect returned unexpected result: {result}"
+            logger.error(error)
+            return False, error
         except Exception as e:
-            logger.error(f"dblink connectivity check failed: {e}")
-            return False
+            error = f"dblink connection failed: {type(e).__name__}: {e}"
+            detail = getattr(e, "detail", None)
+            if isinstance(detail, str) and detail:
+                error += f" ({detail.strip()})"
+            logger.error(error)
+            return False, error
