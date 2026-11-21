@@ -447,14 +447,14 @@ files = [
 
 [[package]]
 name = "classify-imports"
-version = "4.2.0"
+version = "4.5.0"
 description = "Utilities for refactoring imports in python-like syntax."
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.10"
 groups = ["dev"]
 files = [
-    {file = "classify_imports-4.2.0-py2.py3-none-any.whl", hash = "sha256:dbbc264b70a470ed8c6c95976a11dfb8b7f63df44ed1af87328bbed2663f5161"},
-    {file = "classify_imports-4.2.0.tar.gz", hash = "sha256:7abfb7ea92149b29d046bd34573d247ba6e68cc28100c801eba4af17964fc40e"},
+    {file = "classify_imports-4.5.0-py2.py3-none-any.whl", hash = "sha256:04f37f789241f2f35cb04b63de8f77b502405bba144402a97b75542582fbdcdc"},
+    {file = "classify_imports-4.5.0.tar.gz", hash = "sha256:83af69ba9d4d05dd15146848d7b2cfa900a8f5cc81f26693688af73e8b199497"},
 ]
 
 [[package]]
@@ -2164,18 +2164,18 @@ files = [
 
 [[package]]
 name = "reorder-python-imports"
-version = "3.16.0"
+version = "3.19.0"
 description = "Tool for reordering python imports"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.11"
 groups = ["dev"]
 files = [
-    {file = "reorder_python_imports-3.16.0-py2.py3-none-any.whl", hash = "sha256:9ed8f0ca684d147c1f074286c61effee5c4be3d0dd9ee6ec172307bbba0c09d8"},
-    {file = "reorder_python_imports-3.16.0.tar.gz", hash = "sha256:bcc4e5e467a8833ec187e35f84f1a3e442881b3c62c265ece87677100473db43"},
+    {file = "reorder_python_imports-3.19.0-py2.py3-none-any.whl", hash = "sha256:a19fce94b6c04121a466212ce9988863a1eb03a88bbe96f4542d5076572ec725"},
+    {file = "reorder_python_imports-3.19.0.tar.gz", hash = "sha256:457e65fc0adb50d724b633cae2825e484c119dc381f01353c4fe7693216451c0"},
 ]
 
 [package.dependencies]
-classify-imports = ">=4.1"
+classify-imports = ">=4.5"
 
 [[package]]
 name = "restructuredtext-lint"
@@ -2511,4 +2511,4 @@ tests-strict = ["pytest (==4.6.0) ; python_version < \"3.10.0\" and python_versi
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.16"
-content-hash = "030613e0a7328c714526015b4766d7b6a98d7b422c00e8d3210b4279019873c8"
+content-hash = "a06e71b32f271f475928e7ac580896eee3fba6263aca55ef7fbf8989a11b781a"
