@@ -164,6 +164,10 @@ much later inside ``belt precheck`` as a 60s asyncpg pool-creation hang).
 4. dblink from src-&gt;dst and dst-&gt;src (validates that the database servers
 themselves can reach each other -- the same network path pglogical uses).
 
+Each side is probed independently. If one side rejects the connection
+(for example, no pg_hba.conf entry), the other side&#x27;s checks still run,
+and the error text is reported per check, along with each side&#x27;s host.
+
 The dblink extension is created if not present and left in place. It is
 removed by belt teardown --full.
 
@@ -679,11 +683,17 @@ Dump tables without primary keys from the source and pipe them directly
 into the destination database. No intermediate files are used -- data is
 streamed via pg_dump | psql.
 
-A table will only be loaded into the destination if it currently contains
-no rows.
+Tables that belong to an extension, in any schema (for example PostGIS&#x27;s
+spatial_ref_sys or Aurora&#x27;s apg_plan_mgmt.plans), are copied too. Only the
+rows that match the extension&#x27;s config filter are copied, so rows the
+extension inserts itself are left alone. After apg_plan_mgmt.plans is
+loaded, apg_plan_mgmt.reload() runs on the destination.
 
-You may also provide specific PK-less tables to sync with the --table option.
-Need to run like --table table1 --table table2 ...
+A table will only be loaded into the destination if it currently contains
+no rows (for extension tables, no rows matching the filter).
+
+You may also provide specific PK-less or extension tables to sync with the
+--table option. Need to run like --table table1 --table table2 ...
 
 
 Requires both src and dst to be not null in the config file.
