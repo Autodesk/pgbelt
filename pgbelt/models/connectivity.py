@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 
 from pydantic import BaseModel
 from pydantic import computed_field
@@ -19,6 +20,13 @@ class ConnectivityCheckRow(BaseModel):
     with no message. Probing owner here at the connectivity stage keeps
     that failure visible on the per-DB grid (and 6x faster) instead of
     poisoning the next stage.
+
+    ``src_host`` / ``dst_host`` and ``errors`` say which side rejected a
+    connection and why. ``errors`` maps each failed check name (the same
+    names as ``failed_checks``) to its error text, for example
+    ``{"dst_query": "root connection failed: InvalidAuthorizationSpecificationError:
+    no pg_hba.conf entry ..."}``. A check that never ran because an earlier
+    check failed gets a ``skipped: ...`` reason.
     """
 
     db: str
@@ -30,6 +38,9 @@ class ConnectivityCheckRow(BaseModel):
     dst_query: bool
     dst_owner_query: bool
     dst_to_src_dblink: bool
+    src_host: Optional[str] = None
+    dst_host: Optional[str] = None
+    errors: dict[str, str] = {}
 
     @computed_field
     @property
