@@ -203,6 +203,43 @@ class TestBuildJsonOutputRichModels:
         assert result.overall_ok is False
         assert result.results[0].failed_checks == ["src_owner_query"]
 
+    def test_check_connectivity_side_errors(self):
+        """STOPS-8335: per-check error text and each side's host are in the
+        JSON, so consumers can tell which side rejected the connection."""
+        output = _build_json_output(
+            command_name="check-connectivity",
+            dc="dc1",
+            db="db1",
+            results=[
+                {
+                    "db": "db1",
+                    "src_tcp": True,
+                    "src_query": True,
+                    "src_owner_query": True,
+                    "src_to_dst_dblink": False,
+                    "dst_tcp": True,
+                    "dst_query": False,
+                    "dst_owner_query": False,
+                    "dst_to_src_dblink": False,
+                    "src_host": "src.example",
+                    "dst_host": "dst.example",
+                    "errors": {
+                        "dst_query": "root connection failed: "
+                        "InvalidAuthorizationSpecificationError: no pg_hba.conf entry",
+                        "dst_owner_query": "skipped: dst_query failed",
+                    },
+                }
+            ],
+            success=True,
+            duration_ms=150,
+        )
+        parsed = json.loads(output)
+        row = parsed["results"][0]
+        assert parsed["error"] is None
+        assert row["dst_host"] == "dst.example"
+        assert "no pg_hba.conf entry" in row["errors"]["dst_query"]
+        assert "dst_query" in row["failed_checks"]
+
     def test_check_connectivity_multi_db(self):
         output = _build_json_output(
             command_name="check-connectivity",

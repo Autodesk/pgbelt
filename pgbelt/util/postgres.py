@@ -5,6 +5,117 @@ from asyncpg import Pool
 from asyncpg import Record
 from asyncpg.exceptions import UndefinedObjectError
 
+# Extensions whose tables pgbelt must never copy. pglogical's tables hold the
+# node and subscription state of each database.
+EXCLUDED_EXTENSIONS = ("pglogical",)
+
+# SQL predicate that's true when the pg_class row ``{rel_oid}`` is a member of
+# an extension (pg_depend deptype 'e'). Tables created by CREATE EXTENSION
+# exist on both sides and are owned by whoever installed the extension, so
+# pgbelt handles them separately from regular tables.
+_IS_EXTENSION_MEMBER = """EXISTS (
+    SELECT 1 FROM pg_catalog.pg_depend ext_dep
+    WHERE ext_dep.classid = 'pg_catalog.pg_class'::regclass
+      AND ext_dep.objid = {rel_oid}
+      AND ext_dep.refclassid = 'pg_catalog.pg_extension'::regclass
+      AND ext_dep.deptype = 'e')"""
+
+# The same predicate for a row of information_schema.tables aliased ``tbl``.
+_EXTENSION_MEMBER_TABLE = _IS_EXTENSION_MEMBER.format(
+    rel_oid="format('%I.%I', tbl.table_schema, tbl.table_name)::regclass"
+)
+
+
+def quote_ident(name: str) -> str:
+    """Double-quote a Postgres identifier."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+async def get_extension_tables(pool: Pool, logger: Logger) -> list[dict]:
+    """
+    Return the tables that belong to an extension, for example
+    ``public.spatial_ref_sys`` (PostGIS) or ``apg_plan_mgmt.plans`` (Aurora
+    query plan management).
+
+    Each dict has ``schema``, ``name``, ``extension`` and ``condition``.
+    ``condition`` is the filter the extension registered with
+    ``pg_extension_config_dump`` (for example ``WHERE NOT (srid BETWEEN ...)``,
+    which excludes the rows the extension inserts itself). It's ``""`` when the
+    extension registered the table with no filter, and None when the table
+    isn't an extension config table.
+
+    Tables of the extensions in ``EXCLUDED_EXTENSIONS`` aren't returned.
+    """
+    logger.info("Finding extension-owned tables...")
+    rows = await pool.fetch(
+        """
+        SELECT n.nspname AS schema,
+               c.relname AS name,
+               e.extname AS extension,
+               cfg.condition
+        FROM pg_catalog.pg_depend d
+        JOIN pg_catalog.pg_class c ON c.oid = d.objid
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid
+        LEFT JOIN LATERAL (
+            SELECT coalesce(x.condition, '') AS condition
+            FROM unnest(e.extconfig, e.extcondition) AS x(config_oid, condition)
+            WHERE x.config_oid = c.oid
+        ) cfg ON true
+        WHERE d.classid = 'pg_catalog.pg_class'::regclass
+          AND d.refclassid = 'pg_catalog.pg_extension'::regclass
+          AND d.deptype = 'e'
+          AND c.relkind IN ('r', 'p')
+          AND e.extname <> ALL($1::text[])
+        ORDER BY 1, 2;
+        """,
+        list(EXCLUDED_EXTENSIONS),
+    )
+    tables = [dict(r) for r in rows]
+    logger.debug(f"Extension-owned tables: {tables}")
+    return tables
+
+
+async def get_table_columns(pool: Pool, schema: str, table: str) -> list[str]:
+    """Return the names of a table's insertable columns, in column order.
+    Dropped and generated columns are skipped."""
+    rows = await pool.fetch(
+        """
+        SELECT a.attname
+        FROM pg_catalog.pg_attribute a
+        JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2
+          AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
+        ORDER BY a.attnum;
+        """,
+        schema,
+        table,
+    )
+    return [r["attname"] for r in rows]
+
+
+async def get_qpm_plan_counts(pool: Pool, logger: Logger) -> dict[str, int] | None:
+    """
+    If Aurora query plan management (the apg_plan_mgmt extension) is installed,
+    return the number of managed plans per status, for example
+    ``{"Approved": 12, "Rejected": 2}``. Return None if it isn't installed or
+    the plans can't be read.
+    """
+    installed = await pool.fetchval(
+        "SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'apg_plan_mgmt';"
+    )
+    if not installed:
+        return None
+    try:
+        rows = await pool.fetch(
+            "SELECT status, count(*) AS n FROM apg_plan_mgmt.dba_plans GROUP BY 1;"
+        )
+    except Exception as e:
+        logger.warning(f"Could not read apg_plan_mgmt.dba_plans: {e}")
+        return None
+    return {str(r["status"]): int(r["n"]) for r in rows}
+
 
 async def dump_sequences(
     pool: Pool, targeted_sequences: list[str], schema: str, logger: Logger
@@ -617,12 +728,17 @@ async def compare_tables_without_pkeys(
     logger.info("Tables without primary keys validation complete!")
 
 
-async def table_empty(pool: Pool, table: str, schema: str, logger: Logger) -> bool:
+async def table_empty(
+    pool: Pool, table: str, schema: str, logger: Logger, condition: str = ""
+) -> bool:
     """
     return true if the table is empty
+
+    ``condition`` is an optional ``WHERE ...`` clause, for example an extension
+    config table's filter, so only the matching rows are considered.
     """
     logger.info(f"Checking if table {table} is empty...")
-    result = await pool.fetch(f'SELECT * FROM {schema}."{table}" LIMIT 1;')
+    result = await pool.fetch(f'SELECT 1 FROM {schema}."{table}" {condition} LIMIT 1;')
     return len(result) == 0
 
 
@@ -635,6 +751,11 @@ async def analyze_table_pkeys(
     without pkeys in that schema. The third list is the raw rows of the
     primary key query with the table name, constraint name, position and
     column name for the primary key.
+
+    Tables that belong to an extension (for example PostGIS's spatial_ref_sys)
+    are left out. The extension creates them on both sides, so they're never
+    replicated, truncated or validated like regular tables. See
+    ``get_extension_tables``.
     """
     logger.info("Checking table primary keys...")
     pkeys_raw = await pool.fetch(
@@ -653,6 +774,7 @@ async def analyze_table_pkeys(
         WHERE tco.constraint_type = 'PRIMARY KEY'
             AND kcu.table_schema = '{schema}'
             AND tbl.table_type = 'BASE TABLE'
+            AND NOT {_EXTENSION_MEMBER_TABLE}
         ORDER BY kcu.table_name,
                 position;
         """
@@ -670,10 +792,11 @@ async def analyze_table_pkeys(
     all_tables = await pool.fetch(
         f"""SELECT table_name
         FROM
-            information_schema.tables
+            information_schema.tables tbl
         WHERE
             table_schema = '{schema}'
             AND table_type = 'BASE TABLE'
+            AND NOT {_EXTENSION_MEMBER_TABLE}
         ORDER BY 1;"""
     )
     no_pkeys = [r[0] for r in all_tables if r[0] not in pkeys]
@@ -778,7 +901,19 @@ async def precheck_info(
         SELECT n.nspname as "Schema",
           c.relname as "Name",
           CASE c.relkind WHEN 'r' THEN 'table' WHEN 'v' THEN 'view' WHEN 'm' THEN 'materialized view' WHEN 'i' THEN 'index' WHEN 'S' THEN 'sequence' WHEN 's' THEN 'special' WHEN 't' THEN 'TOAST table' WHEN 'f' THEN 'foreign table' WHEN 'p' THEN 'partitioned table' WHEN 'I' THEN 'partitioned index' END as "Type",
-          pg_catalog.pg_get_userbyid(c.relowner) as "Owner"
+          pg_catalog.pg_get_userbyid(c.relowner) as "Owner",
+          (SELECT e.extname
+           FROM pg_catalog.pg_depend d
+           JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid
+           WHERE d.classid = 'pg_catalog.pg_class'::regclass
+             AND d.objid = c.oid
+             AND d.refclassid = 'pg_catalog.pg_extension'::regclass
+             AND d.deptype = 'e'
+           LIMIT 1) as "Extension",
+          EXISTS (SELECT 1 FROM pg_catalog.pg_constraint con
+                  WHERE con.conrelid = c.oid AND con.contype = 'p') as "HasPrimaryKey",
+          has_table_privilege(c.oid, 'SELECT') as "RootCanSelect",
+          has_table_privilege(c.oid, 'INSERT') as "RootCanInsert"
         FROM pg_catalog.pg_class c
              LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind IN ('r','p','')
@@ -858,6 +993,8 @@ async def precheck_info(
         ORDER BY extname;
         """
     )
+
+    result["qpm_plan_counts"] = await get_qpm_plan_counts(pool, logger)
 
     return result
 

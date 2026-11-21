@@ -6,6 +6,7 @@ from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.logs import get_logger
 from pgbelt.util.postgres import analyze_table_pkeys
+from pgbelt.util.postgres import EXCLUDED_EXTENSIONS
 from pgbelt.util.postgres import precheck_info
 from tabulate import tabulate
 from typer import echo
@@ -286,23 +287,53 @@ def _tables_table(
     ]
 
     for t in tables:
-        can_replicate = t["Schema"] == schema_name and t["Owner"] == owner_name
-        replication = (
-            ("pglogical" if t["Name"] in pkeys else "dump and load")
-            if can_replicate
-            else "unavailable"
-        )
+        extension = t.get("Extension")
+        if extension in EXCLUDED_EXTENSIONS:
+            extension = None
+        if extension:
+            # Extension tables are created by the extension on both sides and
+            # copied by sync-tables, whatever their schema and owner.
+            can_replicate = t.get("RootCanSelect") is not False
+            replication = (
+                f"dump and load ({extension} extension)"
+                if can_replicate
+                else "unavailable (root cannot read)"
+            )
+            schema_ok = owner_ok = True
+        else:
+            schema_ok = t["Schema"] == schema_name
+            owner_ok = t["Owner"] == owner_name
+            can_replicate = schema_ok and owner_ok
+            replication = (
+                ("pglogical" if t["Name"] in pkeys else "dump and load")
+                if can_replicate
+                else "unavailable"
+            )
         tables_table.append(
             [
                 style(t["Name"], "green"),
                 style(can_replicate, "green" if can_replicate else "red"),
                 style(replication, "green" if can_replicate else "red"),
-                style(t["Schema"], "green" if t["Schema"] == schema_name else "red"),
-                style(t["Owner"], "green" if t["Owner"] == owner_name else "red"),
+                style(t["Schema"], "green" if schema_ok else "red"),
+                style(t["Owner"], "green" if owner_ok else "red"),
             ]
         )
 
     return tables_table
+
+
+def _qpm_line(side: dict) -> str:
+    """One line summarizing Aurora query plan management plans, if any."""
+    counts = side.get("qpm_plan_counts")
+    if counts is None:
+        return ""
+    text = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "no plans"
+    return (
+        style("\nQuery Plan Management (apg_plan_mgmt.dba_plans)", "yellow")
+        + "\n"
+        + text
+        + "\n"
+    )
 
 
 def _sequences_table(
@@ -545,6 +576,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
             src_sequences_table,
             headers="firstrow" if len(src_sequences_table) > 1 else "",
         )
+        + "\n"
+        + _qpm_line(r["src"])
     )
 
     echo(source_display_string)
@@ -571,6 +604,8 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         + style("\nRequired Users Summary", "yellow")
         + "\n"
         + tabulate(dst_users_table, headers="firstrow")
+        + "\n"
+        + _qpm_line(r["dst"])
     )
 
     echo(destination_display_string)
