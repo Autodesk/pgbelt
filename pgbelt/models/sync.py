@@ -68,10 +68,16 @@ class SyncSequencesResult(CommandResult):
 
 
 class TableSyncDetail(BaseModel):
-    """Result for a single table dump-and-load operation."""
+    """Result for a single table dump-and-load operation.
+
+    ``schema_name`` and ``extension`` are set for extension-owned tables,
+    which keep their own schema (for example ``apg_plan_mgmt.plans``).
+    """
 
     name: str
     loaded: bool
+    schema_name: Optional[str] = None
+    extension: Optional[str] = None
     skipped_reason: Optional[str] = None
     row_count: Optional[int] = None
     duration_ms: Optional[int] = None
