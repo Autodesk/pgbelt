@@ -37,7 +37,8 @@ RUN echo "max_worker_processes = 20" >> /usr/share/postgresql/postgresql.conf.sa
 # apg_plan_mgmt (apg_plan_mgmt.plans). Used to test that pgbelt copies
 # extension-owned tables instead of replicating them.
 #   - pgbelt_ext_config: a config table in the extension's schema, with stock
-#     rows that its pg_extension_config_dump filter excludes.
+#     rows that its pg_extension_config_dump filter excludes. Like PostGIS,
+#     the extension grants SELECT on it to PUBLIC.
 #   - pgbelt_ext_data.plans: a table that isn't a config table, in a schema
 #     the extension creates.
 RUN printf "%s\n" \
@@ -50,6 +51,7 @@ RUN printf "%s\n" \
   "CREATE TABLE @extschema@.pgbelt_ext_config (id int PRIMARY KEY, val text NOT NULL);" \
   "INSERT INTO @extschema@.pgbelt_ext_config VALUES (1, 'stock'), (2, 'stock');" \
   "SELECT pg_catalog.pg_extension_config_dump('@extschema@.pgbelt_ext_config', 'WHERE id > 100');" \
+  "GRANT SELECT ON @extschema@.pgbelt_ext_config TO PUBLIC;" \
   "CREATE SCHEMA pgbelt_ext_data;" \
   "CREATE TABLE pgbelt_ext_data.plans (plan_id int PRIMARY KEY, status text NOT NULL);" \
   > /usr/share/postgresql/17/extension/pgbelt_test_ext--1.0.sql
