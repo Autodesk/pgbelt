@@ -1,16 +1,19 @@
-import socket
 from asyncio import gather
 from asyncio import open_connection
 from asyncio import run
 from asyncio import TimeoutError
 from asyncio import wait_for
 from collections.abc import Awaitable
+from dataclasses import dataclass
+from dataclasses import field
 from logging import Logger
 
 import asyncpg
 from asyncpg import create_pool
+from asyncpg import Pool
 from pgbelt.cmd.helpers import run_with_configs
 from pgbelt.config.config import get_config
+from pgbelt.config.models import DbConfig
 from pgbelt.config.models import DbupgradeConfig
 from pgbelt.util.dblink import check_connectivity_via_dblink
 from pgbelt.util.dblink import ensure_dblink
@@ -96,91 +99,97 @@ def check_pkeys(db: str, dc: str) -> None:
     )
 
 
+_CHECK_COLUMNS = [
+    ("src_tcp", "src tcp ok"),
+    ("src_query", "src query ok"),
+    ("src_owner_query", "src owner ok"),
+    ("src_to_dst_dblink", "src->dst dblink ok"),
+    ("dst_tcp", "dst tcp ok"),
+    ("dst_query", "dst query ok"),
+    ("dst_owner_query", "dst owner ok"),
+    ("dst_to_src_dblink", "dst->src dblink ok"),
+]
+
+
 async def _print_connectivity_results(results: list[dict]):
     """
     For a list of databases in a datacenter, show a table of established connections.
+
+    Each failed check is listed under the table with its error text, so you can
+    tell which side rejected the connection.
 
     Also exit(1) if ANY connections failed.
     """
 
     table = [
-        [
-            style("database", "yellow"),
-            style("src tcp ok", "yellow"),
-            style("src query ok", "yellow"),
-            style("src owner ok", "yellow"),
-            style("src->dst dblink ok", "yellow"),
-            style("dst tcp ok", "yellow"),
-            style("dst query ok", "yellow"),
-            style("dst owner ok", "yellow"),
-            style("dst->src dblink ok", "yellow"),
-        ]
+        [style("database", "yellow")]
+        + [style(label, "yellow") for _, label in _CHECK_COLUMNS]
     ]
 
     results.sort(key=lambda d: d["db"])
 
     failed_connection_exists = False
+    error_lines = []
     for r in results:
         table.append(
-            [
-                style(r["db"], "green"),
-                style(r["src_tcp"], "green" if r["src_tcp"] else "red"),
-                style(r["src_query"], "green" if r["src_query"] else "red"),
-                style(
-                    r["src_owner_query"],
-                    "green" if r["src_owner_query"] else "red",
-                ),
-                style(
-                    r["src_to_dst_dblink"],
-                    "green" if r["src_to_dst_dblink"] else "red",
-                ),
-                style(r["dst_tcp"], "green" if r["dst_tcp"] else "red"),
-                style(r["dst_query"], "green" if r["dst_query"] else "red"),
-                style(
-                    r["dst_owner_query"],
-                    "green" if r["dst_owner_query"] else "red",
-                ),
-                style(
-                    r["dst_to_src_dblink"],
-                    "green" if r["dst_to_src_dblink"] else "red",
-                ),
+            [style(r["db"], "green")]
+            + [
+                style(r[check], "green" if r[check] else "red")
+                for check, _ in _CHECK_COLUMNS
             ]
         )
-        if not failed_connection_exists and not all(
-            [
-                r["src_tcp"],
-                r["src_query"],
-                r["src_owner_query"],
-                r["src_to_dst_dblink"],
-                r["dst_tcp"],
-                r["dst_query"],
-                r["dst_owner_query"],
-                r["dst_to_src_dblink"],
-            ]
-        ):
+        failed = [check for check, _ in _CHECK_COLUMNS if not r[check]]
+        if failed:
             failed_connection_exists = True
+        errors = r.get("errors") or {}
+        for check in failed:
+            side = check.split("_", 1)[0]
+            host = r.get(f"{side}_host")
+            where = f" ({side} host {host})" if host else ""
+            detail = errors.get(check, "failed")
+            error_lines.append(f"{r['db']}: {check}{where}: {detail}")
 
-    echo(tabulate(table, headers="firstrow"))
+    output = tabulate(table, headers="firstrow")
+    if error_lines:
+        output += (
+            "\n\n" + style("Failed checks:", "red") + "\n" + "\n".join(error_lines)
+        )
+    echo(output)
 
     if failed_connection_exists:
         exit(1)
 
 
-async def _check_tcp(host: str, port: str, logger: Logger) -> bool:
+def _format_error(e: BaseException) -> str:
+    """Render an exception as ``Type: message`` plus the Postgres DETAIL, if
+    any. dblink puts the remote server's actual error in DETAIL."""
+    text = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+    detail = getattr(e, "detail", None)
+    if isinstance(detail, str) and detail:
+        text += f" ({detail.strip()})"
+    return text
+
+
+async def _check_tcp(host: str, port: str, logger: Logger) -> tuple[bool, str | None]:
+    """Open and close a TCP connection to ``host:port``.
+
+    Returns ``(ok, error)``. ``error`` is None on success.
+    """
     try:
         logger.info("Checking network access to port...")
         _, writer = await wait_for(open_connection(host, port), timeout=3)
         logger.debug("Can access network port.")
         writer.close()
         await writer.wait_closed()
-        return True
+        return True, None
     except TimeoutError:
-        logger.error("Cannot access network port. timed out.")
-    except socket.gaierror as e:
-        logger.error(f"Socket.gaierror {e}")
-    except ConnectionRefusedError as e:
-        logger.error(f"ConnectionRefusedError {e}")
-    return False
+        # TimeoutError is an OSError subclass, so this has to come first.
+        error = f"timed out connecting to {host}:{port} after 3s"
+    except OSError as e:
+        # Covers socket.gaierror, ConnectionRefusedError and unreachable hosts.
+        error = f"{_format_error(e)} connecting to {host}:{port}"
+    logger.error(f"Cannot access network port: {error}")
+    return False, error
 
 
 async def _check_owner_query(
@@ -188,16 +197,17 @@ async def _check_owner_query(
     label: str,
     logger: Logger,
     timeout: float = _OWNER_PROBE_TIMEOUT_SECONDS,
-) -> bool:
+) -> tuple[bool, str | None]:
     """Validate owner credentials by opening one asyncpg connection
     against ``owner_uri`` and running ``SELECT 1`` -- with a short
     timeout so a silent server-side reset on a bad/stale owner password
     fails fast instead of consuming asyncpg's 60s default.
 
-    Returns True on success. Logs the underlying error and returns False
-    on any failure -- the caller surfaces this in the JSON output as
-    ``{src,dst}_owner_query: false`` (and on the per-DB ``failed_checks``
-    list), giving operators a concrete pointer to a credential issue.
+    Returns ``(True, None)`` on success. On any failure it logs the
+    underlying error and returns ``(False, error_text)`` -- the caller
+    surfaces this in the JSON output as ``{src,dst}_owner_query: false``
+    (and on the per-DB ``failed_checks`` list and ``errors`` map), giving
+    operators a concrete pointer to a credential issue.
     """
     logger.info("Checking %s SELECT 1 (timeout=%gs)...", label, timeout)
     conn = None
@@ -205,21 +215,22 @@ async def _check_owner_query(
         conn = await asyncpg.connect(owner_uri, timeout=timeout)
         await wait_for(conn.fetchval("SELECT 1"), timeout=timeout)
         logger.debug("%s SELECT 1 succeeded.", label)
-        return True
+        return True, None
     except TimeoutError:
         # Distinct from the generic Exception branch because a timeout
         # is the smoking gun for a wrong owner password against RDS:
         # the server stays silent and asyncpg keeps retrying until the
         # configured connect_timeout elapses.
-        logger.error(
-            "%s SELECT 1 timed out after %gs (owner password likely wrong/stale)",
-            label,
-            timeout,
+        error = (
+            f"owner SELECT 1 timed out after {timeout:g}s "
+            "(owner password likely wrong/stale)"
         )
-        return False
+        logger.error("%s %s", label, error)
+        return False, error
     except Exception as e:
-        logger.error("%s SELECT 1 failed: %s: %s", label, type(e).__name__, e)
-        return False
+        error = f"owner SELECT 1 failed: {_format_error(e)}"
+        logger.error("%s %s", label, error)
+        return False, error
     finally:
         if conn is not None:
             try:
@@ -235,6 +246,97 @@ async def _check_owner_query(
                     label,
                     close_exc,
                 )
+
+
+@dataclass
+class _SideProbe:
+    """Results of the probes that only touch one side (src or dst)."""
+
+    side: str
+    tcp: bool = False
+    query: bool = False
+    owner_query: bool = False
+    pool: Pool | None = None
+    errors: dict[str, str] = field(default_factory=dict)
+
+
+async def _probe_side(side: str, db_conf: DbConfig, logger: Logger) -> _SideProbe:
+    """Run the TCP, root and owner probes for one side.
+
+    Every failure is caught and recorded in ``errors`` under the failed check's
+    name, so a failure on one side never stops the other side's probes.
+    On success the root pool is left open on ``pool`` for the dblink checks;
+    the caller closes it.
+    """
+    probe = _SideProbe(side=side)
+
+    probe.tcp, tcp_error = await _check_tcp(db_conf.ip, db_conf.port, logger)
+    if not probe.tcp:
+        probe.errors[f"{side}_tcp"] = tcp_error or "tcp check failed"
+        return probe
+
+    try:
+        probe.pool = await create_pool(db_conf.root_uri, min_size=1)
+    except Exception as e:
+        error = f"root connection failed: {_format_error(e)}"
+        logger.error(error)
+        probe.errors[f"{side}_query"] = error
+        return probe
+
+    # SELECT 1 to validate credentials from pgbelt's perspective
+    try:
+        await probe.pool.fetchval("SELECT 1")
+        probe.query = True
+        logger.debug("SELECT 1 succeeded.")
+    except Exception as e:
+        error = f"root SELECT 1 failed: {_format_error(e)}"
+        logger.error(error)
+        probe.errors[f"{side}_query"] = error
+        return probe
+
+    # Owner-credential probe -- gated on the matching root SELECT 1
+    # because owner sits behind the same network path; if root can't
+    # query, owner won't either, and we'd rather surface the underlying
+    # network/RDS problem on the ``*_query`` cell than double-flag it.
+    probe.owner_query, owner_error = await _check_owner_query(
+        db_conf.owner_uri, f"{side} owner", logger
+    )
+    if not probe.owner_query:
+        probe.errors[f"{side}_owner_query"] = owner_error or "owner check failed"
+
+    return probe
+
+
+async def _check_dblink(
+    pool: Pool, remote_dsn: str, logger: Logger
+) -> tuple[bool, str | None]:
+    """Create dblink if needed, then connect from this server to the remote one."""
+    try:
+        await ensure_dblink(pool, logger)
+    except Exception as e:
+        error = f"could not create the dblink extension: {_format_error(e)}"
+        logger.error(error)
+        return False, error
+    return await check_connectivity_via_dblink(pool, remote_dsn, logger)
+
+
+def _fill_skipped(checks: dict[str, bool], errors: dict[str, str]) -> None:
+    """Give every failed check without its own error a "skipped" reason, so
+    operators can tell a real failure from a probe that never ran."""
+    prerequisites = {
+        "src_query": ["src_tcp"],
+        "src_owner_query": ["src_query"],
+        "dst_query": ["dst_tcp"],
+        "dst_owner_query": ["dst_query"],
+        "src_to_dst_dblink": ["src_query", "dst_query"],
+        "dst_to_src_dblink": ["dst_query", "src_query"],
+    }
+    for check, required in prerequisites.items():
+        if checks[check] or check in errors:
+            continue
+        failed = [r for r in required if not checks[r]]
+        if failed:
+            errors[check] = f"skipped: {' and '.join(failed)} failed"
 
 
 @run_with_configs(results_callback=_print_connectivity_results)
@@ -253,6 +355,10 @@ async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     4. dblink from src->dst and dst->src (validates that the database servers
     themselves can reach each other -- the same network path pglogical uses).
 
+    Each side is probed independently. If one side rejects the connection
+    (for example, no pg_hba.conf entry), the other side's checks still run,
+    and the error text is reported per check, along with each side's host.
+
     The dblink extension is created if not present and left in place. It is
     removed by belt teardown --full.
 
@@ -265,103 +371,49 @@ async def check_connectivity(config_future: Awaitable[DbupgradeConfig]) -> None:
     src_logger = get_logger(conf.db, conf.dc, "connect.src")
     dst_logger = get_logger(conf.db, conf.dc, "connect.dst")
 
-    src_tcp = await _check_tcp(conf.src.ip, conf.src.port, src_logger)
-    dst_tcp = await _check_tcp(conf.dst.ip, conf.dst.port, dst_logger)
+    src, dst = await gather(
+        _probe_side("src", conf.src, src_logger),
+        _probe_side("dst", conf.dst, dst_logger),
+    )
 
-    src_query = False
-    dst_query = False
-    src_owner_query = False
-    dst_owner_query = False
+    errors: dict[str, str] = {**src.errors, **dst.errors}
     src_to_dst_dblink = False
     dst_to_src_dblink = False
 
-    if src_tcp and dst_tcp:
-        pools = await gather(
-            create_pool(conf.src.root_uri, min_size=1),
-            create_pool(conf.dst.root_uri, min_size=1),
-        )
-        src_pool, dst_pool = pools
-
-        try:
-            # SELECT 1 to validate credentials from pgbelt's perspective
-            try:
-                await src_pool.fetchval("SELECT 1")
-                src_query = True
-                src_logger.debug("SELECT 1 succeeded.")
-            except Exception as e:
-                src_logger.error(f"SELECT 1 failed: {e}")
-
-            try:
-                await dst_pool.fetchval("SELECT 1")
-                dst_query = True
-                dst_logger.debug("SELECT 1 succeeded.")
-            except Exception as e:
-                dst_logger.error(f"SELECT 1 failed: {e}")
-
-            # Owner-credential probes -- gated on the matching root
-            # SELECT 1 because owner sits behind the same network
-            # path; if root can't query, owner won't either, and we'd
-            # rather surface the underlying network/RDS problem on the
-            # ``*_query`` cell than double-flag it.
-            if src_query:
-                src_owner_query = await _check_owner_query(
-                    conf.src.owner_uri, "src owner", src_logger
-                )
-            if dst_query:
-                dst_owner_query = await _check_owner_query(
-                    conf.dst.owner_uri, "dst owner", dst_logger
-                )
-
-            # dblink cross-host checks
-            if src_query and dst_query:
-                await gather(
-                    ensure_dblink(src_pool, src_logger),
-                    ensure_dblink(dst_pool, dst_logger),
-                )
-
-                src_to_dst_dblink = await check_connectivity_via_dblink(
-                    src_pool, conf.dst.root_dsn, src_logger
-                )
-                dst_to_src_dblink = await check_connectivity_via_dblink(
-                    dst_pool, conf.src.root_dsn, dst_logger
-                )
-        finally:
-            await gather(*[p.close() for p in pools])
-    elif src_tcp:
-        async with create_pool(conf.src.root_uri, min_size=1) as src_pool:
-            try:
-                await src_pool.fetchval("SELECT 1")
-                src_query = True
-                src_logger.debug("SELECT 1 succeeded.")
-            except Exception as e:
-                src_logger.error(f"SELECT 1 failed: {e}")
-        if src_query:
-            src_owner_query = await _check_owner_query(
-                conf.src.owner_uri, "src owner", src_logger
+    try:
+        # dblink cross-host checks
+        if src.query and dst.query:
+            src_to_dst_dblink, src_to_dst_error = await _check_dblink(
+                src.pool, conf.dst.root_dsn, src_logger
             )
-    elif dst_tcp:
-        async with create_pool(conf.dst.root_uri, min_size=1) as dst_pool:
-            try:
-                await dst_pool.fetchval("SELECT 1")
-                dst_query = True
-                dst_logger.debug("SELECT 1 succeeded.")
-            except Exception as e:
-                dst_logger.error(f"SELECT 1 failed: {e}")
-        if dst_query:
-            dst_owner_query = await _check_owner_query(
-                conf.dst.owner_uri, "dst owner", dst_logger
+            if not src_to_dst_dblink:
+                errors["src_to_dst_dblink"] = src_to_dst_error or "dblink failed"
+            dst_to_src_dblink, dst_to_src_error = await _check_dblink(
+                dst.pool, conf.src.root_dsn, dst_logger
             )
+            if not dst_to_src_dblink:
+                errors["dst_to_src_dblink"] = dst_to_src_error or "dblink failed"
+    finally:
+        await gather(*[p.pool.close() for p in (src, dst) if p.pool is not None])
+
+    checks = {
+        "src_tcp": src.tcp,
+        "src_query": src.query,
+        "src_owner_query": src.owner_query,
+        "src_to_dst_dblink": src_to_dst_dblink,
+        "dst_tcp": dst.tcp,
+        "dst_query": dst.query,
+        "dst_owner_query": dst.owner_query,
+        "dst_to_src_dblink": dst_to_src_dblink,
+    }
+    _fill_skipped(checks, errors)
 
     return {
         "db": conf.db,
-        "src_tcp": src_tcp,
-        "src_query": src_query,
-        "src_owner_query": src_owner_query,
-        "src_to_dst_dblink": src_to_dst_dblink,
-        "dst_tcp": dst_tcp,
-        "dst_query": dst_query,
-        "dst_owner_query": dst_owner_query,
-        "dst_to_src_dblink": dst_to_src_dblink,
+        **checks,
+        "src_host": conf.src.host,
+        "dst_host": conf.dst.host,
+        "errors": errors,
     }
 
 

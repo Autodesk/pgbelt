@@ -205,6 +205,7 @@ Therefore the next command will do the following:
 
 - Sync sequence values
 - Dump and load tables without Primary Keys
+- Copy the rows of tables that belong to an extension, in any schema (for example PostGIS's `spatial_ref_sys` or Aurora's `apg_plan_mgmt.plans`). The extension creates these tables on both sides, so they aren't replicated. Only the rows that match the extension's config filter are copied, so rows the extension inserts itself are left alone. A table is skipped if the destination already has such rows. After `apg_plan_mgmt.plans` is loaded, `apg_plan_mgmt.reload()` runs on the destination.
 - Add NOT VALID constraints to the target schema (they were removed in Step 1 in the target database)
 - Create Indexes (as long as this was run in Step 2, this will be glossed over. If step 2 was missed, indexes will build now amd this will take longer than expected).
 - Validate data (take 100 random rows and 100 last rows of each table, and compare data)

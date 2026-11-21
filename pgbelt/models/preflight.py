@@ -36,13 +36,23 @@ class RelationInfo(BaseModel):
 
 
 class TableReplicationInfo(BaseModel):
-    """Table with replication-method classification (source side only)."""
+    """Table with replication-method classification (source side only).
+
+    Tables that belong to an extension (``extension`` is set, for example
+    ``postgis`` for ``spatial_ref_sys``) are always ``dump_and_load``,
+    whatever their schema or owner: the extension creates them on both sides
+    and ``sync-tables`` copies their rows. They're ``unavailable`` only when
+    the root user can't read them on the source or write them on the
+    destination, or they're missing from the destination; ``note`` says why.
+    """
 
     name: str
     schema_name: str
     owner: str
     has_primary_key: bool
     replication_method: str  # "pglogical" | "dump_and_load" | "unavailable"
+    extension: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ExtensionInfo(BaseModel):
@@ -68,6 +78,9 @@ class PrecheckSide(BaseModel):
     tables: list[TableReplicationInfo] = []
     sequences: list[RelationInfo] = []
     extensions: list[ExtensionInfo] = []
+    # Managed plan count per status from apg_plan_mgmt.dba_plans, when Aurora
+    # query plan management is installed. None otherwise.
+    qpm_plan_counts: Optional[dict[str, int]] = None
 
     @computed_field
     @property

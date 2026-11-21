@@ -160,6 +160,37 @@ async def _prepare_databases(configs: dict[str, DbupgradeConfig]) -> None:
             src_owner_user_logical_db_pool.execute(test_schema_data),
         )
 
+        await _install_test_extension(config)
+
+
+# Rows that pgbelt must copy from the source's extension-owned tables. The
+# extension inserts ids 1 and 2 itself on both sides; only ids > 100 match the
+# config table's filter.
+EXT_CONFIG_CUSTOM_ROWS = [(101, "custom"), (102, "it's custom")]
+EXT_PLANS_ROWS = [(1, "Approved"), (2, "Rejected")]
+
+
+async def _install_test_extension(config: DbupgradeConfig) -> None:
+    """
+    Install pgbelt_test_ext (see the integration Postgres Dockerfiles) on both
+    sides as the superuser, so its tables aren't owned by the migration's
+    owner, and add custom rows on the source.
+    """
+    for uri in (config.src.root_uri, config.dst.root_uri):
+        async with create_pool(uri, min_size=1) as pool:
+            await pool.execute(
+                f"CREATE EXTENSION pgbelt_test_ext SCHEMA {config.schema_name};"
+            )
+
+    async with create_pool(config.src.root_uri, min_size=1) as pool:
+        await pool.executemany(
+            f"INSERT INTO {config.schema_name}.pgbelt_ext_config VALUES ($1, $2);",
+            EXT_CONFIG_CUSTOM_ROWS,
+        )
+        await pool.executemany(
+            "INSERT INTO pgbelt_ext_data.plans VALUES ($1, $2);", EXT_PLANS_ROWS
+        )
+
 
 def _root_uris(config: DbupgradeConfig) -> tuple[str, str]:
     """

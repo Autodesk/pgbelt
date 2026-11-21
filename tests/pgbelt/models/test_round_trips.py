@@ -305,6 +305,24 @@ class TestConnectivityCheckResult:
             "dst_to_src_dblink",
         }
 
+    def test_side_errors_round_trip(self):
+        row = self._make_row(all_pass=False)
+        row.src_host = "src.example"
+        row.dst_host = "dst.example"
+        row.errors = {"dst_query": "root connection failed: no pg_hba.conf entry"}
+        result = ConnectivityCheckResult(success=False, results=[row], **BASE_KWARGS)
+        restored = _round_trip(ConnectivityCheckResult, result)
+        assert restored.results[0].dst_host == "dst.example"
+        assert restored.results[0].errors == row.errors
+
+    def test_rows_without_side_fields_still_parse(self):
+        """Output from older pgbelt versions has no host/errors fields."""
+        row = ConnectivityCheckRow.model_validate(
+            self._make_row().model_dump(exclude={"src_host", "dst_host", "errors"})
+        )
+        assert row.errors == {}
+        assert row.src_host is None
+
 
 # ---------------------------------------------------------------------------
 # Precheck
