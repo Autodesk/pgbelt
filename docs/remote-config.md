@@ -60,7 +60,7 @@ when different resolver types are used.
   },
   "tables": [],
   "sequences": [],
-  "schema_name": "public"
+  "schema_names": ["public"]
 }
 ```
 
@@ -77,7 +77,7 @@ framework, not by individual resolvers:
 |-------|------|---------|-------------|
 | `tables` | `list[str]` | `null` | Subset of tables to migrate |
 | `sequences` | `list[str]` | `null` | Subset of sequences to sync |
-| `schema_name` | `str` | `"public"` | Schema to operate on |
+| `schema_names` | `list[str]` | `["public"]` | Schemas to migrate. Several schemas migrate in parallel, one migration per schema. `tables` and `sequences` need a single schema |
 | `exclude_users` | `list[str]` | `null` | Users to exclude from login revocation |
 | `exclude_patterns` | `list[str]` | `null` | LIKE patterns to exclude from login revocation |
 

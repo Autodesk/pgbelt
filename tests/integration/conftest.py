@@ -14,7 +14,8 @@ async def _create_dbupgradeconfigs() -> dict[str, DbupgradeConfig]:
     Function for creating DbupgradeConfig objects for testing.
     We also save it to disk since the pgbelt commands will look for it there.
 
-    This will create 4 sets of DBs: public vs non-public schema, and exodus-style vs full migration.
+    This will create 5 sets of DBs: public vs non-public schema, and exodus-style vs full migration,
+    plus a full migration of three schemas in parallel from one schema_names config.
     """
 
     # Set the common kwargs at the DBUpgradeConfig level
@@ -45,21 +46,28 @@ async def _create_dbupgradeconfigs() -> dict[str, DbupgradeConfig]:
         "nonpublic-full",
         "public-exodus",
         "nonpublic-exodus",
+        "multischema-full",
     ]
 
     configs = {}
     for s in sets:
         db_upgrade_config_kwargs["db"] = f"testdb-{s}"
-        db_upgrade_config_kwargs["schema_name"] = (
-            "non_public_schema" if "nonpublic" in s else "public"
-        )
         db_upgrade_config_kwargs["tables"] = (
             ["UsersCapital", "existingSomethingIds"] if "exodus" in s else None
         )
         db_upgrade_config_kwargs["sequences"] = (
             ["userS_id_seq"] if "exodus" in s else None
         )
-        config = DbupgradeConfig(**db_upgrade_config_kwargs)
+        if "multischema" in s:
+            config = DbupgradeConfig(
+                **db_upgrade_config_kwargs,
+                schema_names=["public", "non_public_schema", "third_schema"],
+            )
+        else:
+            config = DbupgradeConfig(
+                **db_upgrade_config_kwargs,
+                schema_names=["non_public_schema" if "nonpublic" in s else "public"],
+            )
 
         # The IP addresses are set in the docker-compose file, so we can pull them out of the environment. They follow the following pattern:
         # (NON)PUBLIC_<FULL/EXODUS>_<SRC/DST>_IP
@@ -128,37 +136,40 @@ async def _prepare_databases(configs: dict[str, DbupgradeConfig]) -> None:
             )
         )
 
-        # Create the non-public schema if the schema_name is not "public"
-        if config.schema_name != "public":
+        for schema_config in config.expand_schemas():
+            schema_name = schema_config.schema_name
+
+            # Create the non-public schema if the schema_name is not "public"
+            if schema_name != "public":
+                await asyncio.gather(
+                    src_owner_user_logical_db_pool.execute(
+                        f"CREATE SCHEMA {schema_name}"
+                    ),
+                    dst_owner_user_logical_db_pool.execute(
+                        f"CREATE SCHEMA {schema_name}"
+                    ),
+                )
+                await asyncio.gather(
+                    src_owner_user_logical_db_pool.execute(
+                        f"GRANT CREATE ON SCHEMA {schema_name} TO {config.src.owner_user.name}"
+                    ),
+                    dst_owner_user_logical_db_pool.execute(
+                        f"GRANT CREATE ON SCHEMA {schema_name} TO {config.dst.owner_user.name}"
+                    ),
+                )
+
+            # With the db made, load data into src
+            test_schema_data = base_test_schema_data
+
+            # If we're testing with a non-public schema, we need to replace the schema name in our schema template.
+            if schema_name != "public":
+                test_schema_data = test_schema_data.replace(
+                    "public.", f"{schema_name}."
+                )
+
             await asyncio.gather(
-                src_owner_user_logical_db_pool.execute(
-                    f"CREATE SCHEMA {config.schema_name}"
-                ),
-                dst_owner_user_logical_db_pool.execute(
-                    f"CREATE SCHEMA {config.schema_name}"
-                ),
+                src_owner_user_logical_db_pool.execute(test_schema_data),
             )
-            await asyncio.gather(
-                src_owner_user_logical_db_pool.execute(
-                    f"GRANT CREATE ON SCHEMA {config.schema_name} TO {config.src.owner_user.name}"
-                ),
-                dst_owner_user_logical_db_pool.execute(
-                    f"GRANT CREATE ON SCHEMA {config.schema_name} TO {config.dst.owner_user.name}"
-                ),
-            )
-
-        # With the db made, load data into src
-        test_schema_data = base_test_schema_data
-
-        # If we're testing with a non-public schema, we need to replace the schema name in our schema template.
-        if config.schema_name != "public":
-            test_schema_data = test_schema_data.replace(
-                "public.", f"{config.schema_name}."
-            )
-
-        await asyncio.gather(
-            src_owner_user_logical_db_pool.execute(test_schema_data),
-        )
 
         await _install_test_extension(config)
 
@@ -176,6 +187,8 @@ async def _install_test_extension(config: DbupgradeConfig) -> None:
     sides as the superuser, so its tables aren't owned by the migration's
     owner, and add custom rows on the source.
     """
+    # The extension lives in the first schema, which is the migration that copies it.
+    config = config.expand_schemas()[0]
     for uri in (config.src.root_uri, config.dst.root_uri):
         async with create_pool(uri, min_size=1) as pool:
             await pool.execute(

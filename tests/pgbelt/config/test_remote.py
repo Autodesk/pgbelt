@@ -18,6 +18,7 @@ from pgbelt.config.remote import (
     RemoteConfigError,
     resolve_remote_config,
 )
+from pydantic import ValidationError
 
 
 FAKE_DBCONFIG_SRC = DbConfig(
@@ -109,11 +110,11 @@ class TestRemoteConfigDefinition:
         d = RemoteConfigDefinition(
             src_resolver_path="a.B",
             tables=["t1"],
-            schema_name="myschema",
+            schema_names=["myschema"],
             exclude_users=["u1"],
         )
         assert d.tables == ["t1"]
-        assert d.schema_name == "myschema"
+        assert d.schema_names == ["myschema"]
         assert d.exclude_users == ["u1"]
 
 
@@ -131,7 +132,7 @@ class TestResolvePerSide:
             "dst_resolver_path": f"{__name__}.FakeDstResolver",
             "dst_resolver_config": {"secret_arn": "arn:dst"},
             "tables": ["users"],
-            "schema_name": "public",
+            "schema_names": ["public"],
         })
 
         config = asyncio.run(resolve_remote_config("mydb", "mydc"))
@@ -233,7 +234,7 @@ class TestResolvePerSide:
             "dst_resolver_config": {"secret_arn": "arn:x"},
             "tables": ["t1", "t2"],
             "sequences": ["s1"],
-            "schema_name": "myschema",
+            "schema_names": ["myschema"],
             "exclude_users": ["dd"],
             "exclude_patterns": ["%rep%"],
         })
@@ -244,6 +245,24 @@ class TestResolvePerSide:
         assert config.schema_name == "myschema"
         assert config.exclude_users == ["dd"]
         assert config.exclude_patterns == ["%rep%"]
+
+    def test_schema_names_pass_through(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        self._write_config(tmp_path, "mydb", "mydc", {
+            "src_resolver_path": f"{__name__}.FakeSrcResolver",
+            "src_resolver_config": {"app": "a", "pgrs_path": "/p"},
+            "dst_resolver_path": f"{__name__}.FakeDstResolver",
+            "dst_resolver_config": {"secret_arn": "arn:x"},
+            "schema_names": ["app", "audit"],
+        })
+
+        config = asyncio.run(resolve_remote_config("mydb", "mydc"))
+        assert config.schema_names == ["app", "audit"]
+        assert [m.schema_name for m in config.expand_schemas()] == ["app", "audit"]
+
+    def test_schema_name_is_rejected(self):
+        with pytest.raises(ValidationError, match="replaced by schema_names"):
+            RemoteConfigDefinition(src_resolver_path="a.B", schema_name="myschema")
 
 
 class TestLegacyBackwardCompat:

@@ -538,7 +538,7 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         src_tables_table = [
             [
                 style(
-                    "ALERT: Not able to find tables to replicate, check your config's 'schema_name'",
+                    "ALERT: Not able to find tables to replicate, check your config's 'schema_names'",
                     "red",
                 )
             ]
@@ -548,7 +548,7 @@ async def _print_prechecks(results: list[dict]) -> list[list]:
         src_sequences_table = [
             [
                 style(
-                    "ALERT: Not able to find sequences to replicate, check your config's 'schema_name'",
+                    "ALERT: Not able to find sequences to replicate, check your config's 'schema_names'",
                     "red",
                 )
             ]

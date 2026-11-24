@@ -132,7 +132,7 @@ async def create_indexes(
         await run_analyze(dst_pool, logger)
 
     return {
-        "indexes_file": schema_file(conf.db, conf.dc, ONLY_INDEXES),
+        "indexes_file": schema_file(conf.schema_dump_key, conf.dc, ONLY_INDEXES),
         "indexes": index_details,
         "analyze_ran": True,
     }
