@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Autodesk/pgbelt/compare/v0.22.0...v1.0.0) (2026-11-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* the schema_name config option is replaced by schema_names in local and remote configs. Replace "schema_name": "app" with "schema_names": ["app"]. Configs that still set schema_name are rejected with an error. Configs that set neither still migrate public.
+
+### Features
+
+* migrate multiple schemas in parallel with schema_names ([#982](https://github.com/Autodesk/pgbelt/issues/982)) ([d09c351](https://github.com/Autodesk/pgbelt/commit/d09c35107479c22baa8b110cc7f20ac79a027ecf))
+
 ## [0.22.0](https://github.com/Autodesk/pgbelt/compare/v0.21.2...v0.22.0) (2026-11-21)
 
 
