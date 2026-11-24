@@ -896,6 +896,10 @@ $ belt teardown-forward-replication [OPTIONS] DC [DB]
 Removes all pglogical configuration from both databases. If any replication is
 configured this will stop it. It will also drop the pglogical user.
 
+When other pgbelt migrations still use a database, for example other schemas
+from the same schema_names config, only this migration&#x27;s replication is removed.
+The shared node, pglogical user and extensions stay until the last one is torn down.
+
 If run with --full the pglogical and dblink extensions will be dropped.
 
 WARNING: running with --full may cause the database to lock up. You should be
